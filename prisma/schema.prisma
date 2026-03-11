@@ -5,9 +5,13 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// PostgreSQL for Production (Vercel, Neon, Supabase, Prisma Data Platform, etc.)
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  // For Prisma Data Platform, both URLs are the same
+  // For Neon/Vercel, you may need a separate direct URL for migrations
+  directUrl = env("DIRECT_URL")
 }
 
 model Channel {
@@ -35,32 +39,40 @@ model Video {
   originalName          String?
   fileSize              Int?
   mimeType              String?
-  thumbnailName         String?   // Thumbnail file name (optional)
-  thumbnailOriginalName String?   // Original thumbnail file name
-  thumbnailSize         Int?      // Thumbnail file size
+  thumbnailName         String?
+  thumbnailOriginalName String?
+  thumbnailSize         Int?
   status                String    @default("queued")
   uploadedAt            DateTime?
   error                 String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   channel               Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([status])
 }
 
 model SchedulerLog {
-  id          String   @id @default(cuid())
-  channelId   String
-  videoId     String?
-  action      String
-  status      String
-  message     String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  channelId String
+  videoId   String?
+  action    String
+  status    String
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@index([channelId])
+  @@index([createdAt])
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  password     String
-  name         String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
 }
