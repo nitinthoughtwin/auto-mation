@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import path from 'path';
-import fs from 'fs';
 import { randomUUID } from 'crypto';
+import { 
+  isVercel, 
+  saveFile, 
+  getStorageStatus 
+} from '@/lib/storage';
 
 // POST - Bulk video upload with optional thumbnails
 export async function POST(request: NextRequest) {
   try {
+    // Check storage status
+    const storageStatus = getStorageStatus();
+    
     const formData = await request.formData();
     const channelId = formData.get('channelId') as string;
     const defaultTitle = formData.get('defaultTitle') as string;
@@ -41,58 +47,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create upload directories if they don't exist
-    const videoUploadDir = path.join(process.cwd(), 'uploads', 'videos');
-    const thumbnailUploadDir = path.join(process.cwd(), 'uploads', 'thumbnails');
-    
-    if (!fs.existsSync(videoUploadDir)) {
-      fs.mkdirSync(videoUploadDir, { recursive: true });
-    }
-    if (!fs.existsSync(thumbnailUploadDir)) {
-      fs.mkdirSync(thumbnailUploadDir, { recursive: true });
-    }
-
     const uploadedVideos = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       
-      // Generate unique filename for video
-      const fileExtension = path.extname(file.name);
-      const uniqueFileName = `${randomUUID()}${fileExtension}`;
-      const filePath = path.join(videoUploadDir, uniqueFileName);
-
-      // Convert File to Buffer and save video
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      fs.writeFileSync(filePath, buffer);
-
+      // Save video file using storage utility
+      const videoResult = await saveFile(file, 'videos');
+      
       // Handle thumbnail (optional)
       let thumbnailName: string | null = null;
       let thumbnailOriginalName: string | null = null;
       let thumbnailSize: number | null = null;
 
-      // Check if there's a thumbnail for this video (by index) or a shared thumbnail (index 0)
       const thumbnailFile = thumbnails[i] || (thumbnails.length === 1 && files.length > 1 ? thumbnails[0] : null);
       
       if (thumbnailFile && thumbnailFile.size > 0) {
-        const thumbnailExtension = path.extname(thumbnailFile.name) || '.jpg';
-        const uniqueThumbnailName = `${randomUUID()}${thumbnailExtension}`;
-        const thumbnailPath = path.join(thumbnailUploadDir, uniqueThumbnailName);
-
-        // Convert and save thumbnail
-        const thumbnailBuffer = Buffer.from(await thumbnailFile.arrayBuffer());
-        fs.writeFileSync(thumbnailPath, thumbnailBuffer);
-
-        thumbnailName = uniqueThumbnailName;
-        thumbnailOriginalName = thumbnailFile.name;
-        thumbnailSize = thumbnailFile.size;
+        const thumbResult = await saveFile(thumbnailFile, 'thumbnails');
+        thumbnailName = thumbResult.fileName;
+        thumbnailOriginalName = thumbResult.originalName;
+        thumbnailSize = thumbResult.size;
       }
 
       // Generate title - use default or filename
+      const fileExtension = file.name.includes('.') 
+        ? '.' + file.name.split('.').pop() 
+        : '';
       const title = defaultTitle 
         ? `${defaultTitle} ${files.length > 1 ? `(${i + 1})` : ''}`
-        : path.basename(file.name, fileExtension);
+        : file.name.replace(fileExtension, '');
 
       // Create video record in database
       const video = await db.video.create({
@@ -101,7 +84,7 @@ export async function POST(request: NextRequest) {
           title,
           description: defaultDescription || '',
           tags: defaultTags || '',
-          fileName: uniqueFileName,
+          fileName: videoResult.url || videoResult.fileName, // Store URL if blob, else filename
           originalName: file.name,
           fileSize: file.size,
           mimeType: file.type,
@@ -115,11 +98,18 @@ export async function POST(request: NextRequest) {
       uploadedVideos.push(video);
     }
 
-    return NextResponse.json({ 
+    const response: any = { 
       success: true,
       message: `${uploadedVideos.length} video(s) uploaded successfully`,
       videos: uploadedVideos,
-    });
+      storage: storageStatus,
+    };
+
+    if (storageStatus.warning) {
+      response.warning = storageStatus.warning;
+    }
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('Error uploading videos:', error);
     return NextResponse.json(

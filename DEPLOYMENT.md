@@ -1,11 +1,28 @@
 # YouTube Automation Dashboard - Vercel Deployment Guide
 
+## 🚨 IMPORTANT: Vercel Storage Limitations
+
+**Vercel has ephemeral filesystem** - files stored locally will be DELETED after each deployment or function timeout!
+
+### You MUST configure Vercel Blob Storage for production:
+
+1. Go to Vercel Dashboard → Your Project → **Storage**
+2. Click **Create Database** → Select **Blob**
+3. Name it `youtube-videos` and select your region
+4. Click **Create**
+5. Copy the `BLOB_READ_WRITE_TOKEN` to your environment variables
+
+Without Blob storage, uploaded videos will be lost and uploads to YouTube will fail!
+
+---
+
 ## Prerequisites
 
 1. **GitHub Account** - To connect your repository to Vercel
 2. **Vercel Account** - Sign up at [vercel.com](https://vercel.com)
 3. **Google Cloud Console** - For YouTube API credentials
-4. **PostgreSQL Database** - Vercel Postgres, Neon, or Supabase
+4. **PostgreSQL Database** - Vercel Postgres, Neon, or Prisma Data Platform
+5. **Vercel Blob Storage** - For persistent file storage
 
 ---
 
@@ -27,6 +44,13 @@
      - `https://your-app-name.vercel.app/api/auth/youtube/callback` (production)
    - Copy **Client ID** and **Client Secret**
 
+5. Configure OAuth Consent Screen:
+   - Go to "APIs & Services" → "OAuth consent screen"
+   - Fill in app name, support email, developer email
+   - Add privacy policy URL: `https://your-app.vercel.app/privacy`
+   - Add terms URL: `https://your-app.vercel.app/terms`
+   - Add yourself as a **Test User** (important!)
+
 ---
 
 ## Step 2: Set Up Database
@@ -38,7 +62,7 @@
 3. Select "Postgres"
 4. Name your database and select region
 5. Click "Create"
-6. Copy the connection string (DATABASE_URL)
+6. The `DATABASE_URL` will be automatically added to your project
 
 ### Option B: Neon (Free Tier Available)
 
@@ -46,16 +70,26 @@
 2. Sign up and create a new project
 3. Copy the connection string
 
-### Option C: Supabase
+### Option C: Prisma Data Platform
 
-1. Go to [supabase.com](https://supabase.com)
-2. Create a new project
-3. Go to Project Settings → Database
-4. Copy the connection string (use port 5432)
+1. Go to [prisma.io](https://prisma.io)
+2. Create a project and get your database URL
 
 ---
 
-## Step 3: Deploy to Vercel
+## Step 3: Set Up Vercel Blob Storage (CRITICAL)
+
+1. In Vercel Dashboard, go to your project
+2. Click **Storage** → **Create Database**
+3. Select **Blob**
+4. Name: `youtube-videos`
+5. Region: Select closest to your users
+6. Click **Create**
+7. The `BLOB_READ_WRITE_TOKEN` will be automatically added to your environment
+
+---
+
+## Step 4: Deploy to Vercel
 
 ### Method 1: One-Click Deploy
 
@@ -85,7 +119,8 @@
    
    | Variable | Description | Example |
    |----------|-------------|---------|
-   | `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@host/db?sslmode=require` |
+   | `DATABASE_URL` | PostgreSQL connection string | Auto-added with Vercel Postgres |
+   | `BLOB_READ_WRITE_TOKEN` | Vercel Blob token | Auto-added with Blob storage |
    | `GOOGLE_CLIENT_ID` | Google OAuth Client ID | `123456.apps.googleusercontent.com` |
    | `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret | `GOCSPX-xxxxx` |
    | `GOOGLE_REDIRECT_URI` | OAuth callback URL | `https://your-app.vercel.app/api/auth/youtube/callback` |
@@ -97,134 +132,131 @@
 
 ---
 
-## Step 4: Configure Vercel Cron Jobs
+## Step 5: Initialize Database Tables
 
-The `vercel.json` file includes a cron job that runs every 5 minutes:
+After deploying, you need to create the database tables:
 
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}
-```
-
-This automatically checks for scheduled uploads.
-
-**Important**: Vercel Cron Jobs are only available on Pro plans. For free tier, use external cron services:
-- [cron-job.org](https://cron-job.org)
-- [EasyCron](https://easycron.com)
-- GitHub Actions
-
----
-
-## Step 5: First-Time Setup
-
-1. Visit your deployed app
-2. Create your admin account (first user only)
-3. Login with your credentials
-4. Connect your YouTube channel
-5. Start uploading videos!
-
----
-
-## Important Notes for Production
-
-### File Storage Limitation
-
-**⚠️ Vercel has ephemeral filesystem** - uploaded files won't persist between requests.
-
-**For production use, consider:**
-
-1. **Vercel Blob Storage** (Recommended)
-   - Add `@vercel/blob` package
-   - Store video files in Blob
-   - Download before YouTube upload
-
-2. **External Storage Services**
-   - AWS S3
-   - Cloudflare R2
-   - Google Cloud Storage
-
-### Database Migrations
-
-Run migrations after first deploy:
+### Method 1: Run Locally with Production URL
 
 ```bash
-# In Vercel dashboard → Settings → Environment Variables
-# Make sure DATABASE_URL is set
+# Set your production database URL
+export DATABASE_URL="postgres://user:pass@host/db?sslmode=require"
 
-# Use Vercel CLI for one-time migration
-npx prisma migrate deploy
-```
-
-Or use `prisma db push` for development:
-
-```bash
+# Switch schema to PostgreSQL first (edit prisma/schema.prisma)
+# Then run:
+npx prisma generate
 npx prisma db push
 ```
 
+### Method 2: Vercel CLI
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Link project
+vercel link
+
+# Pull environment
+vercel env pull .env.production
+
+# Run migrations
+npx prisma db push
+```
+
+### Method 3: API Endpoint
+
+Visit once after deploying:
+```
+https://your-app.vercel.app/api/setup-database
+```
+
 ---
 
-## Environment Variables Reference
+## Step 6: Configure Cron Jobs (Scheduling)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ Yes | PostgreSQL connection string |
-| `GOOGLE_CLIENT_ID` | ✅ Yes | Google OAuth Client ID |
-| `GOOGLE_CLIENT_SECRET` | ✅ Yes | Google OAuth Client Secret |
-| `GOOGLE_REDIRECT_URI` | ✅ Yes | OAuth callback URL (production URL) |
-| `BLOB_READ_WRITE_TOKEN` | ⭕ Optional | Vercel Blob token for file storage |
+Vercel Cron Jobs require Pro plan. For free tier, use external services:
+
+### Using cron-job.org (Free, Recommended)
+
+1. Go to [cron-job.org](https://cron-job.org) and create account
+2. Create a new cron job:
+   - **Title:** YouTube Automation Scheduler
+   - **URL:** `https://your-app.vercel.app/api/cron`
+   - **Schedule:** Every 5 minutes (`*/5 * * * *`)
+   - **Request Method:** GET
+3. Save and enable
+
+### Using GitHub Actions
+
+Create `.github/workflows/cron.yml`:
+
+```yaml
+name: Scheduled Uploads
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl "${{ secrets.APP_URL }}/api/cron"
+```
+
+---
+
+## Step 7: First-Time Setup
+
+1. Visit your deployed app
+2. Create your admin account
+3. Login with your credentials
+4. Connect your YouTube channel
+5. Upload videos!
 
 ---
 
 ## Troubleshooting
 
-### Build Errors
+### "ENOENT: no such file or directory"
 
-1. **Prisma Generation Failed**
-   ```bash
-   # Add to package.json scripts
-   "postinstall": "prisma generate"
-   ```
+**Problem:** File storage not working
+**Solution:** Configure Vercel Blob Storage (see Step 3)
 
-2. **Database Connection Failed**
-   - Check DATABASE_URL format
-   - Ensure SSL mode is enabled
-   - Whitelist Vercel IPs if needed
+### "Error 400: invalid_request" (Google OAuth)
 
-### OAuth Errors
+**Problem:** OAuth not configured properly
+**Solution:** 
+1. Add yourself as Test User in Google Cloud Console
+2. Ensure redirect URI matches exactly
+3. Add privacy policy and terms URLs
 
-1. **Redirect URI Mismatch**
-   - Add production URL to Google Cloud Console
-   - Update `GOOGLE_REDIRECT_URI` env var
+### "Database connection failed"
 
-2. **Token Refresh Failed**
-   - Ensure offline access is enabled
-   - Re-connect YouTube channel
+**Problem:** Database not reachable
+**Solution:** Check DATABASE_URL format and ensure SSL mode is enabled
 
-### Cron Not Working
+### Files disappearing after upload
 
-1. **Free Plan Limitation**
-   - Vercel Cron requires Pro plan
-   - Use external cron services instead
+**Problem:** Using local filesystem on Vercel
+**Solution:** Configure Vercel Blob Storage with `BLOB_READ_WRITE_TOKEN`
 
 ---
 
-## Next Steps
+## Environment Variables Checklist
 
-1. Set up file storage (Vercel Blob or external)
-2. Configure custom domain (optional)
-3. Set up monitoring and alerts
-4. Enable Vercel Analytics
+- [ ] `DATABASE_URL` - PostgreSQL connection string
+- [ ] `BLOB_READ_WRITE_TOKEN` - For file storage on Vercel
+- [ ] `GOOGLE_CLIENT_ID` - From Google Cloud Console
+- [ ] `GOOGLE_CLIENT_SECRET` - From Google Cloud Console
+- [ ] `GOOGLE_REDIRECT_URI` - Your callback URL
 
 ---
 
-## Support
+## Need Help?
 
 - [Vercel Documentation](https://vercel.com/docs)
-- [Prisma Documentation](https://www.prisma.io/docs)
+- [Prisma Documentation](https://prisma.io/docs)
 - [YouTube API Documentation](https://developers.google.com/youtube/v3)

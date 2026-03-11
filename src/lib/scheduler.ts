@@ -1,10 +1,8 @@
 import 'server-only';
 import { db } from './db';
 import { uploadVideo, uploadThumbnail, refreshAccessToken } from './youtube';
-import fs from 'fs';
-import path from 'path';
+import { getFile, deleteFile, isVercel, getStorageStatus } from './storage';
 
-// Frequency types
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
 // Get day of week (0 = Sunday, 1 = Monday, etc.)
@@ -30,7 +28,6 @@ function getDaysDifference(date1: Date, date2: Date): number {
 
 // Convert 12-hour time (with AM/PM) to 24-hour format
 function convertTo24Hour(timeStr: string): { hours: number; minutes: number } {
-  // Handle both "HH:mm" and "HH:mm AM/PM" formats
   const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
   if (!match) {
     const [h, m] = timeStr.split(':').map(Number);
@@ -71,80 +68,66 @@ function shouldUpload(channel: {
     const currentTimeStr = formatTime12Hour(currentHours, currentMinutes);
     return { 
       allowed: false, 
-      reason: `Not scheduled time yet. Current: ${currentTimeStr}, Scheduled: ${scheduledTimeStr}` 
+      reason: `Not scheduled time. Current: ${currentTimeStr}, Scheduled: ${scheduledTimeStr}` 
     };
   }
-
-  const frequencyLabels: Record<FrequencyType, string> = {
-    daily: 'Daily',
-    alternate: 'Every 2nd Day',
-    every3days: 'Every 3rd Day',
-    every5days: 'Every 5th Day',
-    everySunday: 'Every Sunday'
-  };
 
   // Check based on frequency
   switch (channel.frequency) {
     case 'daily': {
-      // Check if already uploaded today
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
         if (isSameDay(lastUpload, now)) {
-          return { allowed: false, reason: 'Already uploaded today. Next upload tomorrow.' };
+          return { allowed: false, reason: 'Already uploaded today' };
         }
       }
-      return { allowed: true, reason: 'Daily upload ready - new day' };
+      return { allowed: true, reason: 'Daily upload ready' };
     }
 
     case 'alternate': {
-      // Every 2nd day
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
         const daysSince = getDaysDifference(lastUpload, now);
         if (daysSince < 2) {
-          return { allowed: false, reason: `Every 2nd Day: ${daysSince} day(s) since last upload, need 2 days` };
+          return { allowed: false, reason: `Need 2 days, only ${daysSince} passed` };
         }
       }
-      return { allowed: true, reason: 'Every 2nd Day upload ready' };
+      return { allowed: true, reason: 'Every 2nd day ready' };
     }
 
     case 'every3days': {
-      // Every 3rd day
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
         const daysSince = getDaysDifference(lastUpload, now);
         if (daysSince < 3) {
-          return { allowed: false, reason: `Every 3rd Day: ${daysSince} day(s) since last upload, need 3 days` };
+          return { allowed: false, reason: `Need 3 days, only ${daysSince} passed` };
         }
       }
-      return { allowed: true, reason: 'Every 3rd Day upload ready' };
+      return { allowed: true, reason: 'Every 3rd day ready' };
     }
 
     case 'every5days': {
-      // Every 5th day
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
         const daysSince = getDaysDifference(lastUpload, now);
         if (daysSince < 5) {
-          return { allowed: false, reason: `Every 5th Day: ${daysSince} day(s) since last upload, need 5 days` };
+          return { allowed: false, reason: `Need 5 days, only ${daysSince} passed` };
         }
       }
-      return { allowed: true, reason: 'Every 5th Day upload ready' };
+      return { allowed: true, reason: 'Every 5th day ready' };
     }
 
     case 'everySunday': {
-      // Check if today is Sunday
       if (getDayOfWeek(now) !== 0) {
-        return { allowed: false, reason: 'Every Sunday: Today is not Sunday' };
+        return { allowed: false, reason: 'Not Sunday' };
       }
-      // Check if already uploaded this Sunday
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
         if (isSameDay(lastUpload, now)) {
-          return { allowed: false, reason: 'Every Sunday: Already uploaded this Sunday' };
+          return { allowed: false, reason: 'Already uploaded this Sunday' };
         }
       }
-      return { allowed: true, reason: 'Every Sunday upload ready' };
+      return { allowed: true, reason: 'Sunday upload ready' };
     }
 
     default:
@@ -169,11 +152,9 @@ export function getNextUploadDate(channel: {
   const now = new Date();
   const { hours, minutes } = convertTo24Hour(channel.uploadTime);
   
-  // Start with today at scheduled time
   let nextUpload = new Date();
   nextUpload.setHours(hours, minutes, 0, 0);
   
-  // If time has passed today, start from tomorrow
   if (nextUpload <= now) {
     nextUpload.setDate(nextUpload.getDate() + 1);
   }
@@ -182,9 +163,7 @@ export function getNextUploadDate(channel: {
 
   switch (channel.frequency) {
     case 'daily':
-      // Already handled above - next available day at scheduled time
       if (lastUpload && isSameDay(lastUpload, now)) {
-        // Already uploaded today, next is tomorrow
         nextUpload.setDate(nextUpload.getDate() + 1);
       }
       break;
@@ -223,17 +202,14 @@ export function getNextUploadDate(channel: {
       break;
 
     case 'everySunday':
-      // Find next Sunday
       const currentDay = getDayOfWeek(now);
       const daysUntilSunday = (7 - currentDay) % 7 || 7;
       nextUpload.setDate(now.getDate() + daysUntilSunday);
       nextUpload.setHours(hours, minutes, 0, 0);
-      // If it's Sunday and we haven't uploaded yet today
       if (currentDay === 0 && (!lastUpload || !isSameDay(lastUpload, now))) {
         nextUpload = new Date();
         nextUpload.setHours(hours, minutes, 0, 0);
         if (nextUpload <= now) {
-          // Time passed, next Sunday
           nextUpload.setDate(nextUpload.getDate() + 7);
         }
       }
@@ -243,7 +219,7 @@ export function getNextUploadDate(channel: {
   return nextUpload;
 }
 
-// Main scheduler function - processes all channels
+// Main scheduler function
 export async function processScheduledUploads(): Promise<{ 
   processed: number; 
   skipped: number; 
@@ -256,7 +232,12 @@ export async function processScheduledUploads(): Promise<{
   let skipped = 0;
   
   try {
-    // Get all active channels
+    // Check storage status
+    const storageStatus = getStorageStatus();
+    if (isVercel && storageStatus.type === 'temp') {
+      console.warn('WARNING: Using temporary storage. Files may not persist!');
+    }
+    
     const channels = await db.channel.findMany({
       where: { isActive: true },
       include: {
@@ -269,7 +250,6 @@ export async function processScheduledUploads(): Promise<{
     });
 
     for (const channel of channels) {
-      // Check if this channel should upload now
       const uploadCheck = shouldUpload(channel as any);
       
       if (!uploadCheck.allowed) {
@@ -283,10 +263,8 @@ export async function processScheduledUploads(): Promise<{
         continue;
       }
 
-      // Check if there's a queued video
       const video = channel.videos[0];
       if (!video) {
-        console.log(`No queued videos for channel: ${channel.name}`);
         results.push({
           channel: channel.name,
           status: 'skipped',
@@ -296,16 +274,13 @@ export async function processScheduledUploads(): Promise<{
         continue;
       }
 
-      console.log(`Processing upload for channel: ${channel.name}, video: ${video.title}`);
-      console.log(`Reason: ${uploadCheck.reason}`);
+      console.log(`Processing: ${channel.name}, video: ${video.title}`);
 
       try {
-        // Refresh token if needed
         let accessToken = channel.accessToken;
         try {
           const tokens = await refreshAccessToken(channel.refreshToken);
           accessToken = tokens.accessToken;
-          // Update tokens in database
           await db.channel.update({
             where: { id: channel.id },
             data: {
@@ -314,52 +289,36 @@ export async function processScheduledUploads(): Promise<{
             },
           });
         } catch (tokenError) {
-          console.error('Failed to refresh token:', tokenError);
-          // Try with existing token
+          console.error('Token refresh failed:', tokenError);
         }
 
-        // Construct file path
-        const uploadDir = path.join(process.cwd(), 'uploads', 'videos');
-        const filePath = path.join(uploadDir, video.fileName);
-
-        if (!fs.existsSync(filePath)) {
-          throw new Error(`Video file not found: ${video.fileName}`);
-        }
+        // Get video file using storage utility
+        const videoFile = await getFile(video.fileName, 'videos');
 
         // Upload to YouTube
         const result = await uploadVideo(accessToken, channel.refreshToken, {
           title: video.title,
           description: video.description || '',
           tags: video.tags ? video.tags.split(',').map(t => t.trim()) : [],
-          filePath,
+          fileBuffer: videoFile.buffer,
+          fileName: video.originalName || video.fileName,
         });
 
         if (result.success && result.videoId) {
           // Upload thumbnail if exists
           if (video.thumbnailName) {
-            const thumbnailUploadDir = path.join(process.cwd(), 'uploads', 'thumbnails');
-            const thumbnailPath = path.join(thumbnailUploadDir, video.thumbnailName);
-            
-            if (fs.existsSync(thumbnailPath)) {
-              console.log(`Uploading thumbnail for video: ${video.title}`);
-              try {
-                const thumbnailResult = await uploadThumbnail(
-                  accessToken,
-                  channel.refreshToken,
-                  result.videoId,
-                  thumbnailPath
-                );
-                
-                if (thumbnailResult.success) {
-                  console.log(`Thumbnail uploaded successfully`);
-                } else {
-                  console.error(`Thumbnail upload failed: ${thumbnailResult.error}`);
-                }
-              } catch (thumbError) {
-                console.error('Thumbnail upload error:', thumbError);
-              }
-              // Delete local thumbnail file after upload attempt
-              fs.unlinkSync(thumbnailPath);
+            try {
+              const thumbFile = await getFile(video.thumbnailName, 'thumbnails');
+              await uploadThumbnail(
+                accessToken,
+                channel.refreshToken,
+                result.videoId,
+                thumbFile.buffer,
+                video.thumbnailOriginalName || video.thumbnailName
+              );
+              console.log(`Thumbnail uploaded for: ${video.title}`);
+            } catch (thumbError) {
+              console.error('Thumbnail upload failed:', thumbError);
             }
           }
 
@@ -372,7 +331,7 @@ export async function processScheduledUploads(): Promise<{
             },
           });
 
-          // Update channel last upload date
+          // Update channel
           await db.channel.update({
             where: { id: channel.id },
             data: { lastUploadDate: new Date() },
@@ -385,13 +344,20 @@ export async function processScheduledUploads(): Promise<{
               videoId: video.id,
               action: 'upload',
               status: 'success',
-              message: `Video uploaded successfully: ${result.videoUrl}`,
+              message: `Video uploaded: ${result.videoUrl}`,
             },
           });
 
-          // Delete local file after successful upload
-          fs.unlinkSync(filePath);
-          console.log(`Video uploaded successfully: ${result.videoUrl}`);
+          // Cleanup
+          videoFile.cleanup();
+          if (!isVercel) {
+            deleteFile(video.fileName, 'videos');
+            if (video.thumbnailName) {
+              deleteFile(video.thumbnailName, 'thumbnails');
+            }
+          }
+
+          console.log(`Uploaded: ${result.videoUrl}`);
           
           results.push({
             channel: channel.name,
@@ -403,9 +369,8 @@ export async function processScheduledUploads(): Promise<{
           throw new Error(result.error);
         }
       } catch (error: any) {
-        console.error(`Upload failed for channel ${channel.name}:`, error);
+        console.error(`Upload failed for ${channel.name}:`, error);
 
-        // Update video status to failed
         await db.video.update({
           where: { id: video.id },
           data: {
@@ -414,7 +379,6 @@ export async function processScheduledUploads(): Promise<{
           },
         });
 
-        // Log failure
         await db.schedulerLog.create({
           data: {
             channelId: channel.id,
