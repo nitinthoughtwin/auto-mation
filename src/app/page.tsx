@@ -1098,7 +1098,7 @@ export default function YouTubeAutomationDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Title</TableHead>
+                        <TableHead>Title:</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Error</TableHead>
