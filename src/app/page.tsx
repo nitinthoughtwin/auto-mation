@@ -328,14 +328,22 @@ export default function YouTubeAutomationDashboard() {
       if (thumbnailFiles && thumbnailFiles.length > 0) {
         for (let i = 0; i < thumbnailFiles.length; i++) {
           const thumbFile = thumbnailFiles[i];
-          const thumbPath = `thumbnails/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${thumbFile.name}`;
+          // Sanitize filename - remove spaces and special characters
+          const sanitizedThumbName = thumbFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          const thumbPath = `thumbnails/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${sanitizedThumbName}`;
           
           try {
+            setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 0 }));
             const thumbBlob = await upload(thumbPath, thumbFile, {
               access: 'public',
               handleUploadUrl: '/api/blob/upload-url',
+              onUploadProgress: (progress) => {
+                const percentage = Math.round((progress.loaded / progress.total) * 100);
+                setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: percentage }));
+              },
             });
             thumbnailUrls.push({ url: thumbBlob.url, name: thumbFile.name, size: thumbFile.size });
+            setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
           } catch (error: any) {
             console.error(`Failed to upload thumbnail ${thumbFile.name}:`, error);
           }
@@ -345,15 +353,21 @@ export default function YouTubeAutomationDashboard() {
       // Upload each video file directly to Vercel Blob
       for (let i = 0; i < uploadFiles.length; i++) {
         const file = uploadFiles[i];
-        const filePath = `videos/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${file.name}`;
+        // Sanitize filename - remove spaces and special characters
+        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filePath = `videos/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${sanitizedName}`;
         
         try {
           setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
           
           // Direct upload to Vercel Blob from client
+          // Use multipart for files larger than 10MB for better reliability
+          const useMultipart = file.size > 10 * 1024 * 1024;
+          
           const blob = await upload(filePath, file, {
             access: 'public',
             handleUploadUrl: '/api/blob/upload-url',
+            multipart: useMultipart,
             onUploadProgress: (progress) => {
               const percentage = Math.round((progress.loaded / progress.total) * 100);
               setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));

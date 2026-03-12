@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleUpload } from '@vercel/blob/client';
+import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
 
-// POST - Handle client-side direct upload to Vercel Blob
+// POST - Generate client token for direct Blob uploads
 export async function POST(request: NextRequest) {
   try {
     const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -9,42 +9,53 @@ export async function POST(request: NextRequest) {
     if (!token) {
       console.error('BLOB_READ_WRITE_TOKEN not configured');
       return NextResponse.json(
-        { error: 'Blob storage not configured. Please add BLOB_READ_WRITE_TOKEN in Vercel Dashboard > Storage > Blob.' },
+        { error: 'Blob storage not configured. Go to Vercel Dashboard > Storage > Blob and create a store.' },
         { status: 500 }
       );
     }
 
     const body = await request.json();
-    console.log('Blob upload request type:', body.type);
+    console.log('Blob request type:', body.type, '| pathname:', body.payload?.pathname);
+    
+    // Handle token generation request
+    if (body.type === 'blob.generate-client-token') {
+      const pathname = body.payload?.pathname;
+      const multipart = body.payload?.multipart || false;
+      
+      if (!pathname) {
+        return NextResponse.json({ error: 'Pathname is required' }, { status: 400 });
+      }
 
-    // Handle the upload request
-    const result = await handleUpload({
-      token,
-      request,
-      body,
-      onBeforeGenerateToken: async (pathname, clientPayload, multipart) => {
-        console.log('Generating token for:', pathname, '| multipart:', multipart);
-        
-        return {
-          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
-          validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
-          addRandomSuffix: true,
-        };
-      },
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // This callback is called when the upload completes
-        // You can use this to update your database with the blob URL
-        console.log('Upload completed:', blob.url);
-      },
-    });
+      console.log('Generating token for:', pathname, '| multipart:', multipart);
 
-    console.log('Result type:', result.type);
-    return NextResponse.json(result);
+      const clientToken = await generateClientTokenFromReadWriteToken({
+        token,
+        pathname,
+        maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+        validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
+        addRandomSuffix: true,
+      });
+
+      console.log('Token generated successfully');
+      
+      return NextResponse.json({
+        type: 'blob.generate-client-token',
+        clientToken,
+      });
+    }
+
+    // Handle upload-completed callback
+    if (body.type === 'blob.upload-completed') {
+      console.log('Upload completed:', body.payload?.blob?.url);
+      return NextResponse.json({ type: 'blob.upload-completed', response: 'ok' });
+    }
+
+    return NextResponse.json({ error: 'Unknown request type: ' + body.type }, { status: 400 });
     
   } catch (error: any) {
-    console.error('Blob upload error:', error.message);
+    console.error('Blob token error:', error.message);
     return NextResponse.json(
-      { error: error.message || 'Failed to handle upload' },
+      { error: error.message || 'Failed to generate token' },
       { status: 500 }
     );
   }
