@@ -11,6 +11,17 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,28 +46,15 @@ import {
   Calendar,
   CheckCircle,
   XCircle,
+  AlertCircle,
+  RefreshCw,
   ArrowLeft,
+  Eye,
   FileVideo,
   Loader2,
-  Info,
-  LogIn,
-  LogOut,
-  Lock,
-  User,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatFileSize, formatDate } from '@/lib/utils-shared';
-
-// Frequency options with labels
-const FREQUENCY_OPTIONS = [
-  { value: 'daily', label: 'Daily', description: 'Upload one video every day' },
-  { value: 'alternate', label: 'Every 2nd Day', description: 'Upload one video every 2 days' },
-  { value: 'every3days', label: 'Every 3rd Day', description: 'Upload one video every 3 days' },
-  { value: 'every5days', label: 'Every 5th Day', description: 'Upload one video every 5 days' },
-  { value: 'everySunday', label: 'Every Sunday', description: 'Upload one video every Sunday' },
-] as const;
-
-type FrequencyType = typeof FREQUENCY_OPTIONS[number]['value'];
+import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
 
 // Types
 interface Channel {
@@ -89,9 +87,6 @@ interface Video {
   originalName: string | null;
   fileSize: number | null;
   mimeType: string | null;
-  thumbnailName?: string | null;
-  thumbnailOriginalName?: string | null;
-  thumbnailSize?: number | null;
   status: string;
   uploadedAt: string | null;
   error: string | null;
@@ -165,74 +160,8 @@ const api = {
   },
 };
 
-// Time utilities
-function parseTimeTo12Hour(time24: string): { hours: number; minutes: number; period: 'AM' | 'PM' } {
-  let [h, m] = time24.split(':').map(Number);
-  const period: 'AM' | 'PM' = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return { hours: h, minutes: m, period };
-}
-
-function convertTo24Hour(hours: number, minutes: number, period: 'AM' | 'PM'): string {
-  let h = hours;
-  if (period === 'PM' && h !== 12) h += 12;
-  if (period === 'AM' && h === 12) h = 0;
-  return `${h.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-}
-
-function formatTimeDisplay(time24: string): string {
-  const { hours, minutes, period } = parseTimeTo12Hour(time24);
-  return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
-}
-
-function formatNextUpload(nextDate: Date | string | undefined): string {
-  if (!nextDate) return 'Calculating...';
-  const date = new Date(nextDate);
-  const now = new Date();
-  const diff = date.getTime() - now.getTime();
-  
-  if (diff < 0) return 'Pending...';
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
-  const timeStr = formatTimeDisplay(`${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`);
-  
-  if (days > 0) {
-    return `In ${days} day${days > 1 ? 's' : ''} at ${timeStr}`;
-  }
-  if (hours > 0) {
-    return `In ${hours}h ${minutes}m at ${timeStr}`;
-  }
-  return `In ${minutes} minutes at ${timeStr}`;
-}
-
-function getFrequencyLabel(frequency: string): string {
-  const option = FREQUENCY_OPTIONS.find(o => o.value === frequency);
-  return option?.label || frequency;
-}
-
-// User type
-interface User {
-  id: string;
-  email: string;
-  name: string | null;
-  createdAt: string;
-}
-
 // Main Component
 export default function YouTubeAutomationDashboard() {
-  // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [needsSetup, setNeedsSetup] = useState(false);
-  const [setupForm, setSetupForm] = useState({ email: '', password: '', name: '' });
-  const [setupLoading, setSetupLoading] = useState(false);
-
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -244,17 +173,14 @@ export default function YouTubeAutomationDashboard() {
 
   // Upload form state
   const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
-  const [thumbnailFiles, setThumbnailFiles] = useState<FileList | null>(null);
   const [defaultTitle, setDefaultTitle] = useState('');
   const [defaultDescription, setDefaultDescription] = useState('');
   const [defaultTags, setDefaultTags] = useState('');
 
-  // Channel settings state with AM/PM
+  // Channel settings state
   const [editSettings, setEditSettings] = useState({
-    uploadTimeHours: 6,
-    uploadTimeMinutes: 0,
-    uploadTimePeriod: 'PM' as 'AM' | 'PM',
-    frequency: 'daily' as FrequencyType,
+    uploadTime: '',
+    frequency: '',
   });
 
   // Load channels
@@ -276,15 +202,9 @@ export default function YouTubeAutomationDashboard() {
       if (data.channel) {
         setSelectedChannel(data.channel);
         setVideos(data.channel.videos || []);
-        
-        // Parse time for editing
-        const time24 = data.channel.uploadTime || '18:00';
-        const { hours, minutes, period } = parseTimeTo12Hour(time24);
         setEditSettings({
-          uploadTimeHours: hours,
-          uploadTimeMinutes: minutes,
-          uploadTimePeriod: period,
-          frequency: (data.channel.frequency || 'daily') as FrequencyType,
+          uploadTime: data.channel.uploadTime,
+          frequency: data.channel.frequency,
         });
       }
     } catch (error) {
@@ -302,100 +222,11 @@ export default function YouTubeAutomationDashboard() {
     }
   };
 
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const res = await fetch('/api/auth/session');
-      const data = await res.json();
-      if (data.authenticated && data.user) {
-        setIsAuthenticated(true);
-        setCurrentUser(data.user);
-      } else {
-        // Check if setup is needed
-        const setupRes = await fetch('/api/auth/setup');
-        const setupData = await setupRes.json();
-        setNeedsSetup(setupData.needsSetup);
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginLoading(true);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setIsAuthenticated(true);
-        setCurrentUser(data.user);
-        setLoginForm({ email: '', password: '' });
-        toast.success('Login successful!');
-      } else {
-        toast.error(data.error || 'Login failed');
-      }
-    } catch (error) {
-      toast.error('Login failed');
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-  const handleSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSetupLoading(true);
-    try {
-      const res = await fetch('/api/auth/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(setupForm),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setNeedsSetup(false);
-        toast.success('Account created! Please login now.');
-        setSetupForm({ email: '', password: '', name: '' });
-      } else {
-        toast.error(data.error || 'Setup failed');
-      }
-    } catch (error) {
-      toast.error('Setup failed');
-    } finally {
-      setSetupLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      setIsAuthenticated(false);
-      setCurrentUser(null);
-      setChannels([]);
-      setVideos([]);
-      toast.success('Logged out successfully');
-    } catch (error) {
-      toast.error('Logout failed');
-    }
-  };
-
   // Initialize
   useEffect(() => {
-    if (isAuthenticated) {
-      loadChannels();
-      loadSchedulerLogs();
-    }
-  }, [loadChannels, isAuthenticated]);
+    loadChannels();
+    loadSchedulerLogs();
+  }, [loadChannels]);
 
   // Handle OAuth callback
   useEffect(() => {
@@ -424,18 +255,8 @@ export default function YouTubeAutomationDashboard() {
   const updateChannelSettings = async () => {
     if (!selectedChannel) return;
 
-    // Convert 12-hour to 24-hour format
-    const uploadTime24 = convertTo24Hour(
-      editSettings.uploadTimeHours,
-      editSettings.uploadTimeMinutes,
-      editSettings.uploadTimePeriod
-    );
-
     try {
-      await api.channels.update(selectedChannel.id, {
-        uploadTime: uploadTime24,
-        frequency: editSettings.frequency,
-      });
+      await api.channels.update(selectedChannel.id, editSettings);
       toast.success('Settings updated successfully');
       loadChannelDetails(selectedChannel.id);
       loadChannels();
@@ -496,29 +317,19 @@ export default function YouTubeAutomationDashboard() {
       formData.append('files', uploadFiles[i]);
     }
 
-    // Add thumbnail files
-    if (thumbnailFiles) {
-      for (let i = 0; i < thumbnailFiles.length; i++) {
-        formData.append('thumbnails', thumbnailFiles[i]);
-      }
-    }
-
     try {
       const result = await api.videos.upload(formData);
       if (result.success) {
         toast.success(result.message);
         setUploadFiles(null);
-        setThumbnailFiles(null);
         setDefaultTitle('');
         setDefaultDescription('');
         setDefaultTags('');
         loadChannelDetails(selectedChannel.id);
         loadChannels();
-        // Reset file inputs
+        // Reset file input
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
-        const thumbInput = document.getElementById('thumbnail-upload') as HTMLInputElement;
-        if (thumbInput) thumbInput.value = '';
       } else {
         toast.error(result.error || 'Upload failed');
       }
@@ -547,20 +358,7 @@ export default function YouTubeAutomationDashboard() {
     try {
       const result = await api.scheduler.run();
       if (result.success) {
-        // Show detailed results
-        if (result.results && result.results.length > 0) {
-          result.results.forEach((r: { channel: string; status: string; message: string }) => {
-            if (r.status === 'success') {
-              toast.success(`${r.channel}: ${r.message}`);
-            } else if (r.status === 'skipped') {
-              toast.info(`${r.channel}: ${r.message}`);
-            } else {
-              toast.error(`${r.channel}: ${r.message}`);
-            }
-          });
-        } else {
-          toast.info('No channels to process');
-        }
+        toast.success('Scheduler executed');
         loadSchedulerLogs();
         loadChannels();
         if (selectedChannel) {
@@ -590,104 +388,6 @@ export default function YouTubeAutomationDashboard() {
     setVideos([]);
   };
 
-  // Render Login Form
-  const renderLoginForm = () => (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Youtube className="h-12 w-12 text-red-500" />
-          </div>
-          <CardTitle className="text-2xl">YouTube Automation</CardTitle>
-          <CardDescription>
-            {needsSetup ? 'Create your admin account' : 'Sign in to your account'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {needsSetup ? (
-            <form onSubmit={handleSetup} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="setup-name">Name</Label>
-                <Input
-                  id="setup-name"
-                  type="text"
-                  placeholder="Admin"
-                  value={setupForm.name}
-                  onChange={(e) => setSetupForm({ ...setupForm, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="setup-email">Email</Label>
-                <Input
-                  id="setup-email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  value={setupForm.email}
-                  onChange={(e) => setSetupForm({ ...setupForm, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="setup-password">Password</Label>
-                <Input
-                  id="setup-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={setupForm.password}
-                  onChange={(e) => setSetupForm({ ...setupForm, password: e.target.value })}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={setupLoading}>
-                {setupLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <User className="mr-2 h-4 w-4" />
-                )}
-                Create Account
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
-                <Input
-                  id="login-email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Password</Label>
-                <Input
-                  id="login-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loginLoading}>
-                {loginLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <LogIn className="mr-2 h-4 w-4" />
-                )}
-                Sign In
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-
   // Render Dashboard View
   const renderDashboard = () => (
     <div className="space-y-6">
@@ -699,16 +399,14 @@ export default function YouTubeAutomationDashboard() {
             Manage your channels and schedule video uploads
           </p>
         </div>
-        <div className="flex gap-2 items-center">
-          {currentUser && (
-            <div className="flex items-center gap-2 mr-2 text-sm text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span>{currentUser.name || currentUser.email}</span>
-            </div>
-          )}
-          <Button variant="outline" size="sm" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={runScheduler} disabled={runningScheduler}>
+            {runningScheduler ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="mr-2 h-4 w-4" />
+            )}
+            Run Scheduler
           </Button>
           <Button onClick={connectChannel}>
             <Plus className="mr-2 h-4 w-4" />
@@ -716,55 +414,6 @@ export default function YouTubeAutomationDashboard() {
           </Button>
         </div>
       </div>
-
-      {/* Scheduler Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-blue-500" />
-            Automatic Upload Schedule
-          </CardTitle>
-          <CardDescription>
-            Videos are uploaded automatically at their scheduled time
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">How it works:</p>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Videos upload at the scheduled time (within 5 min window)</li>
-                <li>• Daily: One video per day</li>
-                <li>• Every 2nd Day: One video every alternate day</li>
-                <li>• Every 3rd/5th Day: Respective intervals</li>
-                <li>• Every Sunday: Weekly uploads on Sunday</li>
-              </ul>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Setup Cron Job (Recommended):</p>
-              <code className="block text-xs bg-muted p-2 rounded">
-                */5 * * * * curl http://localhost:3000/api/cron
-              </code>
-              <p className="text-xs text-muted-foreground">
-                Or use services like cron-job.org, Vercel Cron, or GitHub Actions
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={runScheduler} disabled={runningScheduler}>
-              {runningScheduler ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Play className="mr-2 h-4 w-4" />
-              )}
-              Test Scheduler Now
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              (Only uploads if current time matches scheduled time)
-            </span>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -858,13 +507,13 @@ export default function YouTubeAutomationDashboard() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {formatTimeDisplay(channel.uploadTime)}
+                        {channel.uploadTime}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
                         <Calendar className="h-3 w-3 mr-1" />
-                        {getFrequencyLabel(channel.frequency)}
+                        {channel.frequency}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -1077,97 +726,39 @@ export default function YouTubeAutomationDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* Time Picker */}
-                  <div className="space-y-3">
-                    <Label>Upload Time (12-hour format)</Label>
-                    <div className="flex items-center gap-2">
-                      {/* Hours */}
-                      <Select
-                        value={editSettings.uploadTimeHours.toString()}
-                        onValueChange={(val) => setEditSettings({
-                          ...editSettings,
-                          uploadTimeHours: parseInt(val)
-                        })}
-                      >
-                        <SelectTrigger className="w-20">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                            <SelectItem key={h} value={h.toString()}>
-                              {h}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <span className="text-lg font-bold">:</span>
-                      {/* Minutes */}
-                      <Select
-                        value={editSettings.uploadTimeMinutes.toString().padStart(2, '0')}
-                        onValueChange={(val) => setEditSettings({
-                          ...editSettings,
-                          uploadTimeMinutes: parseInt(val)
-                        })}
-                      >
-                        <SelectTrigger className="w-20">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                            <SelectItem key={m} value={m.toString().padStart(2, '0')}>
-                              {m.toString().padStart(2, '0')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {/* AM/PM */}
-                      <Select
-                        value={editSettings.uploadTimePeriod}
-                        onValueChange={(val: 'AM' | 'PM') => setEditSettings({
-                          ...editSettings,
-                          uploadTimePeriod: val
-                        })}
-                      >
-                        <SelectTrigger className="w-20">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="AM">AM</SelectItem>
-                          <SelectItem value="PM">PM</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="uploadTime">Upload Time</Label>
+                    <Input
+                      id="uploadTime"
+                      type="time"
+                      value={editSettings.uploadTime}
+                      onChange={(e) => setEditSettings({ ...editSettings, uploadTime: e.target.value })}
+                    />
                     <p className="text-xs text-muted-foreground">
-                      Selected time: {editSettings.uploadTimeHours}:{editSettings.uploadTimeMinutes.toString().padStart(2, '0')} {editSettings.uploadTimePeriod}
+                      Videos will be uploaded at this time (24-hour format)
                     </p>
                   </div>
-
-                  {/* Frequency */}
-                  <div className="space-y-3">
-                    <Label>Upload Frequency</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="frequency">Upload Frequency</Label>
                     <Select
                       value={editSettings.frequency}
-                      onValueChange={(val) => setEditSettings({ ...editSettings, frequency: val as FrequencyType })}
+                      onValueChange={(value) => setEditSettings({ ...editSettings, frequency: value })}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {FREQUENCY_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="alternate">Every Other Day</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      {FREQUENCY_OPTIONS.find(o => o.value === editSettings.frequency)?.description}
+                      How often to upload videos
                     </p>
                   </div>
                 </div>
 
-                {/* Current Settings Display */}
                 <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
                   <div>
                     <p className="font-medium">Last Upload</p>
@@ -1178,7 +769,9 @@ export default function YouTubeAutomationDashboard() {
                   <div className="text-right">
                     <p className="font-medium">Next Scheduled Upload</p>
                     <p className="text-sm text-muted-foreground">
-                      {formatNextUpload(selectedChannel.nextUploadTime)}
+                      {selectedChannel.nextUploadTime 
+                        ? formatNextUpload(new Date(selectedChannel.nextUploadTime))
+                        : 'Calculating...'}
                     </p>
                   </div>
                 </div>
@@ -1216,25 +809,6 @@ export default function YouTubeAutomationDashboard() {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="thumbnail-upload">Thumbnails (Optional)</Label>
-                  <Input
-                    id="thumbnail-upload"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => setThumbnailFiles(e.target.files)}
-                  />
-                  {thumbnailFiles && (
-                    <p className="text-sm text-muted-foreground">
-                      {thumbnailFiles.length} thumbnail(s) selected: {Array.from(thumbnailFiles).map(f => f.name).join(', ')}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Recommended: 1280x720 pixels, JPG or PNG. You can upload one thumbnail per video or share one thumbnail for all.
-                  </p>
-                </div>
-
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="defaultTitle">Default Title (Optional)</Label>
@@ -1269,6 +843,22 @@ export default function YouTubeAutomationDashboard() {
                     rows={4}
                   />
                 </div>
+
+                {/* Upload Progress */}
+                {Object.keys(uploadProgress).length > 0 && (
+                  <div className="space-y-3">
+                    <Label>Upload Progress</Label>
+                    {Object.entries(uploadProgress).map(([fileName, progress]) => (
+                      <div key={fileName} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="truncate max-w-[200px]">{fileName}</span>
+                          <span>{progress}%</span>
+                        </div>
+                        <Progress value={progress} className="h-2" />
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <Button
                   onClick={uploadVideos}
@@ -1311,7 +901,6 @@ export default function YouTubeAutomationDashboard() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Title</TableHead>
-                        <TableHead>Thumbnail</TableHead>
                         <TableHead>Size</TableHead>
                         <TableHead>Added</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -1322,16 +911,6 @@ export default function YouTubeAutomationDashboard() {
                         <TableRow key={video.id}>
                           <TableCell className="font-medium">
                             {video.title}
-                          </TableCell>
-                          <TableCell>
-                            {video.thumbnailName ? (
-                              <Badge variant="outline" className="text-green-600 border-green-200">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Yes
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary">No</Badge>
-                            )}
                           </TableCell>
                           <TableCell>{formatFileSize(video.fileSize)}</TableCell>
                           <TableCell>{formatDate(video.createdAt)}</TableCell>
@@ -1366,7 +945,7 @@ export default function YouTubeAutomationDashboard() {
                 {uploadedVideos.length === 0 && failedVideos.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No upload history yet:</p>
+                    <p>No upload history yet</p>
                   </div>
                 ) : (
                   <Table>
@@ -1414,20 +993,6 @@ export default function YouTubeAutomationDashboard() {
       </div>
     );
   };
-
-  // Show loading state
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  // Show login form if not authenticated
-  if (!isAuthenticated) {
-    return renderLoginForm();
-  }
 
   return (
     <div className="min-h-screen bg-background">
