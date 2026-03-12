@@ -173,9 +173,11 @@ export default function YouTubeAutomationDashboard() {
 
   // Upload form state
   const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
+  const [thumbnailFiles, setThumbnailFiles] = useState<FileList | null>(null);
   const [defaultTitle, setDefaultTitle] = useState('');
   const [defaultDescription, setDefaultDescription] = useState('');
   const [defaultTags, setDefaultTags] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
   // Channel settings state
   const [editSettings, setEditSettings] = useState({
@@ -299,7 +301,7 @@ export default function YouTubeAutomationDashboard() {
     setUploadFiles(e.target.files);
   };
 
-  // Upload videos
+  // Upload videos using Vercel Blob direct upload
   const uploadVideos = async () => {
     if (!selectedChannel || !uploadFiles || uploadFiles.length === 0) {
       toast.error('Please select files to upload');
@@ -307,36 +309,142 @@ export default function YouTubeAutomationDashboard() {
     }
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('channelId', selectedChannel.id);
-    formData.append('defaultTitle', defaultTitle);
-    formData.append('defaultDescription', defaultDescription);
-    formData.append('defaultTags', defaultTags);
-
-    for (let i = 0; i < uploadFiles.length; i++) {
-      formData.append('files', uploadFiles[i]);
-    }
+    setUploadProgress({});
+    const uploadedVideos: { 
+      blobUrl: string; 
+      originalName: string; 
+      fileSize: number; 
+      mimeType: string;
+      thumbnailUrl?: string;
+      thumbnailOriginalName?: string;
+      thumbnailSize?: number;
+    }[] = [];
+    const errors: string[] = [];
 
     try {
-      const result = await api.videos.upload(formData);
-      if (result.success) {
-        toast.success(result.message);
+      // First, upload all thumbnails to Blob
+      const thumbnailUrls: { url: string; name: string; size: number }[] = [];
+      if (thumbnailFiles && thumbnailFiles.length > 0) {
+        for (let i = 0; i < thumbnailFiles.length; i++) {
+          const thumbFile = thumbnailFiles[i];
+          const thumbPath = `thumbnails/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${thumbFile.name}`;
+          
+          try {
+            const thumbBlob = await upload(thumbPath, thumbFile, {
+              access: 'public',
+              handleUploadUrl: '/api/blob/upload-url',
+            });
+            thumbnailUrls.push({ url: thumbBlob.url, name: thumbFile.name, size: thumbFile.size });
+          } catch (error: any) {
+            console.error(`Failed to upload thumbnail ${thumbFile.name}:`, error);
+          }
+        }
+      }
+
+      // Upload each video file directly to Vercel Blob
+      for (let i = 0; i < uploadFiles.length; i++) {
+        const file = uploadFiles[i];
+        const filePath = `videos/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${file.name}`;
+        
+        try {
+          setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+          
+          // Direct upload to Vercel Blob from client
+          const blob = await upload(filePath, file, {
+            access: 'public',
+            handleUploadUrl: '/api/blob/upload-url',
+            onUploadProgress: (progress) => {
+              const percentage = Math.round((progress.loaded / progress.total) * 100);
+              setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
+            },
+          });
+          
+          // Get thumbnail for this video (one-to-one or one-for-all)
+          let thumbnailData: { url?: string; name?: string; size?: number } = {};
+          if (thumbnailUrls.length > 0) {
+            if (thumbnailUrls.length === 1) {
+              // One thumbnail for all videos
+              thumbnailData = thumbnailUrls[0];
+            } else if (i < thumbnailUrls.length) {
+              // One thumbnail per video (same order)
+              thumbnailData = thumbnailUrls[i];
+            }
+          }
+          
+          uploadedVideos.push({
+            blobUrl: blob.url,
+            originalName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            thumbnailUrl: thumbnailData.url,
+            thumbnailOriginalName: thumbnailData.name,
+            thumbnailSize: thumbnailData.size,
+          });
+          
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+        } catch (error: any) {
+          console.error(`Failed to upload ${file.name}:`, error);
+          errors.push(`${file.name}: ${error.message || 'Upload failed'}`);
+        }
+      }
+
+      // Now create video records in the database
+      for (const video of uploadedVideos) {
+        const fileExtension = video.originalName.includes('.') 
+          ? '.' + video.originalName.split('.').pop() 
+          : '';
+        const title = defaultTitle 
+          ? `${defaultTitle} ${uploadedVideos.length > 1 ? `(${uploadedVideos.indexOf(video) + 1})` : ''}`
+          : video.originalName.replace(fileExtension, '');
+        
+        const res = await fetch('/api/videos/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channelId: selectedChannel.id,
+            blobUrl: video.blobUrl,
+            originalName: video.originalName,
+            fileSize: video.fileSize,
+            mimeType: video.mimeType,
+            title,
+            description: defaultDescription,
+            tags: defaultTags,
+            thumbnailUrl: video.thumbnailUrl,
+            thumbnailOriginalName: video.thumbnailOriginalName,
+            thumbnailSize: video.thumbnailSize,
+          }),
+        });
+        
+        if (!res.ok) {
+          const error = await res.json();
+          errors.push(`${video.originalName}: ${error.error || 'Failed to create record'}`);
+        }
+      }
+
+      if (uploadedVideos.length > 0) {
+        toast.success(`${uploadedVideos.length} video(s) uploaded successfully`);
         setUploadFiles(null);
+        setThumbnailFiles(null);
         setDefaultTitle('');
         setDefaultDescription('');
         setDefaultTags('');
         loadChannelDetails(selectedChannel.id);
         loadChannels();
-        // Reset file input
+        // Reset file inputs
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
-      } else {
-        toast.error(result.error || 'Upload failed');
+        const thumbInput = document.getElementById('thumbnail-upload') as HTMLInputElement;
+        if (thumbInput) thumbInput.value = '';
       }
-    } catch (error) {
-      toast.error('Failed to upload videos');
+      
+      if (errors.length > 0) {
+        toast.error(`Some uploads failed: ${errors.join(', ')}`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload videos');
     } finally {
       setUploading(false);
+      setUploadProgress({});
     }
   };
 
@@ -800,13 +908,32 @@ export default function YouTubeAutomationDashboard() {
                     type="file"
                     accept="video/*"
                     multiple
-                    onChange={handleFileChange}
+                    onChange={(e) => setUploadFiles(e.target.files)}
                   />
                   {uploadFiles && (
                     <p className="text-sm text-muted-foreground">
                       {uploadFiles.length} file(s) selected: {Array.from(uploadFiles).map(f => f.name).join(', ')}
                     </p>
                   )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="thumbnail-upload">Thumbnail Files (Optional)</Label>
+                  <Input
+                    id="thumbnail-upload"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => setThumbnailFiles(e.target.files)}
+                  />
+                  {thumbnailFiles && thumbnailFiles.length > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {thumbnailFiles.length} thumbnail(s) selected: {Array.from(thumbnailFiles).map(f => f.name).join(', ')}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Upload one thumbnail per video (same order), or one thumbnail for all videos
+                  </p>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
