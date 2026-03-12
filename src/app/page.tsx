@@ -13,7 +13,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { upload } from '@vercel/blob/client';
 import {
   Dialog,
   DialogContent,
@@ -302,7 +301,7 @@ export default function YouTubeAutomationDashboard() {
     setUploadFiles(e.target.files);
   };
 
-  // Upload videos using Vercel Blob direct upload
+  // Upload videos using server-side Blob upload (avoids client-side issues)
   const uploadVideos = async () => {
     if (!selectedChannel || !uploadFiles || uploadFiles.length === 0) {
       toast.error('Please select files to upload');
@@ -328,75 +327,81 @@ export default function YouTubeAutomationDashboard() {
       if (thumbnailFiles && thumbnailFiles.length > 0) {
         for (let i = 0; i < thumbnailFiles.length; i++) {
           const thumbFile = thumbnailFiles[i];
-          // Sanitize filename - remove spaces and special characters
-          const sanitizedThumbName = thumbFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-          const thumbPath = `thumbnails/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${sanitizedThumbName}`;
           
           try {
             setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 0 }));
-            const thumbBlob = await upload(thumbPath, thumbFile, {
-              access: 'public',
-              handleUploadUrl: '/api/blob/upload-url',
-              onUploadProgress: (progress) => {
-                const percentage = Math.round((progress.loaded / progress.total) * 100);
-                setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: percentage }));
-              },
+            
+            // Upload via API
+            const formData = new FormData();
+            formData.append('file', thumbFile);
+            formData.append('folder', 'thumbnails');
+            
+            const res = await fetch('/api/blob/upload', {
+              method: 'POST',
+              body: formData,
             });
-            thumbnailUrls.push({ url: thumbBlob.url, name: thumbFile.name, size: thumbFile.size });
-            setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
+            
+            const result = await res.json();
+            
+            if (result.success) {
+              thumbnailUrls.push({ url: result.url, name: thumbFile.name, size: thumbFile.size });
+              setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
+            } else {
+              errors.push(`Thumbnail ${thumbFile.name}: ${result.error}`);
+            }
           } catch (error: any) {
             console.error(`Failed to upload thumbnail ${thumbFile.name}:`, error);
+            errors.push(`Thumbnail ${thumbFile.name}: ${error.message}`);
           }
         }
       }
 
-      // Upload each video file directly to Vercel Blob
+      // Upload each video file
       for (let i = 0; i < uploadFiles.length; i++) {
         const file = uploadFiles[i];
-        // Sanitize filename - remove spaces and special characters
-        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const filePath = `videos/${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${sanitizedName}`;
         
         try {
           setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
           
-          // Direct upload to Vercel Blob from client
-          // Use multipart for files larger than 10MB for better reliability
-          const useMultipart = file.size > 10 * 1024 * 1024;
+          // Upload via API using FormData
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('folder', 'videos');
           
-          const blob = await upload(filePath, file, {
-            access: 'public',
-            handleUploadUrl: '/api/blob/upload-url',
-            multipart: useMultipart,
-            onUploadProgress: (progress) => {
-              const percentage = Math.round((progress.loaded / progress.total) * 100);
-              setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
-            },
+          const res = await fetch('/api/blob/upload', {
+            method: 'POST',
+            body: formData,
           });
           
-          // Get thumbnail for this video (one-to-one or one-for-all)
-          let thumbnailData: { url?: string; name?: string; size?: number } = {};
-          if (thumbnailUrls.length > 0) {
-            if (thumbnailUrls.length === 1) {
-              // One thumbnail for all videos
-              thumbnailData = thumbnailUrls[0];
-            } else if (i < thumbnailUrls.length) {
-              // One thumbnail per video (same order)
-              thumbnailData = thumbnailUrls[i];
+          const result = await res.json();
+          
+          if (result.success) {
+            // Get thumbnail for this video (one-to-one or one-for-all)
+            let thumbnailData: { url?: string; name?: string; size?: number } = {};
+            if (thumbnailUrls.length > 0) {
+              if (thumbnailUrls.length === 1) {
+                // One thumbnail for all videos
+                thumbnailData = thumbnailUrls[0];
+              } else if (i < thumbnailUrls.length) {
+                // One thumbnail per video (same order)
+                thumbnailData = thumbnailUrls[i];
+              }
             }
+            
+            uploadedVideos.push({
+              blobUrl: result.url,
+              originalName: file.name,
+              fileSize: file.size,
+              mimeType: file.type,
+              thumbnailUrl: thumbnailData.url,
+              thumbnailOriginalName: thumbnailData.name,
+              thumbnailSize: thumbnailData.size,
+            });
+            
+            setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+          } else {
+            errors.push(`${file.name}: ${result.error}`);
           }
-          
-          uploadedVideos.push({
-            blobUrl: blob.url,
-            originalName: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            thumbnailUrl: thumbnailData.url,
-            thumbnailOriginalName: thumbnailData.name,
-            thumbnailSize: thumbnailData.size,
-          });
-          
-          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
         } catch (error: any) {
           console.error(`Failed to upload ${file.name}:`, error);
           errors.push(`${file.name}: ${error.message || 'Upload failed'}`);
