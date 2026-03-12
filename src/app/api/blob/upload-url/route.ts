@@ -2,51 +2,47 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleUpload } from '@vercel/blob/client';
 
 // POST - Handle client-side direct upload to Vercel Blob
-// This uses Vercel Blob's built-in handling for secure browser uploads
 export async function POST(request: NextRequest) {
   try {
-    // Check if BLOB_READ_WRITE_TOKEN is configured
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    
+    if (!token) {
+      console.error('BLOB_READ_WRITE_TOKEN not configured');
       return NextResponse.json(
-        { error: 'Blob storage not configured. Please add BLOB_READ_WRITE_TOKEN to environment variables.' },
+        { error: 'Blob storage not configured. Please add BLOB_READ_WRITE_TOKEN in Vercel Dashboard > Storage > Blob.' },
         { status: 500 }
       );
     }
 
-    // Handle the upload request using Vercel Blob's handleUpload
-    // Note: handleUpload will parse the body internally, so we don't parse it here
+    const body = await request.json();
+    console.log('Blob upload request type:', body.type);
+
+    // Handle the upload request
     const result = await handleUpload({
+      token,
       request,
-      body: await request.json(), // Parse body for handleUpload
+      body,
       onBeforeGenerateToken: async (pathname, clientPayload, multipart) => {
-        // Validate and configure the upload
+        console.log('Generating token for:', pathname, '| multipart:', multipart);
+        
         return {
-          allowedContentTypes: [
-            'video/mp4',
-            'video/quicktime',
-            'video/x-msvideo',
-            'video/x-matroska',
-            'video/webm',
-            'image/jpeg',
-            'image/png',
-            'image/webp',
-            'image/gif',
-          ],
-          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB max for videos
+          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
           validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
           addRandomSuffix: true,
-          tokenPayload: clientPayload || undefined,
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // Called when the upload is complete
+        // This callback is called when the upload completes
+        // You can use this to update your database with the blob URL
         console.log('Upload completed:', blob.url);
       },
     });
 
+    console.log('Result type:', result.type);
     return NextResponse.json(result);
+    
   } catch (error: any) {
-    console.error('Error handling blob upload:', error);
+    console.error('Blob upload error:', error.message);
     return NextResponse.json(
       { error: error.message || 'Failed to handle upload' },
       { status: 500 }
