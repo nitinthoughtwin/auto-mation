@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleUpload } from '@vercel/blob/server';
+import { handleUpload } from '@vercel/blob/client';
 
 // POST - Handle client-side direct upload to Vercel Blob
 // This uses Vercel Blob's built-in handling for secure browser uploads
@@ -13,15 +13,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use Vercel Blob's handleUpload for secure client-side uploads
-    const json = await request.json();
-    
-    // Handle the upload request
-    const blob = await handleUpload({
-      body: json,
+    // Handle the upload request using Vercel Blob's handleUpload
+    // Note: handleUpload will parse the body internally, so we don't parse it here
+    const result = await handleUpload({
       request,
-      onBeforeGenerateToken: async (pathname) => {
-        // Validate the request - you can add additional checks here
+      body: await request.json(), // Parse body for handleUpload
+      onBeforeGenerateToken: async (pathname, clientPayload, multipart) => {
+        // Validate and configure the upload
         return {
           allowedContentTypes: [
             'video/mp4',
@@ -32,11 +30,12 @@ export async function POST(request: NextRequest) {
             'image/jpeg',
             'image/png',
             'image/webp',
+            'image/gif',
           ],
           maximumSizeInBytes: 500 * 1024 * 1024, // 500MB max for videos
           validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
           addRandomSuffix: true,
-          tokenPayload: JSON.stringify({}),
+          tokenPayload: clientPayload || undefined,
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(blob);
+    return NextResponse.json(result);
   } catch (error: any) {
     console.error('Error handling blob upload:', error);
     return NextResponse.json(
