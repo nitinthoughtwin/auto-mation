@@ -464,21 +464,30 @@ export default function YouTubeAutomationDashboard() {
                 throw new Error('No session URL returned');
               }
               
-              // Step 2: Upload file to session URL
+              console.log('Drive session URL created, uploading file...', file.size, 'bytes');
+              
+              // Step 2: Read file as ArrayBuffer and upload to session URL
+              const fileBuffer = await file.arrayBuffer();
+              
               const uploadRes = await fetch(sessionUrl, {
                 method: 'PUT',
                 headers: {
                   'Content-Type': file.type,
+                  'Content-Length': file.size.toString(),
                 },
-                body: file,
+                body: fileBuffer,
               });
               
               if (!uploadRes.ok) {
+                const errText = await uploadRes.text();
+                console.error('Drive upload failed:', errText);
                 throw new Error(`Drive upload failed: ${uploadRes.status}`);
               }
               
               const uploadData = await uploadRes.json();
               const fileId = uploadData.id;
+              
+              console.log('File uploaded to Drive:', fileId, 'Size:', uploadData.size);
               
               // Step 3: Make file public
               await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
