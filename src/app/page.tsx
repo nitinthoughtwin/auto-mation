@@ -13,7 +13,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { upload } from '@vercel/blob/client';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +52,8 @@ import {
   Eye,
   FileVideo,
   Loader2,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
@@ -88,7 +89,9 @@ interface Video {
   originalName: string | null;
   fileSize: number | null;
   mimeType: string | null;
-  thumbnailUrl?: string | null;
+  thumbnailName: string | null;
+  thumbnailOriginalName: string | null;
+  thumbnailSize: number | null;
   status: string;
   uploadedAt: string | null;
   error: string | null;
@@ -143,14 +146,6 @@ const api = {
       });
       return res.json();
     },
-    update: async (id: string, data: Partial<Video>) => {
-      const res = await fetch('/api/videos/update', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videoId: id, ...data }),
-      });
-      return res.json();
-    },
     delete: async (id: string) => {
       const res = await fetch(`/api/videos/${id}`, {
         method: 'DELETE',
@@ -189,14 +184,16 @@ export default function YouTubeAutomationDashboard() {
   const [defaultTags, setDefaultTags] = useState('');
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
-  // Google Drive storage state
-  const [driveStorage, setDriveStorage] = useState<{
-    usedGB: number;
-    limitGB: number;
-    usedPercent: number;
-    availableGB: number;
-  } | null>(null);
-  const [transferring, setTransferring] = useState(false);
+  // Video edit state
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [editVideoData, setEditVideoData] = useState({
+    title: '',
+    description: '',
+    tags: '',
+  });
+  const [editThumbnailFile, setEditThumbnailFile] = useState<File | null>(null);
+  const [savingVideo, setSavingVideo] = useState(false);
+  const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
 
   // Channel settings state
   const [editSettings, setEditSettings] = useState({
@@ -204,24 +201,15 @@ export default function YouTubeAutomationDashboard() {
     frequency: '',
   });
 
-  // Video edit state
-  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
-  const [editVideoData, setEditVideoData] = useState({
-    title: '',
-    description: '',
-    tags: '',
-    thumbnailUrl: '',
-  });
-  const [editThumbnailFile, setEditThumbnailFile] = useState<File | null>(null);
-  const [savingVideo, setSavingVideo] = useState(false);
-
   // Load channels
   const loadChannels = useCallback(async () => {
     try {
       const data = await api.channels.list();
       setChannels(data.channels || []);
     } catch (error) {
-      toast.error('Failed to load channels');
+      toast.error('Failed to Load Channels', {
+        description: 'Could not fetch your channels. Please refresh the page.',
+      });
     } finally {
       setLoading(false);
     }
@@ -240,7 +228,9 @@ export default function YouTubeAutomationDashboard() {
         });
       }
     } catch (error) {
-      toast.error('Failed to load channel details');
+      toast.error('Failed to Load Channel Details', {
+        description: 'Could not fetch channel information. Please try again.',
+      });
     }
   };
 
@@ -251,56 +241,6 @@ export default function YouTubeAutomationDashboard() {
       setSchedulerLogs(data.logs || []);
     } catch (error) {
       console.error('Failed to load scheduler logs');
-    }
-  };
-
-  // Load Google Drive storage info
-  const loadDriveStorage = async (channelId: string) => {
-    try {
-      const res = await fetch(`/api/drive/upload?channelId=${channelId}`);
-      const data = await res.json();
-      if (data.usage) {
-        // Parse values like "3.5 GB" or "15 GB" or "20.5%"
-        const parseGB = (str: string) => parseFloat(str.replace(' GB', '').replace('%', ''));
-        setDriveStorage({
-          usedGB: parseGB(data.usage.used),
-          limitGB: parseGB(data.usage.limit),
-          usedPercent: parseGB(data.usage.percentUsed),
-          availableGB: parseGB(data.usage.available),
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load Drive storage');
-    }
-  };
-
-  // Transfer all queued videos to Google Drive
-  const transferToDrive = async () => {
-    if (!selectedChannel) return;
-    
-    setTransferring(true);
-    try {
-      const res = await fetch('/api/videos/transfer', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId: selectedChannel.id }),
-      });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        toast.success(`Transferred ${data.transferred} videos to Google Drive!`);
-        loadChannelDetails(selectedChannel.id);
-        loadDriveStorage(selectedChannel.id);
-      } else if (data.needsReauth) {
-        toast.error('Please reconnect your channel to enable Google Drive');
-      } else {
-        toast.error(data.error || 'Transfer failed');
-      }
-    } catch (error) {
-      toast.error('Failed to transfer videos');
-    } finally {
-      setTransferring(false);
     }
   };
 
@@ -317,13 +257,17 @@ export default function YouTubeAutomationDashboard() {
     const error = params.get('error');
 
     if (connected) {
-      toast.success('Channel connected successfully!');
+      toast.success('Channel Connected!', {
+        description: 'Your YouTube channel has been successfully connected and is ready for uploads.',
+      });
       loadChannels();
       window.history.replaceState({}, '', '/');
     }
 
     if (error) {
-      toast.error(`Connection failed: ${error}`);
+      toast.error('Connection Failed', {
+        description: `Could not connect your channel: ${error}. Please try again.`,
+      });
       window.history.replaceState({}, '', '/');
     }
   }, [loadChannels]);
@@ -337,42 +281,79 @@ export default function YouTubeAutomationDashboard() {
   const updateChannelSettings = async () => {
     if (!selectedChannel) return;
 
+    const loadingToast = toast.loading('Saving Settings', {
+      description: 'Updating channel configuration...',
+    });
+
     try {
       await api.channels.update(selectedChannel.id, editSettings);
-      toast.success('Settings updated successfully');
+      toast.dismiss(loadingToast);
+      toast.success('Settings Saved', {
+        description: `Upload schedule updated: ${editSettings.frequency} at ${editSettings.uploadTime}`,
+      });
       loadChannelDetails(selectedChannel.id);
       loadChannels();
     } catch (error) {
-      toast.error('Failed to update settings');
+      toast.dismiss(loadingToast);
+      toast.error('Failed to Save Settings', {
+        description: 'Could not update channel settings. Please try again.',
+      });
     }
   };
 
   // Toggle channel active status
   const toggleChannelActive = async (channel: Channel) => {
+    const loadingToast = toast.loading(channel.isActive ? 'Pausing Channel' : 'Activating Channel', {
+      description: `Updating ${channel.name} status...`,
+    });
+    
     try {
       await api.channels.update(channel.id, { isActive: !channel.isActive });
-      toast.success(channel.isActive ? 'Channel paused' : 'Channel activated');
+      toast.dismiss(loadingToast);
+      if (channel.isActive) {
+        toast.success('Channel Paused', {
+          description: `${channel.name} has been paused. Scheduled uploads will not run.`,
+        });
+      } else {
+        toast.success('Channel Activated', {
+          description: `${channel.name} is now active. Videos will be uploaded on schedule.`,
+        });
+      }
       loadChannels();
       if (selectedChannel?.id === channel.id) {
         loadChannelDetails(channel.id);
       }
     } catch (error) {
-      toast.error('Failed to update channel status');
+      toast.dismiss(loadingToast);
+      toast.error('Failed to Update Status', {
+        description: 'Could not change channel status. Please try again.',
+      });
     }
   };
 
   // Delete channel
   const deleteChannel = async (channelId: string) => {
+    const channel = channels.find(c => c.id === channelId);
+    const loadingToast = toast.loading('Disconnecting Channel', {
+      description: `Removing ${channel?.name || 'Channel'} and all queued videos...`,
+    });
+    
     try {
       await api.channels.delete(channelId);
-      toast.success('Channel disconnected');
+      toast.dismiss(loadingToast);
+      toast.success('Channel Disconnected', {
+        description: `${channel?.name || 'Channel'} has been removed along with all queued videos.`,
+      });
       setChannels(channels.filter(c => c.id !== channelId));
       if (selectedChannel?.id === channelId) {
         setSelectedChannel(null);
         setView('dashboard');
       }
     } catch (error) {
-      toast.error('Failed to disconnect channel');
+      toast.dismiss(loadingToast);
+      toast.error('Failed to Disconnect Channel', {
+        description: 'Could not remove the channel. Please try again.',
+      });
     }
   };
 
@@ -381,15 +362,23 @@ export default function YouTubeAutomationDashboard() {
     setUploadFiles(e.target.files);
   };
 
-  // Upload videos using client-side direct Blob upload (bypasses 4.5MB limit)
+  // Upload videos using server-side Blob upload (avoids client-side issues)
   const uploadVideos = async () => {
     if (!selectedChannel || !uploadFiles || uploadFiles.length === 0) {
-      toast.error('Please select files to upload');
+      toast.error('No Files Selected', {
+        description: 'Please select at least one video file to upload.',
+      });
       return;
     }
 
     setUploading(true);
     setUploadProgress({});
+    
+    // Show loading toast
+    const loadingToast = toast.loading('Uploading Videos', {
+      description: `Processing ${uploadFiles.length} file(s)...`,
+    });
+    
     const uploadedVideos: { 
       blobUrl: string; 
       originalName: string; 
@@ -402,29 +391,33 @@ export default function YouTubeAutomationDashboard() {
     const errors: string[] = [];
 
     try {
-      // First, upload all thumbnails using client-side direct upload
+      // First, upload all thumbnails to Blob
       const thumbnailUrls: { url: string; name: string; size: number }[] = [];
       if (thumbnailFiles && thumbnailFiles.length > 0) {
         for (let i = 0; i < thumbnailFiles.length; i++) {
           const thumbFile = thumbnailFiles[i];
-          const thumbPath = `thumbnails/${Date.now()}-${thumbFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
           
           try {
             setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 0 }));
             
-            // Client-side direct upload to Vercel Blob
-            const blob = await upload(thumbPath, thumbFile, {
-              access: 'public',
-              handleUploadUrl: '/api/blob/upload',
-              onUploadProgress: (progress) => {
-                const percentage = Math.round((progress.loaded / progress.total) * 100);
-                setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: percentage }));
-              },
+            // Upload via API
+            const formData = new FormData();
+            formData.append('file', thumbFile);
+            formData.append('folder', 'thumbnails');
+            
+            const res = await fetch('/api/blob/upload', {
+              method: 'POST',
+              body: formData,
             });
             
-            thumbnailUrls.push({ url: blob.url, name: thumbFile.name, size: thumbFile.size });
-            setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
+            const result = await res.json();
             
+            if (result.success) {
+              thumbnailUrls.push({ url: result.url, name: thumbFile.name, size: thumbFile.size });
+              setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
+            } else {
+              errors.push(`Thumbnail ${thumbFile.name}: ${result.error}`);
+            }
           } catch (error: any) {
             console.error(`Failed to upload thumbnail ${thumbFile.name}:`, error);
             errors.push(`Thumbnail ${thumbFile.name}: ${error.message}`);
@@ -439,141 +432,45 @@ export default function YouTubeAutomationDashboard() {
         try {
           setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
           
-          let blobUrl: string;
-          let storageProvider = 'vercel-blob';
+          // Upload via API using FormData
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('folder', 'videos');
           
-          // Priority 1: Google Drive (15GB free, uses same Google account)
-          try {
-            const driveRes = await fetch('/api/drive/upload', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                channelId: selectedChannel.id,
-                filename: file.name,
-                fileSize: file.size,
-                mimeType: file.type,
-              }),
-            });
-            
-            if (driveRes.ok) {
-              const driveData = await driveRes.json();
-              console.log('Using Google Drive for upload');
-              
-              const { accessToken, folderId, filename } = driveData;
-              
-              // Step 1: Create resumable upload session
-              const sessionRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  name: filename,
-                  parents: [folderId],
-                }),
-              });
-              
-              if (!sessionRes.ok) {
-                const errData = await sessionRes.json().catch(() => ({}));
-                throw new Error(errData.error?.message || 'Failed to create Drive upload session');
-              }
-              
-              const sessionUrl = sessionRes.headers.get('Location');
-              if (!sessionUrl) {
-                throw new Error('No session URL returned');
-              }
-              
-              console.log('Drive session URL created, uploading file...', file.size, 'bytes');
-              
-              // Step 2: Read file as ArrayBuffer and upload to session URL
-              const fileBuffer = await file.arrayBuffer();
-              
-              const uploadRes = await fetch(sessionUrl, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': file.type,
-                  'Content-Length': file.size.toString(),
-                },
-                body: fileBuffer,
-              });
-              
-              if (!uploadRes.ok) {
-                const errText = await uploadRes.text();
-                console.error('Drive upload failed:', errText);
-                throw new Error(`Drive upload failed: ${uploadRes.status}`);
-              }
-              
-              const uploadData = await uploadRes.json();
-              const fileId = uploadData.id;
-              
-              console.log('File uploaded to Drive:', fileId, 'Size:', uploadData.size);
-              
-              // Step 3: Make file public
-              await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  role: 'reader',
-                  type: 'anyone',
-                }),
-              });
-              
-              // Direct download URL
-              blobUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-              storageProvider = 'google-drive';
-              setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-              
-            } else {
-              const errData = await driveRes.json().catch(() => ({}));
-              throw new Error(errData.error || 'Drive not available');
-            }
-          } catch (driveError: any) {
-            console.log('Drive upload failed, using Vercel Blob:', driveError.message);
-            
-            // Fallback: Use Vercel Blob (1GB limit)
-            const videoPath = `videos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-            
-            const blob = await upload(videoPath, file, {
-              access: 'public',
-              handleUploadUrl: '/api/blob/upload',
-              onUploadProgress: (progress) => {
-                const percentage = Math.round((progress.loaded / progress.total) * 100);
-                setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
-              },
-            });
-            
-            blobUrl = blob.url;
-            storageProvider = 'vercel-blob';
-          }
-          
-          console.log(`✅ Uploaded ${file.name} to ${storageProvider}`);
-          
-          // Get thumbnail for this video
-          let thumbnailData: { url?: string; name?: string; size?: number } = {};
-          if (thumbnailUrls.length > 0) {
-            if (thumbnailUrls.length === 1) {
-              thumbnailData = thumbnailUrls[0];
-            } else if (i < thumbnailUrls.length) {
-              thumbnailData = thumbnailUrls[i];
-            }
-          }
-          
-          uploadedVideos.push({
-            blobUrl,
-            originalName: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            thumbnailUrl: thumbnailData.url,
-            thumbnailOriginalName: thumbnailData.name,
-            thumbnailSize: thumbnailData.size,
+          const res = await fetch('/api/blob/upload', {
+            method: 'POST',
+            body: formData,
           });
           
-          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+          const result = await res.json();
           
+          if (result.success) {
+            // Get thumbnail for this video (one-to-one or one-for-all)
+            let thumbnailData: { url?: string; name?: string; size?: number } = {};
+            if (thumbnailUrls.length > 0) {
+              if (thumbnailUrls.length === 1) {
+                // One thumbnail for all videos
+                thumbnailData = thumbnailUrls[0];
+              } else if (i < thumbnailUrls.length) {
+                // One thumbnail per video (same order)
+                thumbnailData = thumbnailUrls[i];
+              }
+            }
+            
+            uploadedVideos.push({
+              blobUrl: result.url,
+              originalName: file.name,
+              fileSize: file.size,
+              mimeType: file.type,
+              thumbnailUrl: thumbnailData.url,
+              thumbnailOriginalName: thumbnailData.name,
+              thumbnailSize: thumbnailData.size,
+            });
+            
+            setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+          } else {
+            errors.push(`${file.name}: ${result.error}`);
+          }
         } catch (error: any) {
           console.error(`Failed to upload ${file.name}:`, error);
           errors.push(`${file.name}: ${error.message || 'Upload failed'}`);
@@ -614,7 +511,10 @@ export default function YouTubeAutomationDashboard() {
       }
 
       if (uploadedVideos.length > 0) {
-        toast.success(`${uploadedVideos.length} video(s) uploaded successfully`);
+        toast.dismiss(loadingToast);
+        toast.success('Videos Uploaded Successfully', {
+          description: `${uploadedVideos.length} video(s) added to queue for ${selectedChannel.name}`,
+        });
         setUploadFiles(null);
         setThumbnailFiles(null);
         setDefaultTitle('');
@@ -630,10 +530,16 @@ export default function YouTubeAutomationDashboard() {
       }
       
       if (errors.length > 0) {
-        toast.error(`Some uploads failed: ${errors.join(', ')}`);
+        toast.dismiss(loadingToast);
+        toast.error('Some Uploads Failed', {
+          description: errors.join(', '),
+        });
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to upload videos');
+      toast.dismiss(loadingToast);
+      toast.error('Upload Failed', {
+        description: error.message || 'An unexpected error occurred during upload.',
+      });
     } finally {
       setUploading(false);
       setUploadProgress({});
@@ -642,14 +548,48 @@ export default function YouTubeAutomationDashboard() {
 
   // Delete video
   const deleteVideo = async (videoId: string) => {
+    const video = videos.find(v => v.id === videoId);
+    const loadingToast = toast.loading('Deleting Video', {
+      description: `Removing "${video?.title || 'Video'}" from queue...`,
+    });
+    
     try {
       await api.videos.delete(videoId);
-      toast.success('Video deleted from queue');
+      toast.dismiss(loadingToast);
+      toast.success('Video Deleted', {
+        description: `"${video?.title || 'Video'}" has been removed from the queue.`,
+      });
       setVideos(videos.filter(v => v.id !== videoId));
       loadChannels();
     } catch (error) {
-      toast.error('Failed to delete video');
+      toast.dismiss(loadingToast);
+      toast.error('Failed to Delete Video', {
+        description: 'Could not remove the video from queue. Please try again.',
+      });
     }
+  };
+
+  // Detect video type from file dimensions (if available) or file size/ratio heuristics
+  const getVideoType = (video: Video): 'shorts' | 'video' => {
+    // YouTube Shorts: vertical video (9:16 aspect ratio)
+    // Regular video: horizontal or square (16:9 or 1:1)
+    
+    // We can't get actual dimensions without loading the video
+    // So we use file name hints or default to 'video'
+    const fileName = video.originalName?.toLowerCase() || '';
+    
+    // Check if filename contains "shorts" or "short"
+    if (fileName.includes('shorts') || fileName.includes('short') || fileName.includes('#shorts')) {
+      return 'shorts';
+    }
+    
+    // Check mimeType for vertical video indicators
+    if (video.mimeType?.includes('vertical')) {
+      return 'shorts';
+    }
+    
+    // Default to regular video
+    return 'video';
   };
 
   // Open video edit dialog
@@ -659,7 +599,6 @@ export default function YouTubeAutomationDashboard() {
       title: video.title,
       description: video.description || '',
       tags: video.tags || '',
-      thumbnailUrl: video.thumbnailUrl || '',
     });
     setEditThumbnailFile(null);
   };
@@ -669,154 +608,98 @@ export default function YouTubeAutomationDashboard() {
     if (!editingVideo) return;
     
     setSavingVideo(true);
+    const loadingToast = toast.loading('Saving Changes', {
+      description: 'Updating video details...',
+    });
+    
     try {
-      let thumbnailUrl = editVideoData.thumbnailUrl;
+      let thumbnailUrl = editingVideo.thumbnailName; // Keep existing by default
       
       // Upload new thumbnail if file is selected
       if (editThumbnailFile) {
-        const thumbPath = `thumbnails/${Date.now()}-${editThumbnailFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        const blob = await upload(thumbPath, editThumbnailFile, {
-          access: 'public',
-          handleUploadUrl: '/api/blob/upload',
+        const formData = new FormData();
+        formData.append('file', editThumbnailFile);
+        formData.append('folder', 'thumbnails');
+        
+        const res = await fetch('/api/blob/upload', {
+          method: 'POST',
+          body: formData,
         });
-        thumbnailUrl = blob.url;
+        
+        const result = await res.json();
+        if (result.success) {
+          thumbnailUrl = result.url;
+        }
       }
       
-      const result = await api.videos.update(editingVideo.id, {
-        ...editVideoData,
-        thumbnailUrl,
+      const res = await fetch('/api/videos/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: editingVideo.id,
+          title: editVideoData.title,
+          description: editVideoData.description,
+          tags: editVideoData.tags,
+          thumbnailUrl: thumbnailUrl,
+        }),
       });
+      
+      const result = await res.json();
+      
       if (result.success) {
-        toast.success('Video updated successfully');
-        setVideos(videos.map(v => v.id === editingVideo.id ? { ...v, thumbnailUrl } : v));
+        toast.dismiss(loadingToast);
+        toast.success('Video Updated', {
+          description: `"${editVideoData.title}" has been updated successfully.`,
+        });
         setEditingVideo(null);
         setEditThumbnailFile(null);
+        // Refresh the video list
+        if (selectedChannel) {
+          loadChannelDetails(selectedChannel.id);
+        }
         loadChannels();
       } else {
-        toast.error(result.error || 'Failed to update video');
+        toast.dismiss(loadingToast);
+        toast.error('Failed to Update Video', {
+          description: result.error || 'Could not save changes. Please try again.',
+        });
       }
     } catch (error) {
-      toast.error('Failed to update video');
+      toast.dismiss(loadingToast);
+      toast.error('Failed to Update Video', {
+        description: 'An unexpected error occurred. Please try again.',
+      });
     } finally {
       setSavingVideo(false);
     }
   };
 
-  // Calculate next upload info
-  const getNextUploadInfo = () => {
-    if (!selectedChannel) return null;
-    
-    const queuedVideosList = videos.filter(v => v.status === 'queued');
-    if (queuedVideosList.length === 0) return null;
-    
-    const nextVideo = queuedVideosList[0];
-    const uploadTime = selectedChannel.uploadTime;
-    const frequency = selectedChannel.frequency;
-    const timezone = 'Asia/Kolkata';
-    
-    // Get current time in IST
-    const now = new Date();
-    const timeFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: false,
-    });
-    const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    
-    const currentTimeStr = timeFormatter.format(now);
-    const [currentHours, currentMinutes] = currentTimeStr.split(':').map(Number);
-    
-    // Parse upload time (handle both 24h and 12h formats)
-    let scheduledHours = 0;
-    let scheduledMinutes = 0;
-    const uploadTimeMatch = uploadTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-    if (uploadTimeMatch) {
-      scheduledHours = parseInt(uploadTimeMatch[1]);
-      scheduledMinutes = parseInt(uploadTimeMatch[2]);
-      const period = uploadTimeMatch[3]?.toUpperCase();
-      
-      if (period === 'PM' && scheduledHours !== 12) {
-        scheduledHours += 12;
-      } else if (period === 'AM' && scheduledHours === 12) {
-        scheduledHours = 0;
-      }
-    }
-    
-    // Calculate if upload is today or tomorrow
-    const currentMinutesTotal = currentHours * 60 + currentMinutes;
-    const scheduledMinutesTotal = scheduledHours * 60 + scheduledMinutes;
-    
-    let nextUploadDate = dateFormatter.format(now);
-    if (currentMinutesTotal >= scheduledMinutesTotal) {
-      // Time has passed for today, next upload is tomorrow
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      nextUploadDate = dateFormatter.format(tomorrow);
-    }
-    
-    // Check frequency
-    let canUploadToday = true;
-    let nextAllowedDate = nextUploadDate;
-    
-    if (frequency !== 'daily' && selectedChannel.lastUploadDate) {
-      const lastUpload = new Date(selectedChannel.lastUploadDate);
-      const today = new Date();
-      const dayFormatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      
-      const lastUploadStr = dayFormatter.format(lastUpload);
-      const todayStr = dayFormatter.format(today);
-      
-      if (lastUploadStr === todayStr) {
-        canUploadToday = false;
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        nextAllowedDate = dayFormatter.format(tomorrow);
-      }
-    }
-    
-    const formatTimeDisplay = (hours: number, minutes: number) => {
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-    };
-    
-    return {
-      video: nextVideo,
-      scheduledTime: formatTimeDisplay(scheduledHours, scheduledMinutes),
-      scheduledDate: nextAllowedDate,
-      canUploadToday,
-      videosInQueue: queuedVideosList.length,
-    };
-  };
-
   // Run scheduler manually
   const runScheduler = async () => {
     setRunningScheduler(true);
+    toast.info('Running Scheduler...', {
+      description: 'Checking for scheduled uploads...',
+    });
     try {
       const result = await api.scheduler.run();
       if (result.success) {
-        toast.success('Scheduler executed');
+        toast.success('Scheduler Completed', {
+          description: result.message || 'All scheduled uploads have been processed.',
+        });
         loadSchedulerLogs();
         loadChannels();
         if (selectedChannel) {
           loadChannelDetails(selectedChannel.id);
         }
       } else {
-        toast.error(result.error || 'Scheduler failed');
+        toast.error('Scheduler Failed', {
+          description: result.error || 'Could not process scheduled uploads.',
+        });
       }
     } catch (error) {
-      toast.error('Failed to run scheduler');
+      toast.error('Scheduler Error', {
+        description: 'Failed to run the scheduler. Please try again.',
+      });
     } finally {
       setRunningScheduler(false);
     }
@@ -827,7 +710,6 @@ export default function YouTubeAutomationDashboard() {
     setSelectedChannel(channel);
     setView('channel');
     loadChannelDetails(channel.id);
-    loadDriveStorage(channel.id);
   };
 
   // Navigate back to dashboard
@@ -1200,9 +1082,6 @@ export default function YouTubeAutomationDashboard() {
                       <SelectContent>
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="alternate">Every Other Day</SelectItem>
-                        <SelectItem value="every3days">Every 3 Days</SelectItem>
-                        <SelectItem value="every5days">Every 5 Days</SelectItem>
-                        <SelectItem value="everySunday">Every Sunday</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
@@ -1353,87 +1232,14 @@ export default function YouTubeAutomationDashboard() {
 
           {/* Queue Tab */}
           <TabsContent value="queue">
-            {/* Google Drive Storage Info */}
-            {driveStorage && (
-              <Card className="mb-4">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Google Drive Storage</p>
-                      <p className="text-xs text-muted-foreground">
-                        {driveStorage.usedGB} GB of {driveStorage.limitGB} GB used ({driveStorage.usedPercent}%)
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-green-600">
-                        {driveStorage.availableGB} GB available
-                      </p>
-                    </div>
-                  </div>
-                  <Progress value={driveStorage.usedPercent} className="mt-2 h-2" />
-                </CardContent>
-              </Card>
-            )}
-            
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Video Queue</CardTitle>
-                    <CardDescription>
-                      Videos waiting to be uploaded
-                    </CardDescription>
-                  </div>
-                  {queuedVideos.length > 0 && (
-                    <Button
-                      variant="outline"
-                      onClick={transferToDrive}
-                      disabled={transferring}
-                    >
-                      {transferring ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Transferring...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="mr-2 h-4 w-4" />
-                          Move to Google Drive
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
+                <CardTitle>Video Queue</CardTitle>
+                <CardDescription>
+                  Videos waiting to be uploaded
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Next Upload Info */}
-                {getNextUploadInfo() && (
-                  <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="h-5 w-5 text-blue-600" />
-                      <span className="font-semibold text-blue-700 dark:text-blue-300">Next Upload</span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Video</p>
-                        <p className="font-medium truncate">{getNextUploadInfo()?.video.title}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Scheduled Time</p>
-                        <p className="font-medium">{getNextUploadInfo()?.scheduledTime}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Date</p>
-                        <p className="font-medium">{getNextUploadInfo()?.scheduledDate}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Videos in Queue</p>
-                        <p className="font-medium">{getNextUploadInfo()?.videosInQueue}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
                 {queuedVideos.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileVideo className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1444,8 +1250,10 @@ export default function YouTubeAutomationDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>#</TableHead>
+                        <TableHead className="w-[80px]">#</TableHead>
+                        <TableHead>Thumbnail</TableHead>
                         <TableHead>Title</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Size</TableHead>
                         <TableHead>Added</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -1461,15 +1269,41 @@ export default function YouTubeAutomationDashboard() {
                               <span className="text-muted-foreground">{index + 1}</span>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell>
+                            {video.thumbnailName ? (
+                              <div 
+                                className="w-16 h-10 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                                onClick={() => setPreviewThumbnail(video.thumbnailName)}
+                              >
+                                <img 
+                                  src={video.thumbnailName} 
+                                  alt="Thumbnail" 
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = '/placeholder.png';
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-16 h-10 bg-muted rounded flex items-center justify-center">
+                                <FileVideo className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <div>
-                              <p>{video.title}</p>
+                              <p className="font-medium">{video.title}</p>
                               {video.tags && (
                                 <p className="text-xs text-muted-foreground truncate max-w-[200px]">
                                   Tags: {video.tags}
                                 </p>
                               )}
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getVideoType(video) === 'shorts' ? 'default' : 'secondary'}>
+                              {getVideoType(video) === 'shorts' ? 'Shorts' : 'Video'}
+                            </Badge>
                           </TableCell>
                           <TableCell>{formatFileSize(video.fileSize)}</TableCell>
                           <TableCell>{formatDate(video.createdAt)}</TableCell>
@@ -1610,7 +1444,7 @@ export default function YouTubeAutomationDashboard() {
                     }
                   }}
                 />
-                {editThumbnailFile && (
+                {editThumbnailFile ? (
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground mb-1">New thumbnail:</p>
                     <img 
@@ -1619,12 +1453,11 @@ export default function YouTubeAutomationDashboard() {
                       className="w-full max-w-[200px] rounded-lg border"
                     />
                   </div>
-                )}
-                {!editThumbnailFile && editVideoData.thumbnailUrl && (
+                ) : editingVideo?.thumbnailName ? (
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground mb-1">Current thumbnail:</p>
                     <img 
-                      src={editVideoData.thumbnailUrl} 
+                      src={editingVideo.thumbnailName} 
                       alt="Current thumbnail" 
                       className="w-full max-w-[200px] rounded-lg border"
                       onError={(e) => {
@@ -1632,7 +1465,7 @@ export default function YouTubeAutomationDashboard() {
                       }}
                     />
                   </div>
-                )}
+                ) : null}
                 <p className="text-xs text-muted-foreground">
                   Upload a new image or leave empty to keep current
                 </p>
@@ -1651,6 +1484,29 @@ export default function YouTubeAutomationDashboard() {
                 ) : (
                   'Save Changes'
                 )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Thumbnail Preview Dialog */}
+        <Dialog open={!!previewThumbnail} onOpenChange={() => setPreviewThumbnail(null)}>
+          <DialogContent className="sm:max-w-[800px]">
+            <DialogHeader>
+              <DialogTitle>Thumbnail Preview</DialogTitle>
+            </DialogHeader>
+            <div className="flex justify-center">
+              {previewThumbnail && (
+                <img 
+                  src={previewThumbnail} 
+                  alt="Thumbnail preview" 
+                  className="max-w-full max-h-[500px] rounded-lg"
+                />
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreviewThumbnail(null)}>
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>
