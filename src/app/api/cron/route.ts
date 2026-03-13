@@ -1,54 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processScheduledUploads } from '@/lib/scheduler';
 
-/**
- * Cron Endpoint for External Schedulers
- * 
- * This endpoint is designed to be called by external cron services:
- * - cron-job.org
- * - Vercel Cron Jobs
- * - GitHub Actions Scheduled Workflows
- * - Any other cron service
- * 
- * Recommended interval: Every 5-15 minutes
- * 
- * Security: In production, add authorization header check
- */
-
+// GET - Cron job endpoint for cron-job.org
+// This endpoint is called automatically by cron-job.org on a schedule
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
-    // Optional: Add authorization for production
-    // const authHeader = request.headers.get('authorization');
-    // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
-
-    console.log('Cron job triggered at:', new Date().toISOString());
+    // Optional: Verify cron secret for security
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = request.headers.get('authorization');
+    const urlSecret = request.nextUrl.searchParams.get('secret');
     
+    // If CRON_SECRET is set, verify it
+    if (cronSecret) {
+      const providedSecret = authHeader?.replace('Bearer ', '') || urlSecret;
+      if (providedSecret !== cronSecret) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+    }
+
+    console.log('🕐 Cron job triggered at:', new Date().toISOString());
+    
+    // Process scheduled uploads
     const result = await processScheduledUploads();
     
-    console.log('Cron job completed:', result);
+    const duration = Date.now() - startTime;
+    console.log(`✅ Cron job completed in ${duration}ms:`, result);
     
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      message: `Scheduler completed: ${result.processed} uploaded, ${result.skipped} skipped`,
-      ...result
+      durationMs: duration,
+      processed: result.processed,
+      skipped: result.skipped,
+      results: result.results,
     });
+    
   } catch (error: any) {
-    console.error('Cron job error:', error);
+    console.error('❌ Cron job error:', error);
     return NextResponse.json(
       { 
-        success: false,
+        success: false, 
+        error: error.message,
         timestamp: new Date().toISOString(),
-        error: error.message || 'Cron job failed' 
       },
       { status: 500 }
     );
   }
 }
 
-// Also support POST for flexibility
+// POST - Also support POST for manual triggers
 export async function POST(request: NextRequest) {
   return GET(request);
 }

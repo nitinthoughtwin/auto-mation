@@ -1,7 +1,6 @@
 import 'server-only';
 import { db } from './db';
-import { uploadVideo, uploadThumbnail, refreshAccessToken } from './youtube';
-import { getFile, deleteFile, isVercel, getStorageStatus } from './storage';
+import { uploadVideo, refreshAccessToken } from './youtube';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
@@ -50,7 +49,7 @@ function convertTo24Hour(timeStr: string): { hours: number; minutes: number } {
 // Check if upload should happen based on frequency and time
 function shouldUpload(channel: {
   uploadTime: string;
-  frequency: FrequencyType;
+  frequency: string;
   lastUploadDate: Date | null;
 }): { allowed: boolean; reason: string } {
   const now = new Date();
@@ -64,8 +63,8 @@ function shouldUpload(channel: {
   const timeDiff = Math.abs(currentMinutesTotal - scheduledMinutes);
   
   if (timeDiff > 5) {
-    const scheduledTimeStr = formatTime12Hour(hours, minutes);
-    const currentTimeStr = formatTime12Hour(currentHours, currentMinutes);
+    const scheduledTimeStr = `${hours}:${minutes.toString().padStart(2, '0')}`;
+    const currentTimeStr = `${currentHours}:${currentMinutes.toString().padStart(2, '0')}`;
     return { 
       allowed: false, 
       reason: `Not scheduled time. Current: ${currentTimeStr}, Scheduled: ${scheduledTimeStr}` 
@@ -135,91 +134,7 @@ function shouldUpload(channel: {
   }
 }
 
-// Format time in 12-hour format with AM/PM
-function formatTime12Hour(hours: number, minutes: number): string {
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours % 12 || 12;
-  const displayMinutes = minutes.toString().padStart(2, '0');
-  return `${displayHours}:${displayMinutes} ${period}`;
-}
-
-// Calculate next upload date
-export function getNextUploadDate(channel: {
-  uploadTime: string;
-  frequency: FrequencyType;
-  lastUploadDate: Date | string | null;
-}): Date {
-  const now = new Date();
-  const { hours, minutes } = convertTo24Hour(channel.uploadTime);
-  
-  let nextUpload = new Date();
-  nextUpload.setHours(hours, minutes, 0, 0);
-  
-  if (nextUpload <= now) {
-    nextUpload.setDate(nextUpload.getDate() + 1);
-  }
-
-  const lastUpload = channel.lastUploadDate ? new Date(channel.lastUploadDate) : null;
-
-  switch (channel.frequency) {
-    case 'daily':
-      if (lastUpload && isSameDay(lastUpload, now)) {
-        nextUpload.setDate(nextUpload.getDate() + 1);
-      }
-      break;
-
-    case 'alternate':
-      if (lastUpload) {
-        const daysSince = getDaysDifference(lastUpload, now);
-        if (daysSince < 2) {
-          nextUpload = new Date(lastUpload);
-          nextUpload.setDate(nextUpload.getDate() + 2);
-          nextUpload.setHours(hours, minutes, 0, 0);
-        }
-      }
-      break;
-
-    case 'every3days':
-      if (lastUpload) {
-        const daysSince = getDaysDifference(lastUpload, now);
-        if (daysSince < 3) {
-          nextUpload = new Date(lastUpload);
-          nextUpload.setDate(nextUpload.getDate() + 3);
-          nextUpload.setHours(hours, minutes, 0, 0);
-        }
-      }
-      break;
-
-    case 'every5days':
-      if (lastUpload) {
-        const daysSince = getDaysDifference(lastUpload, now);
-        if (daysSince < 5) {
-          nextUpload = new Date(lastUpload);
-          nextUpload.setDate(nextUpload.getDate() + 5);
-          nextUpload.setHours(hours, minutes, 0, 0);
-        }
-      }
-      break;
-
-    case 'everySunday':
-      const currentDay = getDayOfWeek(now);
-      const daysUntilSunday = (7 - currentDay) % 7 || 7;
-      nextUpload.setDate(now.getDate() + daysUntilSunday);
-      nextUpload.setHours(hours, minutes, 0, 0);
-      if (currentDay === 0 && (!lastUpload || !isSameDay(lastUpload, now))) {
-        nextUpload = new Date();
-        nextUpload.setHours(hours, minutes, 0, 0);
-        if (nextUpload <= now) {
-          nextUpload.setDate(nextUpload.getDate() + 7);
-        }
-      }
-      break;
-  }
-
-  return nextUpload;
-}
-
-// Main scheduler function
+// Main scheduler function - processes all channels
 export async function processScheduledUploads(): Promise<{ 
   processed: number; 
   skipped: number; 
@@ -232,12 +147,7 @@ export async function processScheduledUploads(): Promise<{
   let skipped = 0;
   
   try {
-    // Check storage status
-    const storageStatus = getStorageStatus();
-    if (isVercel && storageStatus.type === 'temp') {
-      console.warn('WARNING: Using temporary storage. Files may not persist!');
-    }
-    
+    // Get all active channels with queued videos
     const channels = await db.channel.findMany({
       where: { isActive: true },
       include: {
@@ -248,6 +158,8 @@ export async function processScheduledUploads(): Promise<{
         },
       },
     });
+
+    console.log(`Found ${channels.length} active channels`);
 
     for (const channel of channels) {
       const uploadCheck = shouldUpload(channel as any);
@@ -265,10 +177,11 @@ export async function processScheduledUploads(): Promise<{
 
       const video = channel.videos[0];
       if (!video) {
+        console.log(`No queued videos for channel: ${channel.name}`);
         results.push({
           channel: channel.name,
           status: 'skipped',
-          message: 'No videos in queue'
+          message: 'No queued videos'
         });
         skipped++;
         continue;
@@ -277,6 +190,7 @@ export async function processScheduledUploads(): Promise<{
       console.log(`Processing: ${channel.name}, video: ${video.title}`);
 
       try {
+        // Refresh token if needed
         let accessToken = channel.accessToken;
         try {
           const tokens = await refreshAccessToken(channel.refreshToken);
@@ -289,39 +203,37 @@ export async function processScheduledUploads(): Promise<{
             },
           });
         } catch (tokenError) {
-          console.error('Token refresh failed:', tokenError);
+          console.error('Token refresh failed, trying existing token:', tokenError);
         }
 
-        // Get video file using storage utility
-        const videoFile = await getFile(video.fileName, 'videos');
+        // Check if fileName is a URL (from Blob storage)
+        const isBlobUrl = video.fileName.startsWith('http://') || video.fileName.startsWith('https://');
+        
+        let videoBuffer: Buffer;
+        
+        if (isBlobUrl) {
+          // Download from Blob URL
+          console.log(`Downloading from Blob: ${video.fileName}`);
+          const response = await fetch(video.fileName);
+          if (!response.ok) {
+            throw new Error(`Failed to download video from Blob: ${response.status}`);
+          }
+          const arrayBuffer = await response.arrayBuffer();
+          videoBuffer = Buffer.from(arrayBuffer);
+        } else {
+          throw new Error('Local file storage not supported. Video must be in Blob storage.');
+        }
 
         // Upload to YouTube
         const result = await uploadVideo(accessToken, channel.refreshToken, {
           title: video.title,
           description: video.description || '',
           tags: video.tags ? video.tags.split(',').map(t => t.trim()) : [],
-          fileBuffer: videoFile.buffer,
-          fileName: video.originalName || video.fileName,
+          fileBuffer: videoBuffer,
+          fileName: video.originalName || 'video.mp4',
         });
 
-        if (result.success && result.videoId) {
-          // Upload thumbnail if exists
-          if (video.thumbnailName) {
-            try {
-              const thumbFile = await getFile(video.thumbnailName, 'thumbnails');
-              await uploadThumbnail(
-                accessToken,
-                channel.refreshToken,
-                result.videoId,
-                thumbFile.buffer,
-                video.thumbnailOriginalName || video.thumbnailName
-              );
-              console.log(`Thumbnail uploaded for: ${video.title}`);
-            } catch (thumbError) {
-              console.error('Thumbnail upload failed:', thumbError);
-            }
-          }
-
+        if (result.success) {
           // Update video status
           await db.video.update({
             where: { id: video.id },
@@ -331,7 +243,7 @@ export async function processScheduledUploads(): Promise<{
             },
           });
 
-          // Update channel
+          // Update channel last upload date
           await db.channel.update({
             where: { id: channel.id },
             data: { lastUploadDate: new Date() },
@@ -348,16 +260,7 @@ export async function processScheduledUploads(): Promise<{
             },
           });
 
-          // Cleanup
-          videoFile.cleanup();
-          if (!isVercel) {
-            deleteFile(video.fileName, 'videos');
-            if (video.thumbnailName) {
-              deleteFile(video.thumbnailName, 'thumbnails');
-            }
-          }
-
-          console.log(`Uploaded: ${result.videoUrl}`);
+          console.log(`✅ Uploaded: ${result.videoUrl}`);
           
           results.push({
             channel: channel.name,
@@ -369,7 +272,7 @@ export async function processScheduledUploads(): Promise<{
           throw new Error(result.error);
         }
       } catch (error: any) {
-        console.error(`Upload failed for ${channel.name}:`, error);
+        console.error(`❌ Upload failed for ${channel.name}:`, error);
 
         await db.video.update({
           where: { id: video.id },
