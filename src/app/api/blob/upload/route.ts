@@ -1,81 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
-// POST - Handle client-side upload token generation
-// This endpoint handles requests from @vercel/blob/client's upload() function
+// POST - Upload file to local storage
 export async function POST(request: NextRequest) {
   try {
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    console.log('=== File Upload Request ===');
     
-    if (!token) {
-      console.error('BLOB_READ_WRITE_TOKEN not configured');
+    // Parse form data
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    const folder = (formData.get('folder') as string) || 'uploads';
+    
+    console.log('Folder:', folder);
+    console.log('File:', file ? `${file.name} (${file.size} bytes, ${file.type})` : 'NONE');
+    
+    if (!file) {
       return NextResponse.json({ 
-        error: 'BLOB_READ_WRITE_TOKEN not configured' 
-      }, { status: 500 });
+        success: false,
+        error: 'No file provided in form data' 
+      }, { status: 400 });
     }
 
-    const body = await request.json();
-    console.log('Blob API request:', body.type);
+    // Create upload directory if it doesn't exist
+    const uploadDir = path.join(process.cwd(), 'uploads', folder);
+    await mkdir(uploadDir, { recursive: true });
     
-    // Handle token generation request (type: "blob.generate-client-token")
-    if (body.type === 'blob.generate-client-token') {
-      const pathname = body.payload?.pathname;
-      const multipart = body.payload?.multipart || false;
-      
-      if (!pathname) {
-        return NextResponse.json({ 
-          error: 'pathname is required' 
-        }, { status: 400 });
-      }
+    // Generate unique filename
+    const timestamp = Date.now();
+    const cleanName = file.name
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9._-]/g, '');
+    
+    const fileName = `${timestamp}-${cleanName}`;
+    const filePath = path.join(uploadDir, fileName);
+    
+    // Convert File to ArrayBuffer and save
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    
+    await writeFile(filePath, buffer);
+    
+    console.log('=== Upload SUCCESS ===');
+    console.log('Saved to:', filePath);
 
-      console.log('🔑 Generating token for:', pathname, '| multipart:', multipart);
+    // Return a URL-like path that we can use
+    const url = `/uploads/${folder}/${fileName}`;
 
-      const clientToken = await generateClientTokenFromReadWriteToken({
-        token,
-        pathname,
-        maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
-        validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
-        addRandomSuffix: true,
-      });
-
-      console.log('✅ Token generated for:', pathname);
-
-      return NextResponse.json({
-        type: 'blob.generate-client-token',
-        clientToken,
-      });
-    }
-
-    // Handle upload completed callback (type: "blob.upload-completed")
-    if (body.type === 'blob.upload-completed') {
-      const blob = body.payload?.blob;
-      console.log('✅ Upload completed:', blob?.url);
-      
-      return NextResponse.json({
-        type: 'blob.upload-completed',
-        response: 'ok',
-      });
-    }
-
-    console.log('Unknown request type:', body.type);
-    return NextResponse.json({ 
-      error: 'Unknown request type: ' + body.type 
-    }, { status: 400 });
+    return NextResponse.json({
+      success: true,
+      url: url,
+      pathname: `${folder}/${fileName}`,
+      fileName: fileName
+    });
     
   } catch (error: any) {
-    console.error('❌ Blob API error:', error.message);
-    console.error('Stack:', error.stack);
+    console.error('=== Upload FAILED ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
     return NextResponse.json({ 
-      error: error.message || 'Unknown error' 
+      success: false,
+      error: error.message || 'Unknown upload error'
     }, { status: 500 });
   }
-}
-
-// GET - Check Blob configuration status
-export async function GET() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  return NextResponse.json({
-    configured: !!token,
-    tokenPreview: token ? token.substring(0, 15) + '...' : null,
-  });
 }

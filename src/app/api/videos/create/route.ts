@@ -1,78 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import path from 'path';
 
-// Update video details (title, description, tags, thumbnail)
-export async function PUT(request: NextRequest) {
+// POST - Create video record after file upload
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { videoId, title, description, tags, thumbnailUrl } = body;
+    const { 
+      channelId, 
+      blobUrl, 
+      originalName, 
+      fileSize, 
+      mimeType, 
+      title, 
+      description, 
+      tags,
+      thumbnailUrl,
+      thumbnailOriginalName,
+      thumbnailSize
+    } = body;
 
-    console.log('Update video request:', { videoId, title, description, tags, thumbnailUrl });
+    console.log('=== Creating Video Record ===');
+    console.log('Channel ID:', channelId);
+    console.log('Blob URL:', blobUrl);
+    console.log('Original Name:', originalName);
+    console.log('Title:', title);
+    console.log('Thumbnail URL:', thumbnailUrl);
 
-    if (!videoId) {
-      return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
+    if (!channelId) {
+      return NextResponse.json(
+        { error: 'Channel ID is required' },
+        { status: 400 }
+      );
     }
 
-    // Check if video exists
-    const existingVideo = await db.video.findUnique({
-      where: { id: videoId },
+    if (!blobUrl) {
+      return NextResponse.json(
+        { error: 'Blob URL is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify channel exists
+    const channel = await db.channel.findUnique({
+      where: { id: channelId },
     });
 
-    console.log('Existing video:', existingVideo?.id, existingVideo?.title);
-
-    if (!existingVideo) {
-      return NextResponse.json({ 
-        error: 'Video not found',
-        videoId,
-        hint: 'The video may have been deleted or the ID is incorrect'
-      }, { status: 404 });
+    if (!channel) {
+      return NextResponse.json(
+        { error: 'Channel not found' },
+        { status: 404 }
+      );
     }
 
-    // Only allow editing queued videos
-    if (existingVideo.status !== 'queued') {
-      return NextResponse.json({ 
-        error: 'Only queued videos can be edited',
-        currentStatus: existingVideo.status
-      }, { status: 400 });
-    }
-
-    // Update video
-    const updateData: Record<string, any> = {};
+    // Extract filename from blobUrl
+    // blobUrl format: /uploads/videos/1234567890-filename.mp4
+    const fileName = path.basename(blobUrl);
     
-    if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (tags !== undefined) updateData.tags = tags;
-    if (thumbnailUrl !== undefined) updateData.thumbnailUrl = thumbnailUrl;
+    // Extract thumbnail filename if provided
+    let thumbnailName: string | null = null;
+    if (thumbnailUrl) {
+      thumbnailName = path.basename(thumbnailUrl);
+    }
 
-    console.log('Update data:', updateData);
-
-    const updatedVideo = await db.video.update({
-      where: { id: videoId },
-      data: updateData,
+    // Create video record in database
+    const video = await db.video.create({
+      data: {
+        channelId,
+        title: title || originalName || 'Untitled',
+        description: description || '',
+        tags: tags || '',
+        fileName,
+        originalName,
+        fileSize,
+        mimeType,
+        thumbnailName,
+        thumbnailOriginalName,
+        thumbnailSize,
+        status: 'queued',
+      },
     });
 
-    console.log('Updated video:', updatedVideo.id);
+    console.log('=== Video Created ===');
+    console.log('Video ID:', video.id);
 
-    return NextResponse.json({
+    return NextResponse.json({ 
       success: true,
-      video: updatedVideo,
+      video 
     });
-
   } catch (error: any) {
-    console.error('Video update error:', error);
-    
-    // Handle Prisma specific errors
-    if (error.code === 'P2025') {
-      return NextResponse.json({
-        error: 'Video not found in database',
-        details: error.message
-      }, { status: 404 });
-    }
-    
-    return NextResponse.json({
-      error: error.message || 'Failed to update video',
-      code: error.code,
-    }, { status: 500 });
+    console.error('Error creating video record:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create video record' },
+      { status: 500 }
+    );
   }
 }
