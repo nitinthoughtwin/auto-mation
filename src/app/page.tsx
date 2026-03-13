@@ -237,10 +237,17 @@ export default function YouTubeAutomationDashboard() {
   // Load Google Drive storage info
   const loadDriveStorage = async (channelId: string) => {
     try {
-      const res = await fetch(`/api/drive/storage?channelId=${channelId}`);
+      const res = await fetch(`/api/drive/upload?channelId=${channelId}`);
       const data = await res.json();
-      if (data.success && data.storage) {
-        setDriveStorage(data.storage);
+      if (data.usage) {
+        // Parse values like "3.5 GB" or "15 GB" or "20.5%"
+        const parseGB = (str: string) => parseFloat(str.replace(' GB', '').replace('%', ''));
+        setDriveStorage({
+          usedGB: parseGB(data.usage.used),
+          limitGB: parseGB(data.usage.limit),
+          usedPercent: parseGB(data.usage.percentUsed),
+          availableGB: parseGB(data.usage.available),
+        });
       }
     } catch (error) {
       console.error('Failed to load Drive storage');
