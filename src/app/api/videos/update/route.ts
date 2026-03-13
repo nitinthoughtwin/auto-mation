@@ -44,19 +44,16 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update video - only update fields that are provided
+    // Note: thumbnailUrl in frontend maps to thumbnailName in database (stores blob URL)
     const updateData: Record<string, any> = {};
     
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (tags !== undefined) updateData.tags = tags;
     
-    // Only update thumbnailUrl if the column exists and value is provided
-    if (thumbnailUrl !== undefined) {
-      try {
-        updateData.thumbnailUrl = thumbnailUrl;
-      } catch (e) {
-        console.warn('thumbnailUrl column may not exist:', e);
-      }
+    // Map thumbnailUrl to thumbnailName (database field)
+    if (thumbnailUrl !== undefined && thumbnailUrl !== '') {
+      updateData.thumbnailName = thumbnailUrl;
     }
 
     console.log('Update data:', updateData);
@@ -82,14 +79,6 @@ export async function PUT(request: NextRequest) {
         error: 'Video not found in database',
         details: error.message
       }, { status: 404 });
-    }
-    
-    // Handle column doesn't exist error
-    if (error.message?.includes('thumbnailUrl') || error.code === 'P2021') {
-      return NextResponse.json({
-        error: 'Database schema needs update. Run: npx prisma db push',
-        details: error.message
-      }, { status: 500 });
     }
     
     return NextResponse.json({
