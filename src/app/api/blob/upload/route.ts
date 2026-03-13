@@ -1,39 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleUpload } from '@vercel/blob/client';
+import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
 
-// POST - Handle client-side Blob upload token generation
+// POST - Handle client-side upload token generation
 export async function POST(request: NextRequest) {
   try {
     const token = process.env.BLOB_READ_WRITE_TOKEN;
     
     if (!token) {
+      console.error('BLOB_READ_WRITE_TOKEN not configured');
       return NextResponse.json({ 
         error: 'BLOB_READ_WRITE_TOKEN not configured' 
       }, { status: 500 });
     }
 
     const body = await request.json();
+    console.log('Blob API request type:', body.type);
     
-    const result = await handleUpload({
-      token,
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname) => {
-        return {
-          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
-          validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
-          addRandomSuffix: true,
-        };
-      },
-      onUploadCompleted: async ({ blob }) => {
-        console.log('Upload completed:', blob.url);
-      },
-    });
+    // Handle token generation (called before upload starts)
+    if (body.type === 'blob.generate-client-token') {
+      const pathname = body.payload?.pathname;
+      
+      if (!pathname) {
+        return NextResponse.json({ 
+          error: 'pathname is required' 
+        }, { status: 400 });
+      }
 
-    return NextResponse.json(result);
+      console.log('Generating client token for:', pathname);
+
+      const clientToken = await generateClientTokenFromReadWriteToken({
+        token,
+        pathname,
+        maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+        validUntil: Date.now() + 60 * 60 * 1000, // 1 hour from now
+        addRandomSuffix: true,
+      });
+
+      console.log('✅ Client token generated for:', pathname);
+
+      return NextResponse.json({
+        type: 'blob.generate-client-token',
+        clientToken,
+      });
+    }
+
+    // Handle upload completion callback (called after upload finishes)
+    if (body.type === 'blob.upload-completed') {
+      const blob = body.payload?.blob;
+      console.log('✅ Upload completed:', blob?.url);
+      
+      return NextResponse.json({
+        type: 'blob.upload-completed',
+        response: 'ok',
+      });
+    }
+
+    console.log('Unknown request type:', body.type);
+    return NextResponse.json({ 
+      error: 'Unknown request type: ' + body.type 
+    }, { status: 400 });
     
   } catch (error: any) {
-    console.error('Blob upload error:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ Blob API error:', error.message);
+    console.error('Stack:', error.stack);
+    return NextResponse.json({ 
+      error: error.message || 'Unknown error' 
+    }, { status: 500 });
   }
+}
+
+// GET - Check Blob configuration status
+export async function GET() {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  return NextResponse.json({
+    configured: !!token,
+    tokenPreview: token ? token.substring(0, 15) + '...' : null,
+  });
 }
