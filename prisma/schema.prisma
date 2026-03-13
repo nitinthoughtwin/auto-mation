@@ -22,6 +22,7 @@ model Channel {
   refreshToken     String
   uploadTime       String    @default("18:00")
   frequency        String    @default("daily")
+  timezone         String    @default("Asia/Kolkata")
   isActive         Boolean   @default(true)
   lastUploadDate   DateTime?
   createdAt        DateTime  @default(now())

@@ -4,24 +4,71 @@ import { uploadVideo, refreshAccessToken } from './youtube';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
-// Get day of week (0 = Sunday, 1 = Monday, etc.)
-function getDayOfWeek(date: Date): number {
-  return date.getDay();
+// Get current time in a specific timezone
+function getCurrentTimeInTimezone(timezone: string): { hours: number; minutes: number; date: Date } {
+  const now = new Date();
+  
+  // Format time in the target timezone
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  });
+  
+  const timeStr = formatter.format(now);
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  
+  // Get date in target timezone
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const dateStr = dateFormatter.format(now);
+  
+  return { hours, minutes, date: new Date(dateStr) };
 }
 
-// Check if dates are on the same day
-function isSameDay(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
+// Get day of week in specific timezone (0 = Sunday, 1 = Monday, etc.)
+function getDayOfWeekInTimezone(timezone: string): number {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+  });
+  
+  const dayMap: Record<string, number> = {
+    'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6
+  };
+  
+  return dayMap[formatter.format(now)] ?? now.getDay();
+}
+
+// Check if dates are on the same day in a specific timezone
+function isSameDayInTimezone(date1: Date, date2: Date, timezone: string): boolean {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  return formatter.format(date1) === formatter.format(date2);
 }
 
 // Get days difference between two dates
-function getDaysDifference(date1: Date, date2: Date): number {
-  const d1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate());
-  const d2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate());
+function getDaysDifference(date1: Date, date2: Date, timezone: string): number {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  const d1 = new Date(formatter.format(date1));
+  const d2 = new Date(formatter.format(date2));
   return Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
 }
 
@@ -50,24 +97,37 @@ function convertTo24Hour(timeStr: string): { hours: number; minutes: number } {
 function shouldUpload(channel: {
   uploadTime: string;
   frequency: string;
+  timezone: string;
   lastUploadDate: Date | null;
-}): { allowed: boolean; reason: string } {
-  const now = new Date();
-  const { hours, minutes } = convertTo24Hour(channel.uploadTime);
-  const currentHours = now.getHours();
-  const currentMinutes = now.getMinutes();
-
-  // Check if current time matches upload time (within 5 minutes window)
-  const scheduledMinutes = hours * 60 + minutes;
-  const currentMinutesTotal = currentHours * 60 + currentMinutes;
-  const timeDiff = Math.abs(currentMinutesTotal - scheduledMinutes);
+}): { allowed: boolean; reason: string; debugInfo: Record<string, any> } {
   
+  const timezone = channel.timezone || 'Asia/Kolkata';
+  const { hours: currentHours, minutes: currentMinutes, date: currentDate } = getCurrentTimeInTimezone(timezone);
+  const { hours: scheduledHours, minutes: scheduledMinutes } = convertTo24Hour(channel.uploadTime);
+  
+  // Calculate time difference in minutes
+  const scheduledMinutesTotal = scheduledHours * 60 + scheduledMinutes;
+  const currentMinutesTotal = currentHours * 60 + currentMinutes;
+  const timeDiff = Math.abs(currentMinutesTotal - scheduledMinutesTotal);
+  
+  const debugInfo = {
+    timezone,
+    serverTime: new Date().toISOString(),
+    serverTimeUTC: `${new Date().getUTCHours()}:${new Date().getUTCMinutes().toString().padStart(2, '0')}`,
+    currentTimeInTimezone: `${currentHours}:${currentMinutes.toString().padStart(2, '0')}`,
+    scheduledTime: `${scheduledHours}:${scheduledMinutes.toString().padStart(2, '0')}`,
+    timeDifferenceMinutes: timeDiff,
+    uploadTimeStored: channel.uploadTime,
+  };
+  
+  console.log('Debug info:', JSON.stringify(debugInfo, null, 2));
+  
+  // Check if current time matches upload time (within 5 minutes window)
   if (timeDiff > 5) {
-    const scheduledTimeStr = `${hours}:${minutes.toString().padStart(2, '0')}`;
-    const currentTimeStr = `${currentHours}:${currentMinutes.toString().padStart(2, '0')}`;
     return { 
       allowed: false, 
-      reason: `Not scheduled time. Current: ${currentTimeStr}, Scheduled: ${scheduledTimeStr}` 
+      reason: `Not scheduled time. Current: ${currentHours}:${currentMinutes.toString().padStart(2, '0')}, Scheduled: ${scheduledHours}:${scheduledMinutes.toString().padStart(2, '0')} (in ${timezone})`,
+      debugInfo
     };
   }
 
@@ -76,61 +136,61 @@ function shouldUpload(channel: {
     case 'daily': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDay(lastUpload, now)) {
-          return { allowed: false, reason: 'Already uploaded today' };
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded today', debugInfo };
         }
       }
-      return { allowed: true, reason: 'Daily upload ready' };
+      return { allowed: true, reason: 'Daily upload ready', debugInfo };
     }
 
     case 'alternate': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, now);
+        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
         if (daysSince < 2) {
-          return { allowed: false, reason: `Need 2 days, only ${daysSince} passed` };
+          return { allowed: false, reason: `Need 2 days, only ${daysSince} passed`, debugInfo };
         }
       }
-      return { allowed: true, reason: 'Every 2nd day ready' };
+      return { allowed: true, reason: 'Every 2nd day ready', debugInfo };
     }
 
     case 'every3days': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, now);
+        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
         if (daysSince < 3) {
-          return { allowed: false, reason: `Need 3 days, only ${daysSince} passed` };
+          return { allowed: false, reason: `Need 3 days, only ${daysSince} passed`, debugInfo };
         }
       }
-      return { allowed: true, reason: 'Every 3rd day ready' };
+      return { allowed: true, reason: 'Every 3rd day ready', debugInfo };
     }
 
     case 'every5days': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, now);
+        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
         if (daysSince < 5) {
-          return { allowed: false, reason: `Need 5 days, only ${daysSince} passed` };
+          return { allowed: false, reason: `Need 5 days, only ${daysSince} passed`, debugInfo };
         }
       }
-      return { allowed: true, reason: 'Every 5th day ready' };
+      return { allowed: true, reason: 'Every 5th day ready', debugInfo };
     }
 
     case 'everySunday': {
-      if (getDayOfWeek(now) !== 0) {
-        return { allowed: false, reason: 'Not Sunday' };
+      if (getDayOfWeekInTimezone(timezone) !== 0) {
+        return { allowed: false, reason: 'Not Sunday', debugInfo };
       }
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDay(lastUpload, now)) {
-          return { allowed: false, reason: 'Already uploaded this Sunday' };
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded this Sunday', debugInfo };
         }
       }
-      return { allowed: true, reason: 'Sunday upload ready' };
+      return { allowed: true, reason: 'Sunday upload ready', debugInfo };
     }
 
     default:
-      return { allowed: false, reason: `Unknown frequency: ${channel.frequency}` };
+      return { allowed: false, reason: `Unknown frequency: ${channel.frequency}`, debugInfo };
   }
 }
 
@@ -138,11 +198,12 @@ function shouldUpload(channel: {
 export async function processScheduledUploads(): Promise<{ 
   processed: number; 
   skipped: number; 
-  results: Array<{ channel: string; status: string; message: string }> 
+  results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }> 
 }> {
   console.log('Scheduler: Processing scheduled uploads...');
+  console.log('Server time (UTC):', new Date().toISOString());
   
-  const results: Array<{ channel: string; status: string; message: string }> = [];
+  const results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }> = [];
   let processed = 0;
   let skipped = 0;
   
@@ -161,15 +222,34 @@ export async function processScheduledUploads(): Promise<{
 
     console.log(`Found ${channels.length} active channels`);
 
+    if (channels.length === 0) {
+      results.push({
+        channel: 'SYSTEM',
+        status: 'info',
+        message: 'No active channels found'
+      });
+    }
+
     for (const channel of channels) {
-      const uploadCheck = shouldUpload(channel as any);
+      console.log(`\n--- Processing channel: ${channel.name} ---`);
+      console.log(`Channel settings: uploadTime=${channel.uploadTime}, frequency=${channel.frequency}, timezone=${channel.timezone || 'Asia/Kolkata (default)'}`);
+      
+      const uploadCheck = shouldUpload({
+        uploadTime: channel.uploadTime,
+        frequency: channel.frequency,
+        timezone: channel.timezone || 'Asia/Kolkata',
+        lastUploadDate: channel.lastUploadDate,
+      });
+      
+      console.log(`Upload check result:`, uploadCheck);
       
       if (!uploadCheck.allowed) {
         console.log(`Skipping ${channel.name}: ${uploadCheck.reason}`);
         results.push({
           channel: channel.name,
           status: 'skipped',
-          message: uploadCheck.reason
+          message: uploadCheck.reason,
+          debugInfo: uploadCheck.debugInfo,
         });
         skipped++;
         continue;
@@ -301,6 +381,11 @@ export async function processScheduledUploads(): Promise<{
     }
   } catch (error) {
     console.error('Scheduler error:', error);
+    results.push({
+      channel: 'SYSTEM',
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
   
   return { processed, skipped, results };
