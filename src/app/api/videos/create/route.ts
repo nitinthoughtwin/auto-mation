@@ -1,29 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-// POST - Create video record after Blob upload
+// Create video record after upload to Blob/Drive
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { 
-      channelId, 
-      blobUrl, 
-      originalName, 
-      fileSize, 
+    const {
+      channelId,
+      blobUrl,
+      originalName,
+      fileSize,
       mimeType,
       title,
       description,
       tags,
       thumbnailUrl,
-      thumbnailOriginalName,
-      thumbnailSize,
     } = body;
 
-    if (!channelId || !blobUrl || !originalName) {
-      return NextResponse.json(
-        { error: 'Missing required fields: channelId, blobUrl, originalName' },
-        { status: 400 }
-      );
+    if (!channelId || !blobUrl) {
+      return NextResponse.json({ error: 'channelId and blobUrl are required' }, { status: 400 });
     }
 
     // Verify channel exists
@@ -32,46 +27,34 @@ export async function POST(request: NextRequest) {
     });
 
     if (!channel) {
-      return NextResponse.json(
-        { error: 'Channel not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    // Generate title if not provided
-    const fileExtension = originalName.includes('.') 
-      ? '.' + originalName.split('.').pop() 
-      : '';
-    const videoTitle = title || originalName.replace(fileExtension, '');
-
-    // Create video record in database
+    // Create video record
     const video = await db.video.create({
       data: {
         channelId,
-        title: videoTitle,
+        title: title || originalName || 'Untitled Video',
         description: description || '',
         tags: tags || '',
-        fileName: blobUrl, // Store the Blob URL
-        originalName,
+        fileName: blobUrl, // Store the Blob/Drive URL
+        originalName: originalName || 'video.mp4',
         fileSize: fileSize || 0,
         mimeType: mimeType || 'video/mp4',
-        thumbnailName: thumbnailUrl || null,
-        thumbnailOriginalName: thumbnailOriginalName || null,
-        thumbnailSize: thumbnailSize || null,
+        thumbnailUrl: thumbnailUrl || null,
         status: 'queued',
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Video record created successfully',
       video,
     });
+
   } catch (error: any) {
-    console.error('Error creating video record:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to create video record' },
-      { status: 500 }
-    );
+    console.error('Video create error:', error);
+    return NextResponse.json({
+      error: error.message || 'Failed to create video record'
+    }, { status: 500 });
   }
 }

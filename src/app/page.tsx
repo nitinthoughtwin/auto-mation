@@ -88,6 +88,7 @@ interface Video {
   originalName: string | null;
   fileSize: number | null;
   mimeType: string | null;
+  thumbnailUrl?: string | null;
   status: string;
   uploadedAt: string | null;
   error: string | null;
@@ -139,6 +140,14 @@ const api = {
       const res = await fetch('/api/videos/upload', {
         method: 'POST',
         body: formData,
+      });
+      return res.json();
+    },
+    update: async (id: string, data: Partial<Video>) => {
+      const res = await fetch('/api/videos/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId: id, ...data }),
       });
       return res.json();
     },
@@ -194,6 +203,16 @@ export default function YouTubeAutomationDashboard() {
     uploadTime: '',
     frequency: '',
   });
+
+  // Video edit state
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [editVideoData, setEditVideoData] = useState({
+    title: '',
+    description: '',
+    tags: '',
+    thumbnailUrl: '',
+  });
+  const [savingVideo, setSavingVideo] = useState(false);
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -630,6 +649,137 @@ export default function YouTubeAutomationDashboard() {
     } catch (error) {
       toast.error('Failed to delete video');
     }
+  };
+
+  // Open video edit dialog
+  const openEditVideo = (video: Video) => {
+    setEditingVideo(video);
+    setEditVideoData({
+      title: video.title,
+      description: video.description || '',
+      tags: video.tags || '',
+      thumbnailUrl: video.thumbnailUrl || '',
+    });
+  };
+
+  // Save video edits
+  const saveVideoEdit = async () => {
+    if (!editingVideo) return;
+    
+    setSavingVideo(true);
+    try {
+      const result = await api.videos.update(editingVideo.id, editVideoData);
+      if (result.success) {
+        toast.success('Video updated successfully');
+        setVideos(videos.map(v => v.id === editingVideo.id ? { ...v, ...editVideoData } : v));
+        setEditingVideo(null);
+        loadChannels();
+      } else {
+        toast.error(result.error || 'Failed to update video');
+      }
+    } catch (error) {
+      toast.error('Failed to update video');
+    } finally {
+      setSavingVideo(false);
+    }
+  };
+
+  // Calculate next upload info
+  const getNextUploadInfo = () => {
+    if (!selectedChannel) return null;
+    
+    const queuedVideosList = videos.filter(v => v.status === 'queued');
+    if (queuedVideosList.length === 0) return null;
+    
+    const nextVideo = queuedVideosList[0];
+    const uploadTime = selectedChannel.uploadTime;
+    const frequency = selectedChannel.frequency;
+    const timezone = 'Asia/Kolkata';
+    
+    // Get current time in IST
+    const now = new Date();
+    const timeFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+    });
+    const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    
+    const currentTimeStr = timeFormatter.format(now);
+    const [currentHours, currentMinutes] = currentTimeStr.split(':').map(Number);
+    
+    // Parse upload time (handle both 24h and 12h formats)
+    let scheduledHours = 0;
+    let scheduledMinutes = 0;
+    const uploadTimeMatch = uploadTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (uploadTimeMatch) {
+      scheduledHours = parseInt(uploadTimeMatch[1]);
+      scheduledMinutes = parseInt(uploadTimeMatch[2]);
+      const period = uploadTimeMatch[3]?.toUpperCase();
+      
+      if (period === 'PM' && scheduledHours !== 12) {
+        scheduledHours += 12;
+      } else if (period === 'AM' && scheduledHours === 12) {
+        scheduledHours = 0;
+      }
+    }
+    
+    // Calculate if upload is today or tomorrow
+    const currentMinutesTotal = currentHours * 60 + currentMinutes;
+    const scheduledMinutesTotal = scheduledHours * 60 + scheduledMinutes;
+    
+    let nextUploadDate = dateFormatter.format(now);
+    if (currentMinutesTotal >= scheduledMinutesTotal) {
+      // Time has passed for today, next upload is tomorrow
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      nextUploadDate = dateFormatter.format(tomorrow);
+    }
+    
+    // Check frequency
+    let canUploadToday = true;
+    let nextAllowedDate = nextUploadDate;
+    
+    if (frequency !== 'daily' && selectedChannel.lastUploadDate) {
+      const lastUpload = new Date(selectedChannel.lastUploadDate);
+      const today = new Date();
+      const dayFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      
+      const lastUploadStr = dayFormatter.format(lastUpload);
+      const todayStr = dayFormatter.format(today);
+      
+      if (lastUploadStr === todayStr) {
+        canUploadToday = false;
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        nextAllowedDate = dayFormatter.format(tomorrow);
+      }
+    }
+    
+    const formatTimeDisplay = (hours: number, minutes: number) => {
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    };
+    
+    return {
+      video: nextVideo,
+      scheduledTime: formatTimeDisplay(scheduledHours, scheduledMinutes),
+      scheduledDate: nextAllowedDate,
+      canUploadToday,
+      videosInQueue: queuedVideosList.length,
+    };
   };
 
   // Run scheduler manually
@@ -1238,6 +1388,34 @@ export default function YouTubeAutomationDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Next Upload Info */}
+                {getNextUploadInfo() && (
+                  <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                      <span className="font-semibold text-blue-700 dark:text-blue-300">Next Upload</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Video</p>
+                        <p className="font-medium truncate">{getNextUploadInfo()?.video.title}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Scheduled Time</p>
+                        <p className="font-medium">{getNextUploadInfo()?.scheduledTime}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Date</p>
+                        <p className="font-medium">{getNextUploadInfo()?.scheduledDate}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Videos in Queue</p>
+                        <p className="font-medium">{getNextUploadInfo()?.videosInQueue}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {queuedVideos.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileVideo className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1248,6 +1426,7 @@ export default function YouTubeAutomationDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>#</TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Size</TableHead>
                         <TableHead>Added</TableHead>
@@ -1255,21 +1434,44 @@ export default function YouTubeAutomationDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {queuedVideos.map((video) => (
-                        <TableRow key={video.id}>
+                      {queuedVideos.map((video, index) => (
+                        <TableRow key={video.id} className={index === 0 ? 'bg-green-50 dark:bg-green-950' : ''}>
+                          <TableCell>
+                            {index === 0 ? (
+                              <Badge className="bg-green-600">Next</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">{index + 1}</span>
+                            )}
+                          </TableCell>
                           <TableCell className="font-medium">
-                            {video.title}
+                            <div>
+                              <p>{video.title}</p>
+                              {video.tags && (
+                                <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                  Tags: {video.tags}
+                                </p>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>{formatFileSize(video.fileSize)}</TableCell>
                           <TableCell>{formatDate(video.createdAt)}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => deleteVideo(video.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditVideo(video)}
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => deleteVideo(video.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1338,6 +1540,84 @@ export default function YouTubeAutomationDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Video Dialog */}
+        <Dialog open={!!editingVideo} onOpenChange={() => setEditingVideo(null)}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Video</DialogTitle>
+              <DialogDescription>
+                Update video details before upload
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">Title</Label>
+                <Input
+                  id="edit-title"
+                  value={editVideoData.title}
+                  onChange={(e) => setEditVideoData({ ...editVideoData, title: e.target.value })}
+                  placeholder="Video title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editVideoData.description}
+                  onChange={(e) => setEditVideoData({ ...editVideoData, description: e.target.value })}
+                  placeholder="Video description"
+                  rows={4}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-tags">Tags (comma separated)</Label>
+                <Input
+                  id="edit-tags"
+                  value={editVideoData.tags}
+                  onChange={(e) => setEditVideoData({ ...editVideoData, tags: e.target.value })}
+                  placeholder="tag1, tag2, tag3"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-thumbnail">Thumbnail URL</Label>
+                <Input
+                  id="edit-thumbnail"
+                  value={editVideoData.thumbnailUrl}
+                  onChange={(e) => setEditVideoData({ ...editVideoData, thumbnailUrl: e.target.value })}
+                  placeholder="https://example.com/thumbnail.jpg"
+                />
+                {editVideoData.thumbnailUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={editVideoData.thumbnailUrl} 
+                      alt="Thumbnail preview" 
+                      className="w-full max-w-[200px] rounded-lg border"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingVideo(null)}>
+                Cancel
+              </Button>
+              <Button onClick={saveVideoEdit} disabled={savingVideo}>
+                {savingVideo ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   };
