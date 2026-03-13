@@ -1,60 +1,78 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
-// Create video record after upload to Blob/Drive
-export async function POST(request: NextRequest) {
+// Update video details (title, description, tags, thumbnail)
+export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      channelId,
-      blobUrl,
-      originalName,
-      fileSize,
-      mimeType,
-      title,
-      description,
-      tags,
-      thumbnailUrl,
-    } = body;
+    const { videoId, title, description, tags, thumbnailUrl } = body;
 
-    if (!channelId || !blobUrl) {
-      return NextResponse.json({ error: 'channelId and blobUrl are required' }, { status: 400 });
+    console.log('Update video request:', { videoId, title, description, tags, thumbnailUrl });
+
+    if (!videoId) {
+      return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
     }
 
-    // Verify channel exists
-    const channel = await db.channel.findUnique({
-      where: { id: channelId },
+    // Check if video exists
+    const existingVideo = await db.video.findUnique({
+      where: { id: videoId },
     });
 
-    if (!channel) {
-      return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
+    console.log('Existing video:', existingVideo?.id, existingVideo?.title);
+
+    if (!existingVideo) {
+      return NextResponse.json({ 
+        error: 'Video not found',
+        videoId,
+        hint: 'The video may have been deleted or the ID is incorrect'
+      }, { status: 404 });
     }
 
-    // Create video record
-    const video = await db.video.create({
-      data: {
-        channelId,
-        title: title || originalName || 'Untitled Video',
-        description: description || '',
-        tags: tags || '',
-        fileName: blobUrl, // Store the Blob/Drive URL
-        originalName: originalName || 'video.mp4',
-        fileSize: fileSize || 0,
-        mimeType: mimeType || 'video/mp4',
-        thumbnailUrl: thumbnailUrl || null,
-        status: 'queued',
-      },
+    // Only allow editing queued videos
+    if (existingVideo.status !== 'queued') {
+      return NextResponse.json({ 
+        error: 'Only queued videos can be edited',
+        currentStatus: existingVideo.status
+      }, { status: 400 });
+    }
+
+    // Update video
+    const updateData: Record<string, any> = {};
+    
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (tags !== undefined) updateData.tags = tags;
+    if (thumbnailUrl !== undefined) updateData.thumbnailUrl = thumbnailUrl;
+
+    console.log('Update data:', updateData);
+
+    const updatedVideo = await db.video.update({
+      where: { id: videoId },
+      data: updateData,
     });
+
+    console.log('Updated video:', updatedVideo.id);
 
     return NextResponse.json({
       success: true,
-      video,
+      video: updatedVideo,
     });
 
   } catch (error: any) {
-    console.error('Video create error:', error);
+    console.error('Video update error:', error);
+    
+    // Handle Prisma specific errors
+    if (error.code === 'P2025') {
+      return NextResponse.json({
+        error: 'Video not found in database',
+        details: error.message
+      }, { status: 404 });
+    }
+    
     return NextResponse.json({
-      error: error.message || 'Failed to create video record'
+      error: error.message || 'Failed to update video',
+      code: error.code,
     }, { status: 500 });
   }
 }
