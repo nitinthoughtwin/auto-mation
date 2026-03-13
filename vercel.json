@@ -2,7 +2,7 @@
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "functions": {
       "src/app/api/blob/upload/route.ts": {
-        "memory": 3008,
+        "memory": 1024,
         "maxDuration": 60
       },
       "src/app/api/blob/test/route.ts": {
@@ -12,11 +12,6 @@
       "src/app/api/scheduler/route.ts": {
         "memory": 1024,
         "maxDuration": 60
-      },
-      "src/app/api/videos/upload/route.ts": {
-        "memory": 3008,
-        "maxDuration": 60
       }
     }
   }
-  
