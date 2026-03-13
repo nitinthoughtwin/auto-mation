@@ -870,6 +870,9 @@ export default function YouTubeAutomationDashboard() {
                       <SelectContent>
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="alternate">Every Other Day</SelectItem>
+                        <SelectItem value="every3days">Every 3 Days</SelectItem>
+                        <SelectItem value="every5days">Every 5 Days</SelectItem>
+                        <SelectItem value="everySunday">Every Sunday</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
