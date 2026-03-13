@@ -69,36 +69,17 @@ export async function POST(request: NextRequest) {
       folderId = folder.data.id!;
     }
 
-    // Create resumable upload session
-    const resumableSession = await drive.files.create({
-      requestBody: {
-        name: `${Date.now()}-${filename}`,
-        parents: [folderId],
-      },
-      media: {
-        mimeType: mimeType || 'video/mp4',
-        body: '', // Empty body to get resumable session URL
-      },
-      fields: 'id',
-    });
-
-    // Alternative: Use direct upload with access token
-    // Return the access token and folder ID for client-side upload
+    // Generate unique filename
     const uniqueFilename = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
+    // Return the access token and folder ID for client-side upload
+    // Client will create the resumable session and upload the file
     return NextResponse.json({
       success: true,
       provider: 'google-drive',
       accessToken, // Short-lived access token for client upload
       folderId,
       filename: uniqueFilename,
-      uploadUrl: `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable`,
-      instructions: {
-        step1: 'POST to uploadUrl with headers: Authorization: Bearer {accessToken}, Content-Type: application/json; charset=UTF-8',
-        step2: 'Body: {"name": "' + uniqueFilename + '", "parents": ["' + folderId + '"]}',
-        step3: 'Get session URL from Location header',
-        step4: 'PUT to session URL with file content',
-      },
     });
 
   } catch (error: any) {
