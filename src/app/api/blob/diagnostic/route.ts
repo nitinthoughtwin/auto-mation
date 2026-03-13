@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { list } from '@vercel/blob';
+import { list, put, head } from '@vercel/blob';
 
-// GET - Diagnose Blob storage configuration
+// GET - Full Blob diagnostic
 export async function GET() {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   
@@ -9,52 +9,58 @@ export async function GET() {
   if (!token) {
     return NextResponse.json({
       status: 'ERROR',
-      step: 'token_check',
+      step: 'token_exists',
       message: 'BLOB_READ_WRITE_TOKEN is not set',
-      solution: 'Go to Vercel Dashboard > Your Project > Settings > Environment Variables and add BLOB_READ_WRITE_TOKEN'
     });
   }
   
   // Check 2: Token format
-  const tokenStart = token.substring(0, 15);
-  const isValidFormat = token.startsWith('vercel_blob_rw_');
+  const tokenParts = token.split('_');
+  const tokenFormat = {
+    full: token.substring(0, 30) + '...',
+    parts: tokenParts.length,
+    prefix: tokenParts[0] + '_' + tokenParts[1] + '_' + tokenParts[2],
+  };
   
-  if (!isValidFormat) {
-    return NextResponse.json({
-      status: 'ERROR', 
-      step: 'token_format',
-      message: 'Token format is invalid',
-      tokenPreview: tokenStart + '...',
-      expectedFormat: 'vercel_blob_rw_...',
-      solution: 'The token should start with "vercel_blob_rw_". Get it from Vercel Dashboard > Storage > Your Blob Store'
-    });
-  }
-  
-  // Check 3: Try to connect to Blob store
+  // Check 3: List existing blobs
+  let listResult;
   try {
-    const result = await list({ limit: 1 });
-    
-    return NextResponse.json({
-      status: 'SUCCESS',
-      step: 'connection_test',
-      message: 'Blob storage is working correctly!',
-      tokenPreview: tokenStart + '...',
-      storeHasBlobs: result.blobs.length > 0,
-      blobsCount: result.blobs.length,
-      nextStep: 'You can now upload videos using client-side direct upload'
-    });
-    
-  } catch (error: any) {
+    listResult = await list({ limit: 5 });
+  } catch (e: any) {
     return NextResponse.json({
       status: 'ERROR',
-      step: 'connection_test',
-      message: 'Failed to connect to Blob store',
-      error: error.message,
-      errorCode: error.code,
-      tokenPreview: tokenStart + '...',
-      solution: error.message?.includes('not found') 
-        ? 'Blob store not found. Go to Vercel Dashboard > Your Project > Storage and CREATE a Blob store, then LINK it to your project'
-        : 'Check if the Blob store exists and is linked to this project in Vercel Dashboard'
+      step: 'list_blobs',
+      message: 'Failed to list blobs',
+      error: e.message,
+      tokenFormat,
     });
   }
+  
+  // Check 4: Try a test upload
+  let testUpload;
+  try {
+    const testBlob = await put('diagnostic/test.txt', 'Diagnostic test at ' + new Date().toISOString(), {
+      access: 'public',
+    });
+    testUpload = {
+      success: true,
+      url: testBlob.url,
+    };
+  } catch (e: any) {
+    testUpload = {
+      success: false,
+      error: e.message,
+    };
+  }
+  
+  return NextResponse.json({
+    status: testUpload.success ? 'SUCCESS' : 'PARTIAL',
+    tokenFormat,
+    storeHasBlobs: listResult.blobs.length > 0,
+    blobsCount: listResult.blobs.length,
+    testUpload,
+    solution: !testUpload.success 
+      ? 'Server-side upload works but client-side might have issues. Check if Blob store is linked to correct project.'
+      : 'Everything works! Client-side upload should work.',
+  });
 }

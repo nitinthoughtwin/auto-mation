@@ -12,6 +12,10 @@
       "src/app/api/scheduler/route.ts": {
         "memory": 1024,
         "maxDuration": 60
+      },
+      "src/app/api/cron/route.ts": {
+        "memory": 1024,
+        "maxDuration": 60
       }
     }
   }
