@@ -1,70 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { handleUpload } from '@vercel/blob/client';
 
-// POST - Upload file to Vercel Blob
+// POST - Handle client-side Blob upload token generation
 export async function POST(request: NextRequest) {
   try {
-    // Log environment check
     const token = process.env.BLOB_READ_WRITE_TOKEN;
-    console.log('=== Blob Upload Request ===');
-    console.log('Token exists:', !!token);
-    console.log('Token preview:', token ? token.substring(0, 15) + '...' : 'NONE');
     
     if (!token) {
       return NextResponse.json({ 
-        success: false,
-        error: 'BLOB_READ_WRITE_TOKEN not set in environment' 
+        error: 'BLOB_READ_WRITE_TOKEN not configured' 
       }, { status: 500 });
     }
 
-    // Parse form data
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const folder = (formData.get('folder') as string) || 'uploads';
+    const body = await request.json();
     
-    console.log('Folder:', folder);
-    console.log('File:', file ? `${file.name} (${file.size} bytes, ${file.type})` : 'NONE');
-    
-    if (!file) {
-      return NextResponse.json({ 
-        success: false,
-        error: 'No file provided in form data' 
-      }, { status: 400 });
-    }
-
-    // Clean filename - remove spaces and special chars
-    const cleanName = file.name
-      .replace(/\s+/g, '_')
-      .replace(/[^a-zA-Z0-9._-]/g, '');
-    
-    const pathname = `${folder}/${Date.now()}-${cleanName}`;
-    console.log('Target pathname:', pathname);
-
-    // Upload to Vercel Blob
-    const blob = await put(pathname, file, {
-      access: 'public'
+    const result = await handleUpload({
+      token,
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname) => {
+        return {
+          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+          validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
+          addRandomSuffix: true,
+        };
+      },
+      onUploadCompleted: async ({ blob }) => {
+        console.log('Upload completed:', blob.url);
+      },
     });
 
-    console.log('=== Upload SUCCESS ===');
-    console.log('URL:', blob.url);
-
-    return NextResponse.json({
-      success: true,
-      url: blob.url,
-      pathname: blob.pathname
-    });
+    return NextResponse.json(result);
     
   } catch (error: any) {
-    console.error('=== Upload FAILED ===');
-    console.error('Error message:', error.message);
-    console.error('Error name:', error.name);
-    console.error('Error code:', error.code);
-    
-    return NextResponse.json({ 
-      success: false,
-      error: error.message || 'Unknown upload error',
-      errorName: error.name,
-      errorCode: error.code
-    }, { status: 500 });
+    console.error('Blob upload error:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
