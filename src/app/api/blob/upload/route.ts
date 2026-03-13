@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
 
 // POST - Handle client-side upload token generation
+// This endpoint handles requests from @vercel/blob/client's upload() function
 export async function POST(request: NextRequest) {
   try {
     const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -14,11 +15,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log('Blob API request type:', body.type);
+    console.log('Blob API request:', body.type);
     
-    // Handle token generation (called before upload starts)
+    // Handle token generation request (type: "blob.generate-client-token")
     if (body.type === 'blob.generate-client-token') {
       const pathname = body.payload?.pathname;
+      const multipart = body.payload?.multipart || false;
       
       if (!pathname) {
         return NextResponse.json({ 
@@ -26,17 +28,17 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      console.log('Generating client token for:', pathname);
+      console.log('🔑 Generating token for:', pathname, '| multipart:', multipart);
 
       const clientToken = await generateClientTokenFromReadWriteToken({
         token,
         pathname,
         maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
-        validUntil: Date.now() + 60 * 60 * 1000, // 1 hour from now
+        validUntil: Date.now() + 60 * 60 * 1000, // 1 hour
         addRandomSuffix: true,
       });
 
-      console.log('✅ Client token generated for:', pathname);
+      console.log('✅ Token generated for:', pathname);
 
       return NextResponse.json({
         type: 'blob.generate-client-token',
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Handle upload completion callback (called after upload finishes)
+    // Handle upload completed callback (type: "blob.upload-completed")
     if (body.type === 'blob.upload-completed') {
       const blob = body.payload?.blob;
       console.log('✅ Upload completed:', blob?.url);
