@@ -212,6 +212,7 @@ export default function YouTubeAutomationDashboard() {
     tags: '',
     thumbnailUrl: '',
   });
+  const [editThumbnailFile, setEditThumbnailFile] = useState<File | null>(null);
   const [savingVideo, setSavingVideo] = useState(false);
 
   // Load channels
@@ -660,6 +661,7 @@ export default function YouTubeAutomationDashboard() {
       tags: video.tags || '',
       thumbnailUrl: video.thumbnailUrl || '',
     });
+    setEditThumbnailFile(null);
   };
 
   // Save video edits
@@ -668,11 +670,27 @@ export default function YouTubeAutomationDashboard() {
     
     setSavingVideo(true);
     try {
-      const result = await api.videos.update(editingVideo.id, editVideoData);
+      let thumbnailUrl = editVideoData.thumbnailUrl;
+      
+      // Upload new thumbnail if file is selected
+      if (editThumbnailFile) {
+        const thumbPath = `thumbnails/${Date.now()}-${editThumbnailFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const blob = await upload(thumbPath, editThumbnailFile, {
+          access: 'public',
+          handleUploadUrl: '/api/blob/upload',
+        });
+        thumbnailUrl = blob.url;
+      }
+      
+      const result = await api.videos.update(editingVideo.id, {
+        ...editVideoData,
+        thumbnailUrl,
+      });
       if (result.success) {
         toast.success('Video updated successfully');
-        setVideos(videos.map(v => v.id === editingVideo.id ? { ...v, ...editVideoData } : v));
+        setVideos(videos.map(v => v.id === editingVideo.id ? { ...v, thumbnailUrl } : v));
         setEditingVideo(null);
+        setEditThumbnailFile(null);
         loadChannels();
       } else {
         toast.error(result.error || 'Failed to update video');
@@ -1580,18 +1598,34 @@ export default function YouTubeAutomationDashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-thumbnail">Thumbnail URL</Label>
+                <Label htmlFor="edit-thumbnail-file">Thumbnail</Label>
                 <Input
-                  id="edit-thumbnail"
-                  value={editVideoData.thumbnailUrl}
-                  onChange={(e) => setEditVideoData({ ...editVideoData, thumbnailUrl: e.target.value })}
-                  placeholder="https://example.com/thumbnail.jpg"
+                  id="edit-thumbnail-file"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setEditThumbnailFile(file);
+                    }
+                  }}
                 />
-                {editVideoData.thumbnailUrl && (
+                {editThumbnailFile && (
                   <div className="mt-2">
+                    <p className="text-xs text-muted-foreground mb-1">New thumbnail:</p>
+                    <img 
+                      src={URL.createObjectURL(editThumbnailFile)} 
+                      alt="New thumbnail preview" 
+                      className="w-full max-w-[200px] rounded-lg border"
+                    />
+                  </div>
+                )}
+                {!editThumbnailFile && editVideoData.thumbnailUrl && (
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Current thumbnail:</p>
                     <img 
                       src={editVideoData.thumbnailUrl} 
-                      alt="Thumbnail preview" 
+                      alt="Current thumbnail" 
                       className="w-full max-w-[200px] rounded-lg border"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
@@ -1599,6 +1633,9 @@ export default function YouTubeAutomationDashboard() {
                     />
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  Upload a new image or leave empty to keep current
+                </p>
               </div>
             </div>
             <DialogFooter>
