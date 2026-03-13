@@ -448,7 +448,8 @@ export default function YouTubeAutomationDashboard() {
               });
               
               if (!sessionRes.ok) {
-                throw new Error('Failed to create Drive upload session');
+                const errData = await sessionRes.json().catch(() => ({}));
+                throw new Error(errData.error?.message || 'Failed to create Drive upload session');
               }
               
               const sessionUrl = sessionRes.headers.get('Location');
@@ -491,68 +492,26 @@ export default function YouTubeAutomationDashboard() {
               setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
               
             } else {
-              throw new Error('Drive not available');
+              const errData = await driveRes.json().catch(() => ({}));
+              throw new Error(errData.error || 'Drive not available');
             }
           } catch (driveError: any) {
-            console.log('Drive upload failed, trying alternatives:', driveError.message);
+            console.log('Drive upload failed, using Vercel Blob:', driveError.message);
             
-            // Priority 2: Check if R2 is configured
-            const r2Check = await fetch('/api/storage/upload');
-            const r2Config = await r2Check.json();
+            // Fallback: Use Vercel Blob (1GB limit)
+            const videoPath = `videos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
             
-            if (r2Config.configured) {
-              // Use R2 (Cloudflare - 10GB free)
-              console.log('Using Cloudflare R2 for upload');
-              
-              const presignRes = await fetch('/api/storage/upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  filename: file.name,
-                  contentType: file.type,
-                  fileSize: file.size,
-                }),
-              });
-              
-              if (!presignRes.ok) {
-                throw new Error('Failed to get upload URL from R2');
-              }
-              
-              const { uploadUrl, publicUrl } = await presignRes.json();
-              
-              // Upload directly to R2 using presigned URL
-              const uploadRes = await fetch(uploadUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': file.type },
-                body: file,
-              });
-              
-              if (!uploadRes.ok) {
-                throw new Error(`R2 upload failed: ${uploadRes.status}`);
-              }
-              
-              blobUrl = publicUrl;
-              storageProvider = 'cloudflare-r2';
-              setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-              
-            } else {
-              // Priority 3: Use Vercel Blob (1GB limit)
-              console.log('Using Vercel Blob for upload');
-              
-              const videoPath = `videos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-              
-              const blob = await upload(videoPath, file, {
-                access: 'public',
-                handleUploadUrl: '/api/blob/upload',
-                onUploadProgress: (progress) => {
-                  const percentage = Math.round((progress.loaded / progress.total) * 100);
-                  setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
-                },
-              });
-              
-              blobUrl = blob.url;
-              storageProvider = 'vercel-blob';
-            }
+            const blob = await upload(videoPath, file, {
+              access: 'public',
+              handleUploadUrl: '/api/blob/upload',
+              onUploadProgress: (progress) => {
+                const percentage = Math.round((progress.loaded / progress.total) * 100);
+                setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
+              },
+            });
+            
+            blobUrl = blob.url;
+            storageProvider = 'vercel-blob';
           }
           
           console.log(`✅ Uploaded ${file.name} to ${storageProvider}`);
