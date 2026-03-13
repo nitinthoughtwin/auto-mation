@@ -25,6 +25,7 @@ export function getAuthUrl(state?: string) {
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/drive.file', // Google Drive - upload files
   ];
 
   return oauth2Client.generateAuthUrl({

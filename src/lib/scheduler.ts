@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { uploadVideo, refreshAccessToken } from './youtube';
+import { deleteFile } from './storage';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
@@ -286,22 +287,22 @@ export async function processScheduledUploads(): Promise<{
           console.error('Token refresh failed, trying existing token:', tokenError);
         }
 
-        // Check if fileName is a URL (from Blob storage)
-        const isBlobUrl = video.fileName.startsWith('http://') || video.fileName.startsWith('https://');
+        // Check if fileName is a URL (from Blob or Google Drive storage)
+        const isUrl = video.fileName.startsWith('http://') || video.fileName.startsWith('https://');
         
         let videoBuffer: Buffer;
         
-        if (isBlobUrl) {
-          // Download from Blob URL
-          console.log(`Downloading from Blob: ${video.fileName}`);
+        if (isUrl) {
+          // Download from URL (Vercel Blob or Google Drive)
+          console.log(`Downloading video from: ${video.fileName}`);
           const response = await fetch(video.fileName);
           if (!response.ok) {
-            throw new Error(`Failed to download video from Blob: ${response.status}`);
+            throw new Error(`Failed to download video: ${response.status}`);
           }
           const arrayBuffer = await response.arrayBuffer();
           videoBuffer = Buffer.from(arrayBuffer);
         } else {
-          throw new Error('Local file storage not supported. Video must be in Blob storage.');
+          throw new Error('Local file storage not supported. Video must be in cloud storage.');
         }
 
         // Upload to YouTube
@@ -339,6 +340,19 @@ export async function processScheduledUploads(): Promise<{
               message: `Video uploaded: ${result.videoUrl}`,
             },
           });
+
+          // Delete from storage to save space
+          if (isUrl) {
+            try {
+              await deleteFile(video.fileName, {
+                accessToken, // Use the potentially refreshed token
+                refreshToken: channel.refreshToken,
+              });
+              console.log(`🗑️ Deleted from storage: ${video.fileName}`);
+            } catch (deleteError) {
+              console.warn(`Failed to delete from storage (non-critical):`, deleteError);
+            }
+          }
 
           console.log(`✅ Uploaded: ${result.videoUrl}`);
           

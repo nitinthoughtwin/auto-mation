@@ -180,6 +180,15 @@ export default function YouTubeAutomationDashboard() {
   const [defaultTags, setDefaultTags] = useState('');
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
+  // Google Drive storage state
+  const [driveStorage, setDriveStorage] = useState<{
+    usedGB: number;
+    limitGB: number;
+    usedPercent: number;
+    availableGB: number;
+  } | null>(null);
+  const [transferring, setTransferring] = useState(false);
+
   // Channel settings state
   const [editSettings, setEditSettings] = useState({
     uploadTime: '',
@@ -222,6 +231,49 @@ export default function YouTubeAutomationDashboard() {
       setSchedulerLogs(data.logs || []);
     } catch (error) {
       console.error('Failed to load scheduler logs');
+    }
+  };
+
+  // Load Google Drive storage info
+  const loadDriveStorage = async (channelId: string) => {
+    try {
+      const res = await fetch(`/api/drive/storage?channelId=${channelId}`);
+      const data = await res.json();
+      if (data.success && data.storage) {
+        setDriveStorage(data.storage);
+      }
+    } catch (error) {
+      console.error('Failed to load Drive storage');
+    }
+  };
+
+  // Transfer all queued videos to Google Drive
+  const transferToDrive = async () => {
+    if (!selectedChannel) return;
+    
+    setTransferring(true);
+    try {
+      const res = await fetch('/api/videos/transfer', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId: selectedChannel.id }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        toast.success(`Transferred ${data.transferred} videos to Google Drive!`);
+        loadChannelDetails(selectedChannel.id);
+        loadDriveStorage(selectedChannel.id);
+      } else if (data.needsReauth) {
+        toast.error('Please reconnect your channel to enable Google Drive');
+      } else {
+        toast.error(data.error || 'Transfer failed');
+      }
+    } catch (error) {
+      toast.error('Failed to transfer videos');
+    } finally {
+      setTransferring(false);
     }
   };
 
@@ -353,23 +405,157 @@ export default function YouTubeAutomationDashboard() {
         }
       }
 
-      // Upload each video file using client-side direct upload
+      // Upload each video file
       for (let i = 0; i < uploadFiles.length; i++) {
         const file = uploadFiles[i];
-        const videoPath = `videos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
         
         try {
           setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
           
-          // Client-side direct upload to Vercel Blob - bypasses serverless function body limit
-          const blob = await upload(videoPath, file, {
-            access: 'public',
-            handleUploadUrl: '/api/blob/upload',
-            onUploadProgress: (progress) => {
-              const percentage = Math.round((progress.loaded / progress.total) * 100);
-              setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
-            },
-          });
+          let blobUrl: string;
+          let storageProvider = 'vercel-blob';
+          
+          // Priority 1: Google Drive (15GB free, uses same Google account)
+          try {
+            const driveRes = await fetch('/api/drive/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                channelId: selectedChannel.id,
+                filename: file.name,
+                fileSize: file.size,
+                mimeType: file.type,
+              }),
+            });
+            
+            if (driveRes.ok) {
+              const driveData = await driveRes.json();
+              console.log('Using Google Drive for upload');
+              
+              const { accessToken, folderId, filename } = driveData;
+              
+              // Step 1: Create resumable upload session
+              const sessionRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  name: filename,
+                  parents: [folderId],
+                }),
+              });
+              
+              if (!sessionRes.ok) {
+                throw new Error('Failed to create Drive upload session');
+              }
+              
+              const sessionUrl = sessionRes.headers.get('Location');
+              if (!sessionUrl) {
+                throw new Error('No session URL returned');
+              }
+              
+              // Step 2: Upload file to session URL
+              const uploadRes = await fetch(sessionUrl, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': file.type,
+                },
+                body: file,
+              });
+              
+              if (!uploadRes.ok) {
+                throw new Error(`Drive upload failed: ${uploadRes.status}`);
+              }
+              
+              const uploadData = await uploadRes.json();
+              const fileId = uploadData.id;
+              
+              // Step 3: Make file public
+              await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  role: 'reader',
+                  type: 'anyone',
+                }),
+              });
+              
+              // Direct download URL
+              blobUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+              storageProvider = 'google-drive';
+              setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+              
+            } else {
+              throw new Error('Drive not available');
+            }
+          } catch (driveError: any) {
+            console.log('Drive upload failed, trying alternatives:', driveError.message);
+            
+            // Priority 2: Check if R2 is configured
+            const r2Check = await fetch('/api/storage/upload');
+            const r2Config = await r2Check.json();
+            
+            if (r2Config.configured) {
+              // Use R2 (Cloudflare - 10GB free)
+              console.log('Using Cloudflare R2 for upload');
+              
+              const presignRes = await fetch('/api/storage/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  filename: file.name,
+                  contentType: file.type,
+                  fileSize: file.size,
+                }),
+              });
+              
+              if (!presignRes.ok) {
+                throw new Error('Failed to get upload URL from R2');
+              }
+              
+              const { uploadUrl, publicUrl } = await presignRes.json();
+              
+              // Upload directly to R2 using presigned URL
+              const uploadRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type },
+                body: file,
+              });
+              
+              if (!uploadRes.ok) {
+                throw new Error(`R2 upload failed: ${uploadRes.status}`);
+              }
+              
+              blobUrl = publicUrl;
+              storageProvider = 'cloudflare-r2';
+              setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+              
+            } else {
+              // Priority 3: Use Vercel Blob (1GB limit)
+              console.log('Using Vercel Blob for upload');
+              
+              const videoPath = `videos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+              
+              const blob = await upload(videoPath, file, {
+                access: 'public',
+                handleUploadUrl: '/api/blob/upload',
+                onUploadProgress: (progress) => {
+                  const percentage = Math.round((progress.loaded / progress.total) * 100);
+                  setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
+                },
+              });
+              
+              blobUrl = blob.url;
+              storageProvider = 'vercel-blob';
+            }
+          }
+          
+          console.log(`✅ Uploaded ${file.name} to ${storageProvider}`);
           
           // Get thumbnail for this video
           let thumbnailData: { url?: string; name?: string; size?: number } = {};
@@ -382,7 +568,7 @@ export default function YouTubeAutomationDashboard() {
           }
           
           uploadedVideos.push({
-            blobUrl: blob.url,
+            blobUrl,
             originalName: file.name,
             fileSize: file.size,
             mimeType: file.type,
@@ -498,6 +684,7 @@ export default function YouTubeAutomationDashboard() {
     setSelectedChannel(channel);
     setView('channel');
     loadChannelDetails(channel.id);
+    loadDriveStorage(channel.id);
   };
 
   // Navigate back to dashboard
@@ -1023,12 +1210,57 @@ export default function YouTubeAutomationDashboard() {
 
           {/* Queue Tab */}
           <TabsContent value="queue">
+            {/* Google Drive Storage Info */}
+            {driveStorage && (
+              <Card className="mb-4">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Google Drive Storage</p>
+                      <p className="text-xs text-muted-foreground">
+                        {driveStorage.usedGB} GB of {driveStorage.limitGB} GB used ({driveStorage.usedPercent}%)
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-green-600">
+                        {driveStorage.availableGB} GB available
+                      </p>
+                    </div>
+                  </div>
+                  <Progress value={driveStorage.usedPercent} className="mt-2 h-2" />
+                </CardContent>
+              </Card>
+            )}
+            
             <Card>
               <CardHeader>
-                <CardTitle>Video Queue</CardTitle>
-                <CardDescription>
-                  Videos waiting to be uploaded
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Video Queue</CardTitle>
+                    <CardDescription>
+                      Videos waiting to be uploaded
+                    </CardDescription>
+                  </div>
+                  {queuedVideos.length > 0 && (
+                    <Button
+                      variant="outline"
+                      onClick={transferToDrive}
+                      disabled={transferring}
+                    >
+                      {transferring ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Transferring...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Move to Google Drive
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {queuedVideos.length === 0 ? (
