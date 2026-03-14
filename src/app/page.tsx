@@ -1493,7 +1493,7 @@ export default function YouTubeAutomationDashboard() {
         <Dialog open={!!previewThumbnail} onOpenChange={() => setPreviewThumbnail(null)}>
           <DialogContent className="sm:max-w-[800px]">
             <DialogHeader>
-              <DialogTitle>Thumbnail Preview</DialogTitle>
+              <DialogTitle>Thumbnail Preview;;</DialogTitle>
             </DialogHeader>
             <div className="flex justify-center">
               {previewThumbnail && (
