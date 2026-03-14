@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import fs from 'fs';
-import path from 'path';
-
-const prisma = new PrismaClient();
+import { db } from '@/lib/db';
+import { deleteFromGoogleDrive, extractFileIdFromUrl } from '@/lib/google-drive';
+import { refreshAccessToken } from '@/lib/youtube';
 
 // GET - Get single video details
 export async function GET(
@@ -13,7 +11,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const video = await prisma.video.findUnique({
+    const video = await db.video.findUnique({
       where: { id },
       include: { channel: true },
     });
@@ -42,7 +40,7 @@ export async function PUT(
     const body = await request.json();
     const { title, description, tags } = body;
 
-    const video = await prisma.video.update({
+    const video = await db.video.update({
       where: { id },
       data: { title, description, tags },
     });
@@ -57,7 +55,7 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete video from queue
+// DELETE - Delete video from queue and Google Drive
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -66,23 +64,41 @@ export async function DELETE(
     const { id } = await params;
 
     // Get video info first
-    const video = await prisma.video.findUnique({
+    const video = await db.video.findUnique({
       where: { id },
+      include: { channel: true },
     });
 
     if (!video) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
-    // Delete local file if it exists
-    const uploadDir = path.join(process.cwd(), 'uploads', 'videos');
-    const filePath = path.join(uploadDir, video.fileName);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    // Delete from Google Drive if it's stored there
+    if (video.fileName && video.channel) {
+      try {
+        // Refresh token
+        let accessToken = video.channel.accessToken;
+        try {
+          const tokens = await refreshAccessToken(video.channel.refreshToken);
+          accessToken = tokens.accessToken;
+        } catch (e) {
+          console.log('Using existing token for delete');
+        }
+
+        // Extract file ID and delete from Google Drive
+        const fileId = extractFileIdFromUrl(video.fileName) || video.fileName;
+        if (fileId && fileId.length > 20) {
+          await deleteFromGoogleDrive(accessToken, video.channel.refreshToken, fileId);
+          console.log('[Delete] File deleted from Google Drive:', fileId);
+        }
+      } catch (deleteError) {
+        console.warn('[Delete] Failed to delete from Google Drive (non-critical):', deleteError);
+        // Continue with database delete even if Google Drive delete fails
+      }
     }
 
     // Delete from database
-    await prisma.video.delete({
+    await db.video.delete({
       where: { id },
     });
 

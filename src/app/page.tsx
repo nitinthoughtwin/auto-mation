@@ -54,9 +54,102 @@ import {
   Loader2,
   Image as ImageIcon,
   X,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
+
+// Helper to get Google Drive thumbnail URL from file ID or URL
+const getThumbnailUrl = (fileIdOrUrl: string | null): string | null => {
+  if (!fileIdOrUrl) return null;
+  
+  // Extract file ID from various formats
+  let fileId: string | null = null;
+  
+  // If it's a full URL
+  if (fileIdOrUrl.startsWith('http')) {
+    // Format: https://drive.google.com/uc?export=download&id=FILE_ID
+    const match1 = fileIdOrUrl.match(/[?&]id=([^&]+)/);
+    if (match1) {
+      fileId = match1[1];
+    }
+    
+    // Format: https://drive.google.com/file/d/FILE_ID/view
+    if (!fileId) {
+      const match2 = fileIdOrUrl.match(/\/file\/d\/([^/]+)/);
+      if (match2) {
+        fileId = match2[1];
+      }
+    }
+    
+    // Format: https://lh3.googleusercontent.com/d/FILE_ID
+    if (!fileId) {
+      const match3 = fileIdOrUrl.match(/\/d\/([^/?=]+)/);
+      if (match3) {
+        fileId = match3[1];
+      }
+    }
+  } else {
+    // It's just a file ID
+    fileId = fileIdOrUrl;
+  }
+  
+  if (!fileId) return null;
+  
+  // Use Google User Content URL for better CORS support
+  return `https://lh3.googleusercontent.com/d/${fileId}=w200-h120-c`;
+};
+
+// Helper to get Google Drive video URL for preview
+const getVideoUrl = (fileIdOrUrl: string | null): string | null => {
+  if (!fileIdOrUrl) return null;
+  
+  // Extract file ID from various formats
+  let fileId: string | null = null;
+  
+  // If it's a full URL
+  if (fileIdOrUrl.startsWith('http')) {
+    const match1 = fileIdOrUrl.match(/[?&]id=([^&]+)/);
+    if (match1) {
+      fileId = match1[1];
+    }
+    if (!fileId) {
+      const match2 = fileIdOrUrl.match(/\/file\/d\/([^/]+)/);
+      if (match2) {
+        fileId = match2[1];
+      }
+    }
+  } else {
+    fileId = fileIdOrUrl;
+  }
+  
+  if (!fileId) return null;
+  
+  // Google Drive video preview URL
+  return `https://drive.google.com/file/d/${fileId}/preview`;
+};
+
+// Helper to get Google Drive direct link
+const getDriveLink = (fileIdOrUrl: string | null): string | null => {
+  if (!fileIdOrUrl) return null;
+  
+  let fileId: string | null = null;
+  
+  if (fileIdOrUrl.startsWith('http')) {
+    const match1 = fileIdOrUrl.match(/[?&]id=([^&]+)/);
+    if (match1) fileId = match1[1];
+    if (!fileId) {
+      const match2 = fileIdOrUrl.match(/\/file\/d\/([^/]+)/);
+      if (match2) fileId = match2[1];
+    }
+  } else {
+    fileId = fileIdOrUrl;
+  }
+  
+  if (!fileId) return null;
+  
+  return `https://drive.google.com/file/d/${fileId}/view`;
+};
 
 // Types
 interface Channel {
@@ -71,6 +164,8 @@ interface Channel {
   nextUploadTime?: string;
   totalVideos?: number;
   queuedVideos?: number;
+  randomDelayMinutes?: number | null;
+  randomDelayDate?: string | null;
   stats?: {
     total: number;
     queued: number;
@@ -194,6 +289,7 @@ export default function YouTubeAutomationDashboard() {
   const [editThumbnailFile, setEditThumbnailFile] = useState<File | null>(null);
   const [savingVideo, setSavingVideo] = useState(false);
   const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<Video | null>(null);
 
   // Channel settings state
   const [editSettings, setEditSettings] = useState({
@@ -362,7 +458,82 @@ export default function YouTubeAutomationDashboard() {
     setUploadFiles(e.target.files);
   };
 
-  // Upload videos using server-side Blob upload (avoids client-side issues)
+  // Direct upload to Google Drive (for large files)
+  const directUploadToGoogleDrive = async (
+    file: File, 
+    accessToken: string
+  ): Promise<{ id: string; url: string; name: string }> => {
+    // Create unique filename
+    const timestamp = Date.now();
+    const cleanName = file.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+    const fileName = `${timestamp}-${cleanName}`;
+    
+    // Create file metadata
+    const metadata = {
+      name: fileName,
+      mimeType: file.type || 'application/octet-stream',
+    };
+
+    // Use resumable upload for large files
+    const initRes = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(metadata),
+      }
+    );
+
+    if (!initRes.ok) {
+      throw new Error('Failed to initialize upload');
+    }
+
+    const uploadUrl = initRes.headers.get('Location');
+    if (!uploadUrl) {
+      throw new Error('No upload URL received');
+    }
+
+    // Upload the file content
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    });
+
+    if (!uploadRes.ok) {
+      const error = await uploadRes.text();
+      throw new Error(`Upload failed: ${error}`);
+    }
+
+    const result = await uploadRes.json();
+    const fileId = result.id;
+
+    // Make file public
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        role: 'reader',
+        type: 'anyone',
+      }),
+    });
+
+    return {
+      id: fileId,
+      url: `https://drive.google.com/uc?export=download&id=${fileId}`,
+      name: fileName,
+    };
+  };
+
+  // Upload videos using Google Drive
   const uploadVideos = async () => {
     if (!selectedChannel || !uploadFiles || uploadFiles.length === 0) {
       toast.error('No Files Selected', {
@@ -374,50 +545,53 @@ export default function YouTubeAutomationDashboard() {
     setUploading(true);
     setUploadProgress({});
     
-    // Show loading toast
     const loadingToast = toast.loading('Uploading Videos', {
       description: `Processing ${uploadFiles.length} file(s)...`,
     });
     
     const uploadedVideos: { 
       blobUrl: string; 
+      fileId: string;
       originalName: string; 
       fileSize: number; 
       mimeType: string;
       thumbnailUrl?: string;
+      thumbnailFileId?: string;
       thumbnailOriginalName?: string;
       thumbnailSize?: number;
     }[] = [];
     const errors: string[] = [];
 
     try {
-      // First, upload all thumbnails to Blob
-      const thumbnailUrls: { url: string; name: string; size: number }[] = [];
+      // Get access token for direct upload
+      const tokenRes = await fetch(`/api/blob/upload?channelId=${selectedChannel.id}`);
+      const tokenData = await tokenRes.json();
+      
+      if (!tokenData.success) {
+        throw new Error(tokenData.error || 'Failed to get upload credentials');
+      }
+      
+      const accessToken = tokenData.accessToken;
+
+      // First, upload all thumbnails to Google Drive
+      const thumbnailData: { url: string; fileId: string; name: string; size: number }[] = [];
       if (thumbnailFiles && thumbnailFiles.length > 0) {
         for (let i = 0; i < thumbnailFiles.length; i++) {
           const thumbFile = thumbnailFiles[i];
           
           try {
-            setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 0 }));
+            setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 50 }));
             
-            // Upload via API
-            const formData = new FormData();
-            formData.append('file', thumbFile);
-            formData.append('folder', 'thumbnails');
+            // Direct upload to Google Drive
+            const result = await directUploadToGoogleDrive(thumbFile, accessToken);
             
-            const res = await fetch('/api/blob/upload', {
-              method: 'POST',
-              body: formData,
+            thumbnailData.push({ 
+              url: result.url, 
+              fileId: result.id,
+              name: thumbFile.name, 
+              size: thumbFile.size 
             });
-            
-            const result = await res.json();
-            
-            if (result.success) {
-              thumbnailUrls.push({ url: result.url, name: thumbFile.name, size: thumbFile.size });
-              setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
-            } else {
-              errors.push(`Thumbnail ${thumbFile.name}: ${result.error}`);
-            }
+            setUploadProgress(prev => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
           } catch (error: any) {
             console.error(`Failed to upload thumbnail ${thumbFile.name}:`, error);
             errors.push(`Thumbnail ${thumbFile.name}: ${error.message}`);
@@ -430,47 +604,38 @@ export default function YouTubeAutomationDashboard() {
         const file = uploadFiles[i];
         
         try {
-          setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+          setUploadProgress(prev => ({ ...prev, [file.name]: 10 }));
           
-          // Upload via API using FormData
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('folder', 'videos');
+          // Direct upload to Google Drive (handles large files)
+          const result = await directUploadToGoogleDrive(file, accessToken);
           
-          const res = await fetch('/api/blob/upload', {
-            method: 'POST',
-            body: formData,
-          });
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
           
-          const result = await res.json();
-          
-          if (result.success) {
-            // Get thumbnail for this video (one-to-one or one-for-all)
-            let thumbnailData: { url?: string; name?: string; size?: number } = {};
-            if (thumbnailUrls.length > 0) {
-              if (thumbnailUrls.length === 1) {
+          // Get thumbnail for this video (one-to-one or one-for-all)
+          let thumbData: { url?: string; fileId?: string; name?: string; size?: number } = {};
+          if (thumbnailData.length > 0) {
+            if (thumbnailData.length === 1) {
                 // One thumbnail for all videos
-                thumbnailData = thumbnailUrls[0];
-              } else if (i < thumbnailUrls.length) {
+                thumbData = thumbnailData[0];
+              } else if (i < thumbnailData.length) {
                 // One thumbnail per video (same order)
-                thumbnailData = thumbnailUrls[i];
+                thumbData = thumbnailData[i];
               }
             }
             
             uploadedVideos.push({
               blobUrl: result.url,
+              fileId: result.id,
               originalName: file.name,
               fileSize: file.size,
               mimeType: file.type,
-              thumbnailUrl: thumbnailData.url,
-              thumbnailOriginalName: thumbnailData.name,
-              thumbnailSize: thumbnailData.size,
+              thumbnailUrl: thumbData.url,
+              thumbnailFileId: thumbData.fileId,
+              thumbnailOriginalName: thumbData.name,
+              thumbnailSize: thumbData.size,
             });
             
             setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-          } else {
-            errors.push(`${file.name}: ${result.error}`);
-          }
         } catch (error: any) {
           console.error(`Failed to upload ${file.name}:`, error);
           errors.push(`${file.name}: ${error.message || 'Upload failed'}`);
@@ -492,6 +657,7 @@ export default function YouTubeAutomationDashboard() {
           body: JSON.stringify({
             channelId: selectedChannel.id,
             blobUrl: video.blobUrl,
+            fileId: video.fileId,
             originalName: video.originalName,
             fileSize: video.fileSize,
             mimeType: video.mimeType,
@@ -499,6 +665,7 @@ export default function YouTubeAutomationDashboard() {
             description: defaultDescription,
             tags: defaultTags,
             thumbnailUrl: video.thumbnailUrl,
+            thumbnailFileId: video.thumbnailFileId,
             thumbnailOriginalName: video.thumbnailOriginalName,
             thumbnailSize: video.thumbnailSize,
           }),
@@ -614,12 +781,14 @@ export default function YouTubeAutomationDashboard() {
     
     try {
       let thumbnailUrl = editingVideo.thumbnailName; // Keep existing by default
+      let fileId = undefined;
       
       // Upload new thumbnail if file is selected
-      if (editThumbnailFile) {
+      if (editThumbnailFile && selectedChannel) {
         const formData = new FormData();
         formData.append('file', editThumbnailFile);
         formData.append('folder', 'thumbnails');
+        formData.append('channelId', selectedChannel.id);
         
         const res = await fetch('/api/blob/upload', {
           method: 'POST',
@@ -629,6 +798,7 @@ export default function YouTubeAutomationDashboard() {
         const result = await res.json();
         if (result.success) {
           thumbnailUrl = result.url;
+          fileId = result.fileId;
         }
       }
       
@@ -641,6 +811,7 @@ export default function YouTubeAutomationDashboard() {
           description: editVideoData.description,
           tags: editVideoData.tags,
           thumbnailUrl: thumbnailUrl,
+          fileId: fileId,
         }),
       });
       
@@ -951,7 +1122,10 @@ export default function YouTubeAutomationDashboard() {
   const renderChannelDetail = () => {
     if (!selectedChannel) return null;
 
-    const queuedVideos = videos.filter(v => v.status === 'queued');
+    // Sort by createdAt ascending - first uploaded will be first to go to YouTube (FIFO)
+    const queuedVideos = videos
+      .filter(v => v.status === 'queued')
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     const uploadedVideos = videos.filter(v => v.status === 'uploaded');
     const failedVideos = videos.filter(v => v.status === 'failed');
 
@@ -1067,7 +1241,7 @@ export default function YouTubeAutomationDashboard() {
                       onChange={(e) => setEditSettings({ ...editSettings, uploadTime: e.target.value })}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Videos will be uploaded at this time (24-hour format)
+                      Videos will upload within ±15 min of this time randomly (e.g., 6:00 PM may upload at 5:52, 6:03, 6:12, etc.)
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -1103,6 +1277,9 @@ export default function YouTubeAutomationDashboard() {
                       {selectedChannel.nextUploadTime 
                         ? formatNextUpload(new Date(selectedChannel.nextUploadTime))
                         : 'Calculating...'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ±15 min random delay applied
                     </p>
                   </div>
                 </div>
@@ -1272,16 +1449,14 @@ export default function YouTubeAutomationDashboard() {
                           <TableCell>
                             {video.thumbnailName ? (
                               <div 
-                                className="w-16 h-10 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
-                                onClick={() => setPreviewThumbnail(video.thumbnailName)}
+                                className="w-16 h-10 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all bg-muted"
+                                onClick={() => setPreviewThumbnail(getThumbnailUrl(video.thumbnailName))}
                               >
                                 <img 
-                                  src={video.thumbnailName} 
+                                  src={getThumbnailUrl(video.thumbnailName) || ''} 
                                   alt="Thumbnail" 
                                   className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = '/placeholder.png';
-                                  }}
+                                  referrerPolicy="no-referrer"
                                 />
                               </div>
                             ) : (
@@ -1312,7 +1487,16 @@ export default function YouTubeAutomationDashboard() {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                onClick={() => setPreviewVideo(video)}
+                                title="Preview Video"
+                              >
+                                <Play className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => openEditVideo(video)}
+                                title="Edit Video"
                               >
                                 <Settings className="h-4 w-4" />
                               </Button>
@@ -1320,6 +1504,7 @@ export default function YouTubeAutomationDashboard() {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => deleteVideo(video.id)}
+                                title="Delete Video"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1493,7 +1678,7 @@ export default function YouTubeAutomationDashboard() {
         <Dialog open={!!previewThumbnail} onOpenChange={() => setPreviewThumbnail(null)}>
           <DialogContent className="sm:max-w-[800px]">
             <DialogHeader>
-              <DialogTitle>Thumbnail Preview;;</DialogTitle>
+              <DialogTitle>Thumbnail Preview</DialogTitle>
             </DialogHeader>
             <div className="flex justify-center">
               {previewThumbnail && (
@@ -1501,11 +1686,78 @@ export default function YouTubeAutomationDashboard() {
                   src={previewThumbnail} 
                   alt="Thumbnail preview" 
                   className="max-w-full max-h-[500px] rounded-lg"
+                  referrerPolicy="no-referrer"
                 />
               )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPreviewThumbnail(null)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Video Preview Dialog */}
+        <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
+          <DialogContent className="sm:max-w-[900px]">
+            <DialogHeader>
+              <DialogTitle>{previewVideo?.title || 'Video Preview'}</DialogTitle>
+              <DialogDescription>
+                {previewVideo?.originalName} • {previewVideo?.fileSize ? formatFileSize(previewVideo.fileSize) : ''}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* Video Player */}
+              <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                {previewVideo && getVideoUrl(previewVideo.fileName) && (
+                  <iframe
+                    src={getVideoUrl(previewVideo.fileName) || ''}
+                    className="w-full h-full"
+                    allow="autoplay; fullscreen"
+                    allowFullScreen
+                  />
+                )}
+              </div>
+              
+              {/* Video Info */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Title</p>
+                  <p className="font-medium">{previewVideo?.title}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Type</p>
+                  <Badge variant={previewVideo ? (getVideoType(previewVideo) === 'shorts' ? 'default' : 'secondary') : 'secondary'}>
+                    {previewVideo ? (getVideoType(previewVideo) === 'shorts' ? 'Shorts' : 'Video') : 'Video'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Description</p>
+                  <p className="truncate">{previewVideo?.description || 'No description'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Tags</p>
+                  <p className="truncate">{previewVideo?.tags || 'No tags'}</p>
+                </div>
+              </div>
+
+              {/* Open in Drive Link */}
+              {previewVideo && getDriveLink(previewVideo.fileName) && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => window.open(getDriveLink(previewVideo.fileName) || '', '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open in Google Drive
+                  </Button>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreviewVideo(null)}>
                 Close
               </Button>
             </DialogFooter>

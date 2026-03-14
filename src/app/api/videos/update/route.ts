@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { extractFileIdFromUrl } from '@/lib/google-drive';
 
 // Update video details (title, description, tags, thumbnail)
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { videoId, title, description, tags, thumbnailUrl } = body;
+    const { videoId, title, description, tags, thumbnailUrl, fileId } = body;
 
-    console.log('Update video request:', { videoId, title, description, tags, thumbnailUrl });
+    console.log('Update video request:', { videoId, title, description, tags, thumbnailUrl, fileId });
 
     if (!videoId) {
       return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
@@ -44,16 +45,22 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update video - only update fields that are provided
-    // Note: thumbnailUrl in frontend maps to thumbnailName in database (stores blob URL)
     const updateData: Record<string, any> = {};
     
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (tags !== undefined) updateData.tags = tags;
     
-    // Map thumbnailUrl to thumbnailName (database field)
+    // Handle thumbnail - store the Google Drive file ID
     if (thumbnailUrl !== undefined && thumbnailUrl !== '') {
-      updateData.thumbnailName = thumbnailUrl;
+      // Extract file ID from URL if needed, or use the URL as-is
+      const thumbFileId = extractFileIdFromUrl(thumbnailUrl) || thumbnailUrl;
+      updateData.thumbnailName = thumbFileId;
+    }
+    
+    // If fileId is provided directly
+    if (fileId !== undefined) {
+      updateData.thumbnailName = fileId;
     }
 
     console.log('Update data:', updateData);
