@@ -2,8 +2,53 @@ import 'server-only';
 import { db } from './db';
 import { uploadVideo, refreshAccessToken } from './youtube';
 import { deleteFile } from './storage';
+import { downloadFromGoogleDrive, extractFileIdFromUrl } from './google-drive';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
+
+// Get or create random delay for the day (in minutes, -15 to +15)
+async function getRandomDelay(
+  channelId: string, 
+  randomDelayMinutes: number | null, 
+  randomDelayDate: Date | null,
+  timezone: string
+): Promise<number> {
+  const now = new Date();
+  
+  // Get today's date in the channel's timezone
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayStr = dateFormatter.format(now);
+  const today = new Date(todayStr);
+  
+  // Check if we already have a delay calculated for today
+  if (randomDelayDate) {
+    const existingDateStr = dateFormatter.format(new Date(randomDelayDate));
+    if (existingDateStr === todayStr && randomDelayMinutes !== null) {
+      console.log(`[RandomDelay] Using existing delay: ${randomDelayMinutes} minutes`);
+      return randomDelayMinutes;
+    }
+  }
+  
+  // Generate new random delay between -15 and +15 minutes
+  const delay = Math.floor(Math.random() * 31) - 15; // -15 to +15
+  
+  // Save to database
+  await db.channel.update({
+    where: { id: channelId },
+    data: {
+      randomDelayMinutes: delay,
+      randomDelayDate: today,
+    },
+  });
+  
+  console.log(`[RandomDelay] New delay calculated: ${delay} minutes for channel ${channelId}`);
+  return delay;
+}
 
 // Get current time in a specific timezone
 function getCurrentTimeInTimezone(timezone: string): { hours: number; minutes: number; date: Date } {
@@ -94,31 +139,60 @@ function convertTo24Hour(timeStr: string): { hours: number; minutes: number } {
   return { hours, minutes };
 }
 
-// Check if upload should happen based on frequency and time
-function shouldUpload(channel: {
+// Check if upload should happen based on frequency, time, and random delay
+async function shouldUpload(channel: {
+  id: string;
   uploadTime: string;
   frequency: string;
   timezone: string;
   lastUploadDate: Date | null;
-}): { allowed: boolean; reason: string; debugInfo: Record<string, any> } {
+  randomDelayMinutes: number | null;
+  randomDelayDate: Date | null;
+}): Promise<{ allowed: boolean; reason: string; debugInfo: Record<string, any> }> {
   
   const timezone = channel.timezone || 'Asia/Kolkata';
-  const { hours: currentHours, minutes: currentMinutes, date: currentDate } = getCurrentTimeInTimezone(timezone);
+  const { hours: currentHours, minutes: currentMinutes } = getCurrentTimeInTimezone(timezone);
   const { hours: scheduledHours, minutes: scheduledMinutes } = convertTo24Hour(channel.uploadTime);
   
+  // Get random delay for today
+  const randomDelay = await getRandomDelay(
+    channel.id,
+    channel.randomDelayMinutes,
+    channel.randomDelayDate,
+    timezone
+  );
+  
+  // Calculate actual upload time with random delay
+  let actualMinutesTotal = scheduledHours * 60 + scheduledMinutes + randomDelay;
+  
+  // Handle overflow/underflow
+  let actualHours = Math.floor(actualMinutesTotal / 60) % 24;
+  let actualMinutes = actualMinutesTotal % 60;
+  if (actualMinutes < 0) {
+    actualMinutes += 60;
+    actualHours = (actualHours - 1 + 24) % 24;
+  }
+  if (actualHours < 0) {
+    actualHours += 24;
+  }
+  
   // Calculate time difference in minutes
-  const scheduledMinutesTotal = scheduledHours * 60 + scheduledMinutes;
+  const scheduledMinutesTotal = actualHours * 60 + actualMinutes;
   const currentMinutesTotal = currentHours * 60 + currentMinutes;
   const timeDiff = Math.abs(currentMinutesTotal - scheduledMinutesTotal);
+  
+  const actualTimeStr = `${String(actualHours).padStart(2, '0')}:${String(actualMinutes).padStart(2, '0')}`;
+  const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+  const scheduledTimeStr = `${String(scheduledHours).padStart(2, '0')}:${String(scheduledMinutes).padStart(2, '0')}`;
   
   const debugInfo = {
     timezone,
     serverTime: new Date().toISOString(),
-    serverTimeUTC: `${new Date().getUTCHours()}:${new Date().getUTCMinutes().toString().padStart(2, '0')}`,
-    currentTimeInTimezone: `${currentHours}:${currentMinutes.toString().padStart(2, '0')}`,
-    scheduledTime: `${scheduledHours}:${scheduledMinutes.toString().padStart(2, '0')}`,
+    currentTimeInTimezone: currentTimeStr,
+    scheduledTime: scheduledTimeStr,
+    randomDelayMinutes: randomDelay,
+    actualUploadTime: actualTimeStr,
     timeDifferenceMinutes: timeDiff,
-    uploadTimeStored: channel.uploadTime,
   };
   
   console.log('Debug info:', JSON.stringify(debugInfo, null, 2));
@@ -127,7 +201,7 @@ function shouldUpload(channel: {
   if (timeDiff > 5) {
     return { 
       allowed: false, 
-      reason: `Not scheduled time. Current: ${currentHours}:${currentMinutes.toString().padStart(2, '0')}, Scheduled: ${scheduledHours}:${scheduledMinutes.toString().padStart(2, '0')} (in ${timezone})`,
+      reason: `Not scheduled time. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min)`,
       debugInfo
     };
   }
@@ -141,7 +215,7 @@ function shouldUpload(channel: {
           return { allowed: false, reason: 'Already uploaded today', debugInfo };
         }
       }
-      return { allowed: true, reason: 'Daily upload ready', debugInfo };
+      return { allowed: true, reason: `Daily upload ready (actual time: ${actualTimeStr})`, debugInfo };
     }
 
     case 'alternate': {
@@ -201,7 +275,7 @@ export async function processScheduledUploads(): Promise<{
   skipped: number; 
   results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }> 
 }> {
-  console.log('Scheduler: Processing scheduled uploads...');
+  console.log('========== Scheduler Started ==========');
   console.log('Server time (UTC):', new Date().toISOString());
   
   const results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }> = [];
@@ -235,11 +309,14 @@ export async function processScheduledUploads(): Promise<{
       console.log(`\n--- Processing channel: ${channel.name} ---`);
       console.log(`Channel settings: uploadTime=${channel.uploadTime}, frequency=${channel.frequency}, timezone=${channel.timezone || 'Asia/Kolkata (default)'}`);
       
-      const uploadCheck = shouldUpload({
+      const uploadCheck = await shouldUpload({
+        id: channel.id,
         uploadTime: channel.uploadTime,
         frequency: channel.frequency,
         timezone: channel.timezone || 'Asia/Kolkata',
         lastUploadDate: channel.lastUploadDate,
+        randomDelayMinutes: channel.randomDelayMinutes,
+        randomDelayDate: channel.randomDelayDate,
       });
       
       console.log(`Upload check result:`, uploadCheck);
@@ -269,6 +346,7 @@ export async function processScheduledUploads(): Promise<{
       }
 
       console.log(`Processing: ${channel.name}, video: ${video.title}`);
+      console.log(`Video fileName: ${video.fileName}`);
 
       try {
         // Refresh token if needed
@@ -283,18 +361,19 @@ export async function processScheduledUploads(): Promise<{
               refreshToken: tokens.refreshToken,
             },
           });
+          console.log('Token refreshed successfully');
         } catch (tokenError) {
           console.error('Token refresh failed, trying existing token:', tokenError);
         }
 
-        // Check if fileName is a URL (from Blob or Google Drive storage)
+        // Determine how to download the video
         const isUrl = video.fileName.startsWith('http://') || video.fileName.startsWith('https://');
         
         let videoBuffer: Buffer;
         
         if (isUrl) {
-          // Download from URL (Vercel Blob or Google Drive)
-          console.log(`Downloading video from: ${video.fileName}`);
+          // Download from URL (Google Drive public URL or Vercel Blob)
+          console.log(`Downloading video from URL: ${video.fileName}`);
           const response = await fetch(video.fileName);
           if (!response.ok) {
             throw new Error(`Failed to download video: ${response.status}`);
@@ -302,8 +381,13 @@ export async function processScheduledUploads(): Promise<{
           const arrayBuffer = await response.arrayBuffer();
           videoBuffer = Buffer.from(arrayBuffer);
         } else {
-          throw new Error('Local file storage not supported. Video must be in cloud storage.');
+          // It's a Google Drive file ID - download using API
+          const fileId = extractFileIdFromUrl(video.fileName) || video.fileName;
+          console.log(`Downloading video from Google Drive, file ID: ${fileId}`);
+          videoBuffer = await downloadFromGoogleDrive(accessToken, channel.refreshToken, fileId);
         }
+
+        console.log(`Video downloaded, size: ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
         // Upload to YouTube
         const result = await uploadVideo(accessToken, channel.refreshToken, {
@@ -342,16 +426,15 @@ export async function processScheduledUploads(): Promise<{
           });
 
           // Delete from storage to save space
-          if (isUrl) {
-            try {
-              await deleteFile(video.fileName, {
-                accessToken, // Use the potentially refreshed token
-                refreshToken: channel.refreshToken,
-              });
-              console.log(`🗑️ Deleted from storage: ${video.fileName}`);
-            } catch (deleteError) {
-              console.warn(`Failed to delete from storage (non-critical):`, deleteError);
-            }
+          try {
+            const fileId = extractFileIdFromUrl(video.fileName) || video.fileName;
+            await deleteFile(fileId, {
+              accessToken,
+              refreshToken: channel.refreshToken,
+            });
+            console.log(`🗑️ Deleted from storage`);
+          } catch (deleteError) {
+            console.warn(`Failed to delete from storage (non-critical):`, deleteError);
           }
 
           console.log(`✅ Uploaded: ${result.videoUrl}`);
@@ -401,6 +484,9 @@ export async function processScheduledUploads(): Promise<{
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
+  
+  console.log('\n========== Scheduler Completed ==========');
+  console.log(`Processed: ${processed}, Skipped: ${skipped}`);
   
   return { processed, skipped, results };
 }

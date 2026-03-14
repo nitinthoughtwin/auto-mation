@@ -564,7 +564,7 @@ export default function YouTubeAutomationDashboard() {
 
     try {
       // Get access token for direct upload
-      const tokenRes = await fetch(`/api/blob/upload?channelId=${selectedChannel.id}`);
+      const tokenRes = await fetch(`/api/token?channelId=${selectedChannel.id}`);
       const tokenData = await tokenRes.json();
       
       if (!tokenData.success) {
