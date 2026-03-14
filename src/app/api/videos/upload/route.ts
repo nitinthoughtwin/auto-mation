@@ -1,120 +1,167 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { randomUUID } from 'crypto';
-import { 
-  isVercel, 
-  saveFile, 
-  getStorageStatus 
-} from '@/lib/storage';
+import { refreshAccessToken } from '@/lib/youtube';
 
-// POST - Bulk video upload with optional thumbnails
-export async function POST(request: NextRequest) {
+// Configure for large file handling
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+export const dynamic = 'force-dynamic';
+
+// GET - Get access token for direct upload to Google Drive
+export async function GET(request: NextRequest) {
   try {
-    // Check storage status
-    const storageStatus = getStorageStatus();
-    
-    const formData = await request.formData();
-    const channelId = formData.get('channelId') as string;
-    const defaultTitle = formData.get('defaultTitle') as string;
-    const defaultDescription = formData.get('defaultDescription') as string;
-    const defaultTags = formData.get('defaultTags') as string;
-    const files = formData.getAll('files') as File[];
-    const thumbnails = formData.getAll('thumbnails') as File[];
+    const searchParams = request.nextUrl.searchParams;
+    const channelId = searchParams.get('channelId');
+
+    console.log('=== GET Upload Token ===');
+    console.log('Channel ID:', channelId);
 
     if (!channelId) {
-      return NextResponse.json(
-        { error: 'Channel ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        success: false,
+        error: 'Channel ID is required' 
+      }, { status: 400 });
     }
 
-    if (!files || files.length === 0) {
-      return NextResponse.json(
-        { error: 'No files uploaded' },
-        { status: 400 }
-      );
-    }
-
-    // Verify channel exists
+    // Get channel with tokens
     const channel = await db.channel.findUnique({
       where: { id: channelId },
     });
 
     if (!channel) {
-      return NextResponse.json(
-        { error: 'Channel not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ 
+        success: false,
+        error: 'Channel not found' 
+      }, { status: 404 });
     }
 
-    const uploadedVideos = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    // Refresh access token
+    let accessToken = channel.accessToken;
+    try {
+      const tokens = await refreshAccessToken(channel.refreshToken);
+      accessToken = tokens.accessToken;
       
-      // Save video file using storage utility
-      const videoResult = await saveFile(file, 'videos');
-      
-      // Handle thumbnail (optional)
-      let thumbnailName: string | null = null;
-      let thumbnailOriginalName: string | null = null;
-      let thumbnailSize: number | null = null;
-
-      const thumbnailFile = thumbnails[i] || (thumbnails.length === 1 && files.length > 1 ? thumbnails[0] : null);
-      
-      if (thumbnailFile && thumbnailFile.size > 0) {
-        const thumbResult = await saveFile(thumbnailFile, 'thumbnails');
-        thumbnailName = thumbResult.fileName;
-        thumbnailOriginalName = thumbResult.originalName;
-        thumbnailSize = thumbResult.size;
-      }
-
-      // Generate title - use default or filename
-      const fileExtension = file.name.includes('.') 
-        ? '.' + file.name.split('.').pop() 
-        : '';
-      const title = defaultTitle 
-        ? `${defaultTitle} ${files.length > 1 ? `(${i + 1})` : ''}`
-        : file.name.replace(fileExtension, '');
-
-      // Create video record in database
-      const video = await db.video.create({
+      await db.channel.update({
+        where: { id: channelId },
         data: {
-          channelId,
-          title,
-          description: defaultDescription || '',
-          tags: defaultTags || '',
-          fileName: videoResult.url || videoResult.fileName, // Store URL if blob, else filename
-          originalName: file.name,
-          fileSize: file.size,
-          mimeType: file.type,
-          thumbnailName,
-          thumbnailOriginalName,
-          thumbnailSize,
-          status: 'queued',
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
         },
       });
-
-      uploadedVideos.push(video);
+      console.log('Access token refreshed');
+    } catch (e) {
+      console.log('Using existing token');
     }
 
-    const response: any = { 
+    // Return access token for direct upload
+    return NextResponse.json({
       success: true,
-      message: `${uploadedVideos.length} video(s) uploaded successfully`,
-      videos: uploadedVideos,
-      storage: storageStatus,
-    };
+      accessToken,
+    });
+  } catch (error: any) {
+    console.error('GET token error:', error);
+    return NextResponse.json({ 
+      success: false,
+      error: error.message 
+    }, { status: 500 });
+  }
+}
 
-    if (storageStatus.warning) {
-      response.warning = storageStatus.warning;
+// POST - Upload file to Google Drive (for small files < 10MB)
+export async function POST(request: NextRequest) {
+  try {
+    console.log('=== Google Drive Upload Request ===');
+    
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    const folder = (formData.get('folder') as string) || 'youtube-uploads';
+    const channelId = formData.get('channelId') as string | null;
+    
+    console.log('Folder:', folder);
+    console.log('Channel ID:', channelId);
+    console.log('File size:', file?.size || 0);
+    
+    if (!file) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'No file provided' 
+      }, { status: 400 });
     }
 
-    return NextResponse.json(response);
+    if (!channelId) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'Channel ID is required' 
+      }, { status: 400 });
+    }
+
+    // Check file size - limit to 10MB for server-side upload
+    const MAX_SERVER_UPLOAD = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_SERVER_UPLOAD) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'File too large. Use direct upload for files > 10MB',
+        useDirectUpload: true
+      }, { status: 413 });
+    }
+
+    // Get channel with tokens
+    const channel = await db.channel.findUnique({
+      where: { id: channelId },
+    });
+
+    if (!channel) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'Channel not found' 
+      }, { status: 404 });
+    }
+
+    // Dynamic import to avoid build issues
+    const { uploadToGoogleDrive } = await import('@/lib/google-drive');
+    
+    // Refresh access token
+    let accessToken = channel.accessToken;
+    let refreshToken = channel.refreshToken;
+    
+    try {
+      const tokens = await refreshAccessToken(channel.refreshToken);
+      accessToken = tokens.accessToken;
+      refreshToken = tokens.refreshToken;
+      
+      await db.channel.update({
+        where: { id: channelId },
+        data: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+      });
+      console.log('Access token refreshed');
+    } catch (e) {
+      console.log('Using existing token');
+    }
+
+    // Upload to Google Drive
+    console.log('Starting Google Drive upload...');
+    const result = await uploadToGoogleDrive(accessToken, refreshToken, file, folder);
+    
+    console.log('=== Upload SUCCESS ===');
+    console.log('File ID:', result.id);
+
+    return NextResponse.json({
+      success: true,
+      url: result.url,
+      fileId: result.id,
+      fileName: result.name
+    });
+    
   } catch (error: any) {
-    console.error('Error uploading videos:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to upload videos' },
-      { status: 500 }
-    );
+    console.error('=== Upload FAILED ===');
+    console.error('Error:', error.message);
+    
+    return NextResponse.json({ 
+      success: false,
+      error: error.message || 'Upload failed'
+    }, { status: 500 });
   }
 }

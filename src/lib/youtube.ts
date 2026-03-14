@@ -25,7 +25,7 @@ export function getAuthUrl(state?: string) {
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly',
-    'https://www.googleapis.com/auth/drive.file', // Google Drive - upload files
+    'https://www.googleapis.com/auth/drive.file', // Google Drive access
   ];
 
   return oauth2Client.generateAuthUrl({
@@ -77,15 +77,7 @@ export async function getChannelInfo(accessToken: string, refreshToken: string) 
   }
 }
 
-// Convert Buffer to Readable Stream
-function bufferToStream(buffer: Buffer): Readable {
-  const stream = new Readable();
-  stream.push(buffer);
-  stream.push(null);
-  return stream;
-}
-
-// Upload video to YouTube
+// Upload video to YouTube - supports both file path and buffer
 export async function uploadVideo(
   accessToken: string,
   refreshToken: string,
@@ -93,9 +85,9 @@ export async function uploadVideo(
     title: string;
     description: string;
     tags: string[];
-    filePath?: string;      // Local file path (optional)
-    fileBuffer?: Buffer;    // Buffer from Blob storage (optional)
-    fileName?: string;      // Original file name (for Buffer uploads)
+    filePath?: string;       // Local file path
+    fileBuffer?: Buffer;     // Buffer for in-memory file
+    fileName?: string;       // File name (required for buffer)
   }
 ) {
   const oauth2Client = createOAuth2Client();
@@ -107,18 +99,26 @@ export async function uploadVideo(
   const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
   try {
-    // Determine the media body - either from file path or buffer
     let mediaBody: Readable | fs.ReadStream;
-    
+
     if (videoData.fileBuffer) {
-      // Use buffer (from Blob storage)
-      mediaBody = bufferToStream(videoData.fileBuffer);
+      // Use buffer - convert to stream
+      console.log('[YouTube] Uploading from buffer...');
+      const readable = new Readable();
+      readable._read = () => {}; // Required implementation
+      readable.push(videoData.fileBuffer);
+      readable.push(null);
+      mediaBody = readable;
     } else if (videoData.filePath) {
-      // Use file path (local filesystem)
+      // Use file path
+      console.log('[YouTube] Uploading from file path:', videoData.filePath);
       mediaBody = fs.createReadStream(videoData.filePath);
     } else {
       throw new Error('Either filePath or fileBuffer must be provided');
     }
+
+    console.log('[YouTube] Starting upload...');
+    console.log('[YouTube] Title:', videoData.title);
 
     const response = await youtube.videos.insert({
       part: ['snippet', 'status'],
@@ -136,9 +136,11 @@ export async function uploadVideo(
       },
       media: {
         body: mediaBody,
-        mimeType: 'video/*',
       },
     });
+
+    console.log('[YouTube] Upload successful!');
+    console.log('[YouTube] Video ID:', response.data.id);
 
     return {
       success: true,
@@ -146,7 +148,13 @@ export async function uploadVideo(
       videoUrl: `https://www.youtube.com/watch?v=${response.data.id}`,
     };
   } catch (error: any) {
-    console.error('YouTube upload error:', error);
+    console.error('[YouTube] Upload error:', error.message);
+    
+    // Get more detailed error info
+    if (error.response?.data) {
+      console.error('[YouTube] Error details:', JSON.stringify(error.response.data, null, 2));
+    }
+    
     return {
       success: false,
       error: error.message || 'Unknown error during upload',
@@ -154,13 +162,12 @@ export async function uploadVideo(
   }
 }
 
-// Upload thumbnail to YouTube
-export async function uploadThumbnail(
+// Set video thumbnail
+export async function setThumbnail(
   accessToken: string,
   refreshToken: string,
   videoId: string,
-  thumbnailBuffer: Buffer,
-  fileName?: string
+  thumbnailBuffer: Buffer
 ) {
   const oauth2Client = createOAuth2Client();
   oauth2Client.setCredentials({
@@ -171,17 +178,22 @@ export async function uploadThumbnail(
   const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
   try {
+    const readable = new Readable();
+    readable._read = () => {};
+    readable.push(thumbnailBuffer);
+    readable.push(null);
+
     await youtube.thumbnails.set({
       videoId,
       media: {
-        body: bufferToStream(thumbnailBuffer),
-        mimeType: 'image/jpeg',
+        body: readable,
       },
     });
 
+    console.log('[YouTube] Thumbnail set successfully');
     return { success: true };
   } catch (error: any) {
-    console.error('Thumbnail upload error:', error);
+    console.error('[YouTube] Thumbnail error:', error.message);
     return { success: false, error: error.message };
   }
 }
