@@ -6,11 +6,13 @@ import { downloadFromGoogleDrive, extractFileIdFromUrl } from './google-drive';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
-// In-memory random delay cache (persists for the day)
-const randomDelayCache = new Map<string, { delay: number; date: string }>();
-
 // Get or create random delay for the day (in minutes, -15 to +15)
-function getRandomDelay(channelId: string, timezone: string): number {
+async function getRandomDelay(
+  channelId: string, 
+  randomDelayMinutes: number | null, 
+  randomDelayDate: Date | null,
+  timezone: string
+): Promise<number> {
   const now = new Date();
   
   // Get today's date in the channel's timezone
@@ -21,19 +23,28 @@ function getRandomDelay(channelId: string, timezone: string): number {
     day: '2-digit',
   });
   const todayStr = dateFormatter.format(now);
+  const today = new Date(todayStr);
   
-  // Check cache
-  const cached = randomDelayCache.get(channelId);
-  if (cached && cached.date === todayStr) {
-    console.log(`[RandomDelay] Using cached delay: ${cached.delay} minutes`);
-    return cached.delay;
+  // Check if we already have a delay calculated for today
+  if (randomDelayDate) {
+    const existingDateStr = dateFormatter.format(new Date(randomDelayDate));
+    if (existingDateStr === todayStr && randomDelayMinutes !== null) {
+      console.log(`[RandomDelay] Using existing delay: ${randomDelayMinutes} minutes`);
+      return randomDelayMinutes;
+    }
   }
   
   // Generate new random delay between -15 and +15 minutes
   const delay = Math.floor(Math.random() * 31) - 15; // -15 to +15
   
-  // Save to cache
-  randomDelayCache.set(channelId, { delay, date: todayStr });
+  // Save to database
+  await db.channel.update({
+    where: { id: channelId },
+    data: {
+      randomDelayMinutes: delay,
+      randomDelayDate: today,
+    },
+  });
   
   console.log(`[RandomDelay] New delay calculated: ${delay} minutes for channel ${channelId}`);
   return delay;
@@ -129,20 +140,27 @@ function convertTo24Hour(timeStr: string): { hours: number; minutes: number } {
 }
 
 // Check if upload should happen based on frequency, time, and random delay
-function shouldUpload(channel: {
+async function shouldUpload(channel: {
   id: string;
   uploadTime: string;
   frequency: string;
   timezone: string;
   lastUploadDate: Date | null;
-}): { allowed: boolean; reason: string; debugInfo: Record<string, any> } {
+  randomDelayMinutes: number | null;
+  randomDelayDate: Date | null;
+}): Promise<{ allowed: boolean; reason: string; debugInfo: Record<string, any> }> {
   
   const timezone = channel.timezone || 'Asia/Kolkata';
   const { hours: currentHours, minutes: currentMinutes } = getCurrentTimeInTimezone(timezone);
   const { hours: scheduledHours, minutes: scheduledMinutes } = convertTo24Hour(channel.uploadTime);
   
-  // Get random delay for today (from memory cache)
-  const randomDelay = getRandomDelay(channel.id, timezone);
+  // Get random delay for today
+  const randomDelay = await getRandomDelay(
+    channel.id,
+    channel.randomDelayMinutes,
+    channel.randomDelayDate,
+    timezone
+  );
   
   // Calculate actual upload time with random delay
   let actualMinutesTotal = scheduledHours * 60 + scheduledMinutes + randomDelay;
@@ -161,7 +179,7 @@ function shouldUpload(channel: {
   // Calculate time difference in minutes
   const scheduledMinutesTotal = actualHours * 60 + actualMinutes;
   const currentMinutesTotal = currentHours * 60 + currentMinutes;
-  const timeDiff = currentMinutesTotal - scheduledMinutesTotal; // Positive = past scheduled time
+  const timeDiff = Math.abs(currentMinutesTotal - scheduledMinutesTotal);
   
   const actualTimeStr = `${String(actualHours).padStart(2, '0')}:${String(actualMinutes).padStart(2, '0')}`;
   const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
@@ -175,31 +193,15 @@ function shouldUpload(channel: {
     randomDelayMinutes: randomDelay,
     actualUploadTime: actualTimeStr,
     timeDifferenceMinutes: timeDiff,
-    currentMinutesTotal,
-    scheduledMinutesTotal,
   };
   
   console.log('Debug info:', JSON.stringify(debugInfo, null, 2));
   
-  // Check if current time is within upload window:
-  // - Must be AT or AFTER scheduled time (timeDiff >= 0)
-  // - Must be within 30 minutes AFTER scheduled time (timeDiff <= 30)
-  // - OR within 5 minutes BEFORE scheduled time (timeDiff >= -5)
-  if (timeDiff < -5) {
-    // Too early - more than 5 minutes before scheduled time
+  // Check if current time matches upload time (within 5 minutes window)
+  if (timeDiff > 5) {
     return { 
       allowed: false, 
-      reason: `Too early. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min). Wait ${Math.abs(timeDiff)} more minutes.`,
-      debugInfo
-    };
-  }
-  
-  if (timeDiff > 30) {
-    // Too late - more than 30 minutes past scheduled time
-    // This might mean we missed the window, skip for today
-    return { 
-      allowed: false, 
-      reason: `Too late. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr}. Missed window by ${timeDiff - 30} minutes.`,
+      reason: `Not scheduled time. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min)`,
       debugInfo
     };
   }
@@ -307,12 +309,14 @@ export async function processScheduledUploads(): Promise<{
       console.log(`\n--- Processing channel: ${channel.name} ---`);
       console.log(`Channel settings: uploadTime=${channel.uploadTime}, frequency=${channel.frequency}, timezone=${channel.timezone || 'Asia/Kolkata (default)'}`);
       
-      const uploadCheck = shouldUpload({
+      const uploadCheck = await shouldUpload({
         id: channel.id,
         uploadTime: channel.uploadTime,
         frequency: channel.frequency,
         timezone: channel.timezone || 'Asia/Kolkata',
         lastUploadDate: channel.lastUploadDate,
+        randomDelayMinutes: channel.randomDelayMinutes,
+        randomDelayDate: channel.randomDelayDate,
       });
       
       console.log(`Upload check result:`, uploadCheck);
@@ -368,7 +372,7 @@ export async function processScheduledUploads(): Promise<{
         let videoBuffer: Buffer;
         
         if (isUrl) {
-          // Download from URL (Google Drive public URL)
+          // Download from URL (Google Drive public URL or Vercel Blob)
           console.log(`Downloading video from URL: ${video.fileName}`);
           const response = await fetch(video.fileName);
           if (!response.ok) {
@@ -401,7 +405,6 @@ export async function processScheduledUploads(): Promise<{
             data: {
               status: 'uploaded',
               uploadedAt: new Date(),
-              uploadedVideoId: result.videoId,
             },
           });
 

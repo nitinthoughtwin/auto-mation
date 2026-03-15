@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 // GET - Debug endpoint to check scheduler status
 export async function GET(request: NextRequest) {
   try {
     const now = new Date();
     
-    // Get all active channels with queued videos
+    // Get all active channels
     const channels = await db.channel.findMany({
       where: { isActive: true },
       include: {
@@ -23,14 +21,12 @@ export async function GET(request: NextRequest) {
     const debugInfo = channels.map(channel => {
       // Get current time in channel's timezone
       const timezone = channel.timezone || 'Asia/Kolkata';
-      
-      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+      const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
         hour: 'numeric',
         minute: 'numeric',
         hour12: false,
       });
-      
       const dateFormatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: timezone,
         year: 'numeric',
@@ -38,28 +34,54 @@ export async function GET(request: NextRequest) {
         day: '2-digit',
       });
       
+      const currentTime = formatter.format(now);
+      const currentDate = dateFormatter.format(now);
+      
+      // Get day of week
       const dayFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
         weekday: 'short',
       });
-      
-      const currentTime = timeFormatter.format(now);
-      const currentDate = dateFormatter.format(now);
       const dayOfWeek = dayFormatter.format(now);
 
-      // Parse upload time
-      const uploadTime = channel.uploadTime || '18:00';
-      const [hours, minutes] = uploadTime.match(/^(\d{1,2}):(\d{2})/)?.slice(1,3).map(Number) || [18, 0];
+      // Calculate actual upload time with random delay
+      const scheduledTime = channel.uploadTime;
+      const randomDelay = channel.randomDelayMinutes || 0;
+      
+      // Parse scheduled time
+      const timeMatch = scheduledTime.match(/^(\d{1,2}):(\d{2})/);
+      let scheduledHours = 0, scheduledMinutes = 0;
+      if (timeMatch) {
+        scheduledHours = parseInt(timeMatch[1]);
+        scheduledMinutes = parseInt(timeMatch[2]);
+      }
+      
+      // Apply random delay
+      let actualMinutesTotal = scheduledHours * 60 + scheduledMinutes + randomDelay;
+      let actualHours = Math.floor(actualMinutesTotal / 60) % 24;
+      let actualMinutes = actualMinutesTotal % 60;
+      if (actualMinutes < 0) {
+        actualMinutes += 60;
+        actualHours = (actualHours - 1 + 24) % 24;
+      }
+      if (actualHours < 0) {
+        actualHours += 24;
+      }
+      
+      const actualUploadTime = `${String(actualHours).padStart(2, '0')}:${String(Math.abs(actualMinutes)).padStart(2, '0')}`;
 
       return {
-        channelId: channel.id,
         channelName: channel.name,
+        channelId: channel.id,
         timezone,
         serverTimeUTC: now.toISOString(),
         currentTimeInTimezone: currentTime,
         currentDateInTimezone: currentDate,
         dayOfWeek,
-        scheduledUploadTime: uploadTime,
+        scheduledUploadTime: scheduledTime,
+        randomDelayMinutes: randomDelay,
+        randomDelayDate: channel.randomDelayDate,
+        actualUploadTime: actualUploadTime,
         frequency: channel.frequency,
         lastUploadDate: channel.lastUploadDate,
         queuedVideos: channel.videos.length,
@@ -67,7 +89,7 @@ export async function GET(request: NextRequest) {
           id: v.id,
           title: v.title,
           fileName: v.fileName,
-          isUrl: v.fileName?.startsWith('http') || false,
+          isUrl: v.fileName.startsWith('http'),
           status: v.status,
           createdAt: v.createdAt,
         })),
