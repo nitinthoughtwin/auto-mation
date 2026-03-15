@@ -1256,6 +1256,16 @@ export default function YouTubeAutomationDashboard() {
                       <SelectContent>
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="alternate">Every Other Day</SelectItem>
+                        <SelectItem value="every3days">Every 3 Days</SelectItem>
+                        <SelectItem value="every5days">Every 5 Days</SelectItem>
+                        <SelectItem value="every7days">Every 7 Days (Weekly)</SelectItem>
+                        <SelectItem value="everySunday">Every Sunday</SelectItem>
+                        <SelectItem value="everyMonday">Every Monday</SelectItem>
+                        <SelectItem value="everyTuesday">Every Tuesday</SelectItem>
+                        <SelectItem value="everyWednesday">Every Wednesday</SelectItem>
+                        <SelectItem value="everyThursday">Every Thursday</SelectItem>
+                        <SelectItem value="everyFriday">Every Friday</SelectItem>
+                        <SelectItem value="everySaturday">Every Saturday</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">

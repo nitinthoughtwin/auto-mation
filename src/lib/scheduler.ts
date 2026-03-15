@@ -251,6 +251,17 @@ async function shouldUpload(channel: {
       return { allowed: true, reason: 'Every 5th day ready', debugInfo };
     }
 
+    case 'every7days': {
+      if (channel.lastUploadDate) {
+        const lastUpload = new Date(channel.lastUploadDate);
+        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        if (daysSince < 7) {
+          return { allowed: false, reason: `Need 7 days, only ${daysSince} passed`, debugInfo };
+        }
+      }
+      return { allowed: true, reason: 'Every 7th day ready', debugInfo };
+    }
+
     case 'everySunday': {
       if (getDayOfWeekInTimezone(timezone) !== 0) {
         return { allowed: false, reason: 'Not Sunday', debugInfo };
@@ -262,6 +273,84 @@ async function shouldUpload(channel: {
         }
       }
       return { allowed: true, reason: 'Sunday upload ready', debugInfo };
+    }
+
+    case 'everyMonday': {
+      if (getDayOfWeekInTimezone(timezone) !== 1) {
+        return { allowed: false, reason: 'Not Monday', debugInfo };
+      }
+      if (channel.lastUploadDate) {
+        const lastUpload = new Date(channel.lastUploadDate);
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded this Monday', debugInfo };
+        }
+      }
+      return { allowed: true, reason: 'Monday upload ready', debugInfo };
+    }
+
+    case 'everyTuesday': {
+      if (getDayOfWeekInTimezone(timezone) !== 2) {
+        return { allowed: false, reason: 'Not Tuesday', debugInfo };
+      }
+      if (channel.lastUploadDate) {
+        const lastUpload = new Date(channel.lastUploadDate);
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded this Tuesday', debugInfo };
+        }
+      }
+      return { allowed: true, reason: 'Tuesday upload ready', debugInfo };
+    }
+
+    case 'everyWednesday': {
+      if (getDayOfWeekInTimezone(timezone) !== 3) {
+        return { allowed: false, reason: 'Not Wednesday', debugInfo };
+      }
+      if (channel.lastUploadDate) {
+        const lastUpload = new Date(channel.lastUploadDate);
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded this Wednesday', debugInfo };
+        }
+      }
+      return { allowed: true, reason: 'Wednesday upload ready', debugInfo };
+    }
+
+    case 'everyThursday': {
+      if (getDayOfWeekInTimezone(timezone) !== 4) {
+        return { allowed: false, reason: 'Not Thursday', debugInfo };
+      }
+      if (channel.lastUploadDate) {
+        const lastUpload = new Date(channel.lastUploadDate);
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded this Thursday', debugInfo };
+        }
+      }
+      return { allowed: true, reason: 'Thursday upload ready', debugInfo };
+    }
+
+    case 'everyFriday': {
+      if (getDayOfWeekInTimezone(timezone) !== 5) {
+        return { allowed: false, reason: 'Not Friday', debugInfo };
+      }
+      if (channel.lastUploadDate) {
+        const lastUpload = new Date(channel.lastUploadDate);
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded this Friday', debugInfo };
+        }
+      }
+      return { allowed: true, reason: 'Friday upload ready', debugInfo };
+    }
+
+    case 'everySaturday': {
+      if (getDayOfWeekInTimezone(timezone) !== 6) {
+        return { allowed: false, reason: 'Not Saturday', debugInfo };
+      }
+      if (channel.lastUploadDate) {
+        const lastUpload = new Date(channel.lastUploadDate);
+        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+          return { allowed: false, reason: 'Already uploaded this Saturday', debugInfo };
+        }
+      }
+      return { allowed: true, reason: 'Saturday upload ready', debugInfo };
     }
 
     default:

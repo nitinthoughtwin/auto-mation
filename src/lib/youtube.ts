@@ -33,7 +33,7 @@ export function getAuthUrl(state?: string) {
     scope: scopes,
     include_granted_scopes: true,
     state: state || '',
-    prompt: 'consent', // Always get refresh token
+    prompt: 'consent select_account', // Show account/channel selector + get refresh token
   });
 }
 
