@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processScheduledUploads } from '@/lib/scheduler';
-import { db } from '@/lib/db';
+
+// Configure for longer running tasks
+export const maxDuration = 300;
+export const dynamic = 'force-dynamic';
 
 // GET - Triggered by cron-job.org
 export async function GET(request: NextRequest) {
