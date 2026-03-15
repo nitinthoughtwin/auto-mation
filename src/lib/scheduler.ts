@@ -161,7 +161,7 @@ function shouldUpload(channel: {
   // Calculate time difference in minutes
   const scheduledMinutesTotal = actualHours * 60 + actualMinutes;
   const currentMinutesTotal = currentHours * 60 + currentMinutes;
-  const timeDiff = Math.abs(currentMinutesTotal - scheduledMinutesTotal);
+  const timeDiff = currentMinutesTotal - scheduledMinutesTotal; // Positive = past scheduled time
   
   const actualTimeStr = `${String(actualHours).padStart(2, '0')}:${String(actualMinutes).padStart(2, '0')}`;
   const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
@@ -175,15 +175,31 @@ function shouldUpload(channel: {
     randomDelayMinutes: randomDelay,
     actualUploadTime: actualTimeStr,
     timeDifferenceMinutes: timeDiff,
+    currentMinutesTotal,
+    scheduledMinutesTotal,
   };
   
   console.log('Debug info:', JSON.stringify(debugInfo, null, 2));
   
-  // Check if current time matches upload time (within 5 minutes window)
-  if (timeDiff > 5) {
+  // Check if current time is within upload window:
+  // - Must be AT or AFTER scheduled time (timeDiff >= 0)
+  // - Must be within 30 minutes AFTER scheduled time (timeDiff <= 30)
+  // - OR within 5 minutes BEFORE scheduled time (timeDiff >= -5)
+  if (timeDiff < -5) {
+    // Too early - more than 5 minutes before scheduled time
     return { 
       allowed: false, 
-      reason: `Not scheduled time. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min)`,
+      reason: `Too early. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min). Wait ${Math.abs(timeDiff)} more minutes.`,
+      debugInfo
+    };
+  }
+  
+  if (timeDiff > 30) {
+    // Too late - more than 30 minutes past scheduled time
+    // This might mean we missed the window, skip for today
+    return { 
+      allowed: false, 
+      reason: `Too late. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr}. Missed window by ${timeDiff - 30} minutes.`,
       debugInfo
     };
   }
