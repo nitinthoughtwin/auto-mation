@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@/lib/db';
 import { getNextUploadTime } from '@/lib/utils-shared';
+import { getCurrentUser } from '@/lib/auth-wrapper';
 
-const prisma = new PrismaClient();
-
-// GET - List all channels
+// GET - List all channels for current user
 export async function GET() {
   try {
-    const channels = await prisma.channel.findMany({
+    const user = await getCurrentUser();
+
+    // If no user, return empty (for backward compatibility)
+    const whereClause = user?.id ? { userId: user.id } : {};
+
+    const channels = await db.channel.findMany({
+      where: whereClause,
       include: {
         _count: {
           select: { videos: true },
@@ -37,23 +42,29 @@ export async function GET() {
   }
 }
 
-// POST - Add a new channel (usually done via OAuth, but this is for manual testing)
+// POST - Add a new channel
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
     const body = await request.json();
-    const { name, youtubeChannelId, accessToken, refreshToken, uploadTime, frequency } = body;
+    const { name, youtubeChannelId, accessToken, refreshToken, uploadTime, frequency, platform, instagramAccountId, facebookPageId, facebookPageName } = body;
 
-    if (!name || !youtubeChannelId || !accessToken || !refreshToken) {
+    if (!name || !accessToken || !refreshToken) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    const channel = await prisma.channel.create({
+    const channel = await db.channel.create({
       data: {
+        userId: user?.id || null,
         name,
+        platform: platform || 'youtube',
         youtubeChannelId,
+        instagramAccountId,
+        facebookPageId,
+        facebookPageName,
         accessToken,
         refreshToken,
         uploadTime: uploadTime || '18:00',
