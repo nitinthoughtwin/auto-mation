@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Youtube,
   Plus,
   Settings,
@@ -55,6 +62,12 @@ import {
   Image as ImageIcon,
   X,
   ExternalLink,
+  Instagram,
+  Facebook,
+  Cloud,
+  ChevronDown,
+  User,
+  LogOut,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
@@ -155,7 +168,11 @@ const getDriveLink = (fileIdOrUrl: string | null): string | null => {
 interface Channel {
   id: string;
   name: string;
-  youtubeChannelId: string;
+  platform: string; // youtube, instagram, facebook
+  youtubeChannelId?: string;
+  instagramAccountId?: string;
+  facebookPageId?: string;
+  facebookPageName?: string;
   uploadTime: string;
   frequency: string;
   isActive: boolean;
@@ -187,10 +204,25 @@ interface Video {
   thumbnailName: string | null;
   thumbnailOriginalName: string | null;
   thumbnailSize: number | null;
+  googleDriveFileId?: string | null;
+  googleDriveUrl?: string | null;
+  platform?: string;
   status: string;
   uploadedAt: string | null;
+  uploadedVideoId?: string | null;
   error: string | null;
   createdAt: string;
+}
+
+interface DriveVideo {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  createdTime: string;
+  thumbnailUrl?: string;
+  downloadUrl: string;
+  driveUrl: string;
 }
 
 interface SchedulerLog {
@@ -301,6 +333,119 @@ export default function YouTubeAutomationDashboard() {
     frequency: '',
   });
 
+  // Drive import state
+  const [showDriveImport, setShowDriveImport] = useState(false);
+  const [driveVideos, setDriveVideos] = useState<DriveVideo[]>([]);
+  const [loadingDrive, setLoadingDrive] = useState(false);
+  const [selectedDriveVideos, setSelectedDriveVideos] = useState<Set<string>>(new Set());
+  const [drivePageToken, setDrivePageToken] = useState<string | null>(null);
+
+  // Platform icon helper
+  const getPlatformIcon = (platform: string) => {
+    switch (platform) {
+      case 'instagram':
+        return <Instagram className="h-4 w-4 text-pink-500" />;
+      case 'facebook':
+        return <Facebook className="h-4 w-4 text-blue-500" />;
+      default:
+        return <Youtube className="h-4 w-4 text-red-500" />;
+    }
+  };
+
+  // Load videos from Google Drive
+  const loadDriveVideos = async (pageToken?: string) => {
+    if (!selectedChannel) return;
+
+    setLoadingDrive(true);
+    try {
+      const res = await fetch('/api/drive/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId: selectedChannel.id, pageToken }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setDriveVideos(pageToken ? [...driveVideos, ...data.videos] : data.videos);
+        setDrivePageToken(data.nextPageToken);
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      toast.error('Failed to Load Drive Videos', {
+        description: error.message || 'Could not fetch videos from Google Drive.',
+      });
+    } finally {
+      setLoadingDrive(false);
+    }
+  };
+
+  // Import selected videos from Drive
+  const importFromDrive = async () => {
+    if (selectedDriveVideos.size === 0 || !selectedChannel) {
+      toast.error('No Videos Selected', {
+        description: 'Please select at least one video to import.',
+      });
+      return;
+    }
+
+    const loadingToast = toast.loading('Importing Videos', {
+      description: `Adding ${selectedDriveVideos.size} video(s) to queue...`,
+    });
+
+    try {
+      const videosToImport = driveVideos
+        .filter(v => selectedDriveVideos.has(v.id))
+        .map(v => ({
+          driveFileId: v.id,
+          fileName: v.name,
+          fileSize: v.size,
+        }));
+
+      const res = await fetch('/api/drive/import', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId: selectedChannel.id,
+          videos: videosToImport,
+        }),
+      });
+
+      const data = await res.json();
+      toast.dismiss(loadingToast);
+
+      if (data.success) {
+        toast.success('Videos Imported', {
+          description: `${data.results.success} video(s) imported, ${data.results.skipped} skipped (already in queue).`,
+        });
+        setShowDriveImport(false);
+        setSelectedDriveVideos(new Set());
+        setDriveVideos([]);
+        loadChannelDetails(selectedChannel.id);
+        loadChannels();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error('Import Failed', {
+        description: error.message || 'Could not import videos from Drive.',
+      });
+    }
+  };
+
+  // Toggle drive video selection
+  const toggleDriveVideoSelection = (videoId: string) => {
+    const newSelection = new Set(selectedDriveVideos);
+    if (newSelection.has(videoId)) {
+      newSelection.delete(videoId);
+    } else {
+      newSelection.add(videoId);
+    }
+    setSelectedDriveVideos(newSelection);
+  };
+
   // Load channels
   const loadChannels = useCallback(async () => {
     try {
@@ -373,8 +518,17 @@ export default function YouTubeAutomationDashboard() {
   }, [loadChannels]);
 
   // Connect new channel
-  const connectChannel = () => {
-    window.location.href = '/api/auth/youtube';
+  const connectChannel = (platform: 'youtube' | 'instagram' | 'facebook' = 'youtube') => {
+    switch (platform) {
+      case 'instagram':
+        window.location.href = '/api/auth/instagram';
+        break;
+      case 'facebook':
+        window.location.href = '/api/auth/facebook';
+        break;
+      default:
+        window.location.href = '/api/auth/youtube';
+    }
   };
 
   // Update channel settings
@@ -1018,7 +1172,7 @@ export default function YouTubeAutomationDashboard() {
             Manage your channels and schedule video uploads
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Button variant="outline" onClick={runScheduler} disabled={runningScheduler}>
             {runningScheduler ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1027,10 +1181,43 @@ export default function YouTubeAutomationDashboard() {
             )}
             Run Scheduler
           </Button>
-          <Button onClick={connectChannel}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Channel
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Channel
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => connectChannel('youtube')}>
+                <Youtube className="mr-2 h-4 w-4 text-red-500" />
+                YouTube Channel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => connectChannel('instagram')}>
+                <Instagram className="mr-2 h-4 w-4 text-pink-500" />
+                Instagram Account
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => connectChannel('facebook')}>
+                <Facebook className="mr-2 h-4 w-4 text-blue-500" />
+                Facebook Page
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/login' })}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -1085,7 +1272,7 @@ export default function YouTubeAutomationDashboard() {
         <CardHeader>
           <CardTitle>Connected Channels</CardTitle>
           <CardDescription>
-            Manage your YouTube channels and their upload schedules
+            Manage your channels and their upload schedules
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1097,18 +1284,36 @@ export default function YouTubeAutomationDashboard() {
             <div className="text-center py-8 text-muted-foreground">
               <Youtube className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No channels connected yet</p>
-              <Button className="mt-4" onClick={connectChannel}>
-                <Plus className="mr-2 h-4 w-4" />
-                Connect Your First Channel
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="mt-4">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Connect Your First Channel
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => connectChannel('youtube')}>
+                    <Youtube className="mr-2 h-4 w-4 text-red-500" />
+                    YouTube Channel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => connectChannel('instagram')}>
+                    <Instagram className="mr-2 h-4 w-4 text-pink-500" />
+                    Instagram Account
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => connectChannel('facebook')}>
+                    <Facebook className="mr-2 h-4 w-4 text-blue-500" />
+                    Facebook Page
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Channel Name</TableHead>
+                  <TableHead>Platform</TableHead>
                   <TableHead>Upload Time</TableHead>
-                  <TableHead>Frequency</TableHead>
                   <TableHead>Queued</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -1119,21 +1324,20 @@ export default function YouTubeAutomationDashboard() {
                   <TableRow key={channel.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <Youtube className="h-4 w-4 text-red-500" />
+                        {getPlatformIcon(channel.platform || 'youtube')}
                         {channel.name}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {channel.platform || 'youtube'}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {channel.uploadTime}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {channel.frequency}
-                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant={channel.queuedVideos && channel.queuedVideos > 0 ? 'default' : 'secondary'}>
@@ -1256,11 +1460,16 @@ export default function YouTubeAutomationDashboard() {
           </Button>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <Youtube className="h-6 w-6 text-red-500" />
+              {getPlatformIcon(selectedChannel.platform || 'youtube')}
               <h1 className="text-2xl font-bold">{selectedChannel.name}</h1>
             </div>
             <p className="text-muted-foreground">
-              Channel ID: {selectedChannel.youtubeChannelId}
+              {selectedChannel.platform === 'instagram' 
+                ? `Instagram Account ID: ${selectedChannel.instagramAccountId}`
+                : selectedChannel.platform === 'facebook'
+                ? `Facebook Page: ${selectedChannel.facebookPageName || selectedChannel.facebookPageId}`
+                : `Channel ID: ${selectedChannel.youtubeChannelId}`
+              }
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1272,6 +1481,20 @@ export default function YouTubeAutomationDashboard() {
               {selectedChannel.isActive ? 'Active' : 'Paused'}
             </span>
           </div>
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/login' })}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Stats */}

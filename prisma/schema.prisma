@@ -69,9 +69,16 @@ model Channel {
   id               String    @id @default(cuid())
   userId           String?
   name             String
-  youtubeChannelId String    @unique
+  platform         String    @default("youtube") // youtube, instagram, facebook
+  // YouTube fields
+  youtubeChannelId String?   @unique
   accessToken      String
   refreshToken     String
+  // Platform-specific IDs
+  instagramAccountId String?  @unique
+  facebookPageId     String?  @unique
+  facebookPageName   String?
+  // Common settings
   uploadTime       String    @default("18:00")
   frequency        String    @default("daily")
   timezone         String    @default("Asia/Kolkata")
@@ -85,7 +92,7 @@ model Channel {
   videos           Video[]
 }
 
-// Video queue for YouTube uploads
+// Video queue for uploads (YouTube, Instagram, Facebook)
 model Video {
   id                    String    @id @default(cuid())
   channelId             String
@@ -99,9 +106,14 @@ model Video {
   thumbnailName         String?
   thumbnailOriginalName String?
   thumbnailSize         Int?
+  // Google Drive file mapping
+  googleDriveFileId     String?   @unique // If video already exists on Drive
+  googleDriveUrl        String?   // Direct download URL
+  // Status tracking
   status                String    @default("queued")
+  platform              String    @default("youtube") // youtube, instagram, facebook
   uploadedAt            DateTime?
-  uploadedVideoId       String?   // YouTube video ID after upload
+  uploadedVideoId       String?   // Platform video ID after upload
   error                 String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
