@@ -291,6 +291,10 @@ export default function YouTubeAutomationDashboard() {
   const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(null);
   const [previewVideo, setPreviewVideo] = useState<Video | null>(null);
 
+  // AI Generation state
+  const [aiGenerating, setAiGenerating] = useState<'title' | 'description' | 'tags' | 'thumbnail' | 'all' | null>(null);
+  const [aiThumbnailUrl, setAiThumbnailUrl] = useState<string | null>(null);
+
   // Channel settings state
   const [editSettings, setEditSettings] = useState({
     uploadTime: '',
@@ -768,6 +772,114 @@ export default function YouTubeAutomationDashboard() {
       tags: video.tags || '',
     });
     setEditThumbnailFile(null);
+    setAiThumbnailUrl(null);
+  };
+
+  // AI Generate title, description, tags
+  const generateWithAI = async (type: 'title' | 'description' | 'tags' | 'all') => {
+    if (!editingVideo) return;
+
+    const input = editVideoData.title || editingVideo.originalName || editingVideo.title;
+    if (!input) {
+      toast.error('No Input', {
+        description: 'Please enter a title or video topic first.',
+      });
+      return;
+    }
+
+    setAiGenerating(type);
+    const loadingToast = toast.loading('Generating with AI', {
+      description: `Creating ${type === 'all' ? 'title, description & tags' : type}...`,
+    });
+
+    try {
+      const res = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          input,
+          language: 'hindi',
+        }),
+      });
+
+      const result = await res.json();
+      toast.dismiss(loadingToast);
+
+      if (result.success) {
+        if (result.title) {
+          setEditVideoData(prev => ({ ...prev, title: result.title }));
+        }
+        if (result.description) {
+          setEditVideoData(prev => ({ ...prev, description: result.description }));
+        }
+        if (result.tags && result.tags.length > 0) {
+          setEditVideoData(prev => ({ ...prev, tags: result.tags.join(', ') }));
+        }
+
+        toast.success('AI Generation Complete', {
+          description: `${type === 'all' ? 'Title, description & tags' : type} generated successfully!`,
+        });
+      } else {
+        throw new Error(result.error || 'AI generation failed');
+      }
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error('AI Generation Failed', {
+        description: error.message || 'Could not generate content. Please try again.',
+      });
+    } finally {
+      setAiGenerating(null);
+    }
+  };
+
+  // AI Generate thumbnail
+  const generateThumbnailWithAI = async () => {
+    if (!editingVideo || !selectedChannel) return;
+
+    const input = editVideoData.title || editingVideo.originalName || editingVideo.title;
+    if (!input) {
+      toast.error('No Input', {
+        description: 'Please enter a title first for thumbnail generation.',
+      });
+      return;
+    }
+
+    setAiGenerating('thumbnail');
+    const loadingToast = toast.loading('Generating Thumbnail', {
+      description: 'AI is creating your thumbnail...',
+    });
+
+    try {
+      const res = await fetch('/api/ai/thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: input,
+          channelId: selectedChannel.id,
+          videoTitle: editVideoData.title,
+        }),
+      });
+
+      const result = await res.json();
+      toast.dismiss(loadingToast);
+
+      if (result.success) {
+        setAiThumbnailUrl(result.thumbnailUrl);
+        toast.success('Thumbnail Generated', {
+          description: 'AI thumbnail created! Click Save to apply it.',
+        });
+      } else {
+        throw new Error(result.error || 'Thumbnail generation failed');
+      }
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error('Thumbnail Generation Failed', {
+        description: error.message || 'Could not generate thumbnail. Please try again.',
+      });
+    } finally {
+      setAiGenerating(null);
+    }
   };
 
   // Save video edits
@@ -778,30 +890,34 @@ export default function YouTubeAutomationDashboard() {
     const loadingToast = toast.loading('Saving Changes', {
       description: 'Updating video details...',
     });
-    
+
     try {
       let thumbnailUrl = editingVideo.thumbnailName; // Keep existing by default
       let fileId = undefined;
-      
+
+      // Use AI generated thumbnail if available
+      if (aiThumbnailUrl) {
+        thumbnailUrl = aiThumbnailUrl;
+      }
       // Upload new thumbnail if file is selected
-      if (editThumbnailFile && selectedChannel) {
+      else if (editThumbnailFile && selectedChannel) {
         const formData = new FormData();
         formData.append('file', editThumbnailFile);
         formData.append('folder', 'thumbnails');
         formData.append('channelId', selectedChannel.id);
-        
+
         const res = await fetch('/api/blob/upload', {
           method: 'POST',
           body: formData,
         });
-        
+
         const result = await res.json();
         if (result.success) {
           thumbnailUrl = result.url;
           fileId = result.fileId;
         }
       }
-      
+
       const res = await fetch('/api/videos/update', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -816,7 +932,7 @@ export default function YouTubeAutomationDashboard() {
       });
       
       const result = await res.json();
-      
+
       if (result.success) {
         toast.dismiss(loadingToast);
         toast.success('Video Updated', {
@@ -824,6 +940,7 @@ export default function YouTubeAutomationDashboard() {
         });
         setEditingVideo(null);
         setEditThumbnailFile(null);
+        setAiThumbnailUrl(null);
         // Refresh the video list
         if (selectedChannel) {
           loadChannelDetails(selectedChannel.id);
@@ -1256,16 +1373,6 @@ export default function YouTubeAutomationDashboard() {
                       <SelectContent>
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="alternate">Every Other Day</SelectItem>
-                        <SelectItem value="every3days">Every 3 Days</SelectItem>
-                        <SelectItem value="every5days">Every 5 Days</SelectItem>
-                        <SelectItem value="every7days">Every 7 Days (Weekly)</SelectItem>
-                        <SelectItem value="everySunday">Every Sunday</SelectItem>
-                        <SelectItem value="everyMonday">Every Monday</SelectItem>
-                        <SelectItem value="everyTuesday">Every Tuesday</SelectItem>
-                        <SelectItem value="everyWednesday">Every Wednesday</SelectItem>
-                        <SelectItem value="everyThursday">Every Thursday</SelectItem>
-                        <SelectItem value="everyFriday">Every Friday</SelectItem>
-                        <SelectItem value="everySaturday">Every Saturday</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
@@ -1589,17 +1696,99 @@ export default function YouTubeAutomationDashboard() {
         </Tabs>
 
         {/* Edit Video Dialog */}
-        <Dialog open={!!editingVideo} onOpenChange={() => setEditingVideo(null)}>
-          <DialogContent className="sm:max-w-[500px]">
+        <Dialog open={!!editingVideo} onOpenChange={() => { setEditingVideo(null); setAiThumbnailUrl(null); }}>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Edit Video</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Video className="h-5 w-5" />
+                Edit Video
+              </DialogTitle>
               <DialogDescription>
                 Update video details before upload
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+
+            {/* AI Quick Actions */}
+            <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-lg p-3 border">
+              <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                <span className="text-lg">✨</span> AI Quick Actions
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => generateWithAI('all')}
+                  disabled={!!aiGenerating}
+                  className="bg-background"
+                >
+                  {aiGenerating === 'all' ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <span className="mr-1">✨</span>
+                  )}
+                  Generate All
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => generateWithAI('title')}
+                  disabled={!!aiGenerating}
+                  className="bg-background"
+                >
+                  {aiGenerating === 'title' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                  Title
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => generateWithAI('description')}
+                  disabled={!!aiGenerating}
+                  className="bg-background"
+                >
+                  {aiGenerating === 'description' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                  Description
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => generateWithAI('tags')}
+                  disabled={!!aiGenerating}
+                  className="bg-background"
+                >
+                  {aiGenerating === 'tags' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                  Tags
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={generateThumbnailWithAI}
+                  disabled={!!aiGenerating}
+                  className="bg-background"
+                >
+                  {aiGenerating === 'thumbnail' ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <ImageIcon className="mr-1 h-3 w-3" />
+                  )}
+                  Thumbnail
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="edit-title">Title</Label>
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="edit-title">Title</Label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => generateWithAI('title')}
+                    disabled={!!aiGenerating}
+                    className="h-6 text-xs"
+                  >
+                    ✨ AI
+                  </Button>
+                </div>
                 <Input
                   id="edit-title"
                   value={editVideoData.title}
@@ -1608,7 +1797,18 @@ export default function YouTubeAutomationDashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="edit-description">Description</Label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => generateWithAI('description')}
+                    disabled={!!aiGenerating}
+                    className="h-6 text-xs"
+                  >
+                    ✨ AI
+                  </Button>
+                </div>
                 <Textarea
                   id="edit-description"
                   value={editVideoData.description}
@@ -1618,7 +1818,18 @@ export default function YouTubeAutomationDashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-tags">Tags (comma separated)</Label>
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="edit-tags">Tags (comma separated)</Label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => generateWithAI('tags')}
+                    disabled={!!aiGenerating}
+                    className="h-6 text-xs"
+                  >
+                    ✨ AI
+                  </Button>
+                </div>
                 <Input
                   id="edit-tags"
                   value={editVideoData.tags}
@@ -1627,7 +1838,18 @@ export default function YouTubeAutomationDashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-thumbnail-file">Thumbnail</Label>
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="edit-thumbnail-file">Thumbnail</Label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={generateThumbnailWithAI}
+                    disabled={!!aiGenerating}
+                    className="h-6 text-xs"
+                  >
+                    ✨ AI Generate
+                  </Button>
+                </div>
                 <Input
                   id="edit-thumbnail-file"
                   type="file"
@@ -1639,21 +1861,35 @@ export default function YouTubeAutomationDashboard() {
                     }
                   }}
                 />
-                {editThumbnailFile ? (
+
+                {/* AI Generated Thumbnail Preview */}
+                {aiThumbnailUrl ? (
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <span className="text-green-500">✓</span> AI Generated Thumbnail:
+                    </p>
+                    <img
+                      src={aiThumbnailUrl}
+                      alt="AI Generated thumbnail"
+                      className="w-full max-w-[200px] rounded-lg border-2 border-green-500/50"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Click Save to apply this thumbnail</p>
+                  </div>
+                ) : editThumbnailFile ? (
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground mb-1">New thumbnail:</p>
-                    <img 
-                      src={URL.createObjectURL(editThumbnailFile)} 
-                      alt="New thumbnail preview" 
+                    <img
+                      src={URL.createObjectURL(editThumbnailFile)}
+                      alt="New thumbnail preview"
                       className="w-full max-w-[200px] rounded-lg border"
                     />
                   </div>
                 ) : editingVideo?.thumbnailName ? (
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground mb-1">Current thumbnail:</p>
-                    <img 
-                      src={editingVideo.thumbnailName} 
-                      alt="Current thumbnail" 
+                    <img
+                      src={editingVideo.thumbnailName}
+                      alt="Current thumbnail"
                       className="w-full max-w-[200px] rounded-lg border"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
@@ -1661,13 +1897,10 @@ export default function YouTubeAutomationDashboard() {
                     />
                   </div>
                 ) : null}
-                <p className="text-xs text-muted-foreground">
-                  Upload a new image or leave empty to keep current
-                </p>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingVideo(null)}>
+              <Button variant="outline" onClick={() => { setEditingVideo(null); setAiThumbnailUrl(null); }}>
                 Cancel
               </Button>
               <Button onClick={saveVideoEdit} disabled={savingVideo}>
