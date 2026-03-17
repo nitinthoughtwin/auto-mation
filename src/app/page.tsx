@@ -1017,41 +1017,61 @@ export default function YouTubeAutomationDashboard() {
 
   // Render Dashboard View
   const renderDashboard = () => (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">YouTube Automation Dashboard</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">YouTube Automation Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Manage your channels and schedule video uploads
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={runScheduler} disabled={runningScheduler}>
+          <Button 
+            variant="outline" 
+            onClick={runScheduler} 
+            disabled={runningScheduler}
+            className="h-10 sm:h-9 text-sm touch-manipulation"
+          >
             {runningScheduler ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Play className="mr-2 h-4 w-4" />
+              <Play className="mr-1 sm:mr-2 h-4 w-4" />
             )}
-            Run Scheduler
+            <span className="hidden sm:inline">Run Scheduler</span>
+            <span className="sm:hidden">Run</span>
           </Button>
-          <Button variant="outline" onClick={connectFacebook} className="text-blue-600 border-blue-300 hover:bg-blue-50">
-            <Facebook className="mr-2 h-4 w-4" />
-            Facebook
+          <Button 
+            variant="outline" 
+            onClick={connectFacebook} 
+            className="text-blue-600 border-blue-300 hover:bg-blue-50 h-10 sm:h-9 touch-manipulation"
+          >
+            <Facebook className="mr-1 sm:mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Facebook</span>
+            <span className="sm:hidden">FB</span>
           </Button>
-          <Button variant="outline" onClick={connectInstagram} className="text-pink-600 border-pink-300 hover:bg-pink-50">
-            <Instagram className="mr-2 h-4 w-4" />
-            Instagram
+          <Button 
+            variant="outline" 
+            onClick={connectInstagram} 
+            className="text-pink-600 border-pink-300 hover:bg-pink-50 h-10 sm:h-9 touch-manipulation"
+          >
+            <Instagram className="mr-1 sm:mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Instagram</span>
+            <span className="sm:hidden">IG</span>
           </Button>
-          <Button onClick={connectChannel}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Channel
+          <Button 
+            onClick={connectChannel}
+            className="h-10 sm:h-9 touch-manipulation"
+          >
+            <Plus className="mr-1 sm:mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Add Channel</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Channels</CardTitle>
@@ -1098,13 +1118,13 @@ export default function YouTubeAutomationDashboard() {
 
       {/* Channels Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Connected Channels</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-3 sm:pb-4">
+          <CardTitle className="text-lg sm:text-xl">Connected Channels</CardTitle>
+          <CardDescription className="text-sm">
             Manage your YouTube channels and their upload schedules
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-6">
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1113,13 +1133,17 @@ export default function YouTubeAutomationDashboard() {
             <div className="text-center py-8 text-muted-foreground">
               <Youtube className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No channels connected yet</p>
-              <Button className="mt-4" onClick={connectChannel}>
+              <Button 
+                className="mt-4 h-10 sm:h-9 touch-manipulation" 
+                onClick={connectChannel}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Connect Your First Channel
               </Button>
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto -mx-3 sm:mx-0">
+              <Table className="min-w-[640px] sm:min-w-0">
               <TableHeader>
                 <TableRow>
                   <TableHead>Channel Name</TableHead>
@@ -1167,40 +1191,46 @@ export default function YouTubeAutomationDashboard() {
                         <Switch
                           checked={channel.isActive}
                           onCheckedChange={() => toggleChannelActive(channel)}
+                          className="touch-manipulation"
                         />
-                        <span className={channel.isActive ? 'text-green-600' : 'text-muted-foreground'}>
+                        <span className={`hidden sm:inline ${channel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
                           {channel.isActive ? 'Active' : 'Paused'}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-1 sm:gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => openChannelDetail(channel)}
+                          className="h-8 sm:h-8 touch-manipulation"
                         >
-                          <Settings className="h-4 w-4 mr-1" />
-                          Manage
+                          <Settings className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Manage</span>
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              className="h-8 w-8 sm:w-auto touch-manipulation"
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
                             <AlertDialogHeader>
                               <AlertDialogTitle>Disconnect Channel?</AlertDialogTitle>
                               <AlertDialogDescription>
                                 This will remove {channel.name} and all its queued videos. This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                              <AlertDialogCancel className="w-full sm:w-auto touch-manipulation">Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteChannel(channel.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto touch-manipulation"
                               >
                                 Disconnect
                               </AlertDialogAction>
@@ -1213,21 +1243,22 @@ export default function YouTubeAutomationDashboard() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Recent Activity */}
       <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-3 sm:pb-4">
+          <CardTitle className="text-lg sm:text-xl">Recent Activity</CardTitle>
+          <CardDescription className="text-sm">
             Latest scheduler actions and uploads
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-6 pt-0">
           {schedulerLogs.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">
+            <p className="text-center text-muted-foreground py-4 text-sm">
               No activity yet. Run the scheduler to see logs.
             </p>
           ) : (
@@ -1235,17 +1266,17 @@ export default function YouTubeAutomationDashboard() {
               {schedulerLogs.slice(0, 5).map((log) => (
                 <div
                   key={log.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-muted/50 gap-1"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     {log.status === 'success' ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                     ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
+                      <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
                     )}
-                    <span className="text-sm">{log.message}</span>
+                    <span className="text-sm truncate">{log.message}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground pl-6 sm:pl-0">
                     {formatDate(log.createdAt)}
                   </span>
                 </div>
@@ -1269,25 +1300,29 @@ export default function YouTubeAutomationDashboard() {
     const failedVideos = videos.filter(v => v.status === 'failed');
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={goBack}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <Button 
+            variant="ghost" 
+            onClick={goBack}
+            className="w-fit h-10 sm:h-9 touch-manipulation"
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               {selectedChannel.platform === 'instagram' ? (
-                <Instagram className="h-6 w-6 text-pink-500" />
+                <Instagram className="h-5 w-5 sm:h-6 sm:w-6 text-pink-500 flex-shrink-0" />
               ) : selectedChannel.platform === 'facebook' ? (
-                <Facebook className="h-6 w-6 text-blue-500" />
+                <Facebook className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500 flex-shrink-0" />
               ) : (
-                <Youtube className="h-6 w-6 text-red-500" />
+                <Youtube className="h-5 w-5 sm:h-6 sm:w-6 text-red-500 flex-shrink-0" />
               )}
-              <h1 className="text-2xl font-bold">{selectedChannel.name}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold truncate">{selectedChannel.name}</h1>
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground truncate">
               Channel ID: {selectedChannel.youtubeChannelId}
             </p>
           </div>
@@ -1295,15 +1330,16 @@ export default function YouTubeAutomationDashboard() {
             <Switch
               checked={selectedChannel.isActive}
               onCheckedChange={() => toggleChannelActive(selectedChannel)}
+              className="touch-manipulation"
             />
-            <span className={selectedChannel.isActive ? 'text-green-600' : 'text-muted-foreground'}>
+            <span className={`hidden sm:inline ${selectedChannel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
               {selectedChannel.isActive ? 'Active' : 'Paused'}
             </span>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Total Videos</CardTitle>
@@ -1347,55 +1383,57 @@ export default function YouTubeAutomationDashboard() {
         </div>
 
         <Tabs defaultValue="settings" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="settings">
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
+          <TabsList className="w-full overflow-x-auto flex-nowrap justify-start sm:justify-center h-auto gap-1 p-1">
+            <TabsTrigger value="settings" className="text-xs sm:text-sm min-w-0 touch-manipulation">
+              <Settings className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Settings</span>
             </TabsTrigger>
-            <TabsTrigger value="upload">
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Videos
+            <TabsTrigger value="upload" className="text-xs sm:text-sm min-w-0 touch-manipulation">
+              <Upload className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Upload</span>
             </TabsTrigger>
-            <TabsTrigger value="queue">
-              <Video className="h-4 w-4 mr-2" />
-              Queue ({queuedVideos.length})
+            <TabsTrigger value="queue" className="text-xs sm:text-sm min-w-0 touch-manipulation">
+              <Video className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Queue ({queuedVideos.length})</span>
+              <span className="xs:hidden">{queuedVideos.length}</span>
             </TabsTrigger>
-            <TabsTrigger value="history">
-              <Clock className="h-4 w-4 mr-2" />
-              History
+            <TabsTrigger value="history" className="text-xs sm:text-sm min-w-0 touch-manipulation">
+              <Clock className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">History</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Settings Tab */}
           <TabsContent value="settings">
             <Card>
-              <CardHeader>
-                <CardTitle>Upload Schedule</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="text-lg sm:text-xl">Upload Schedule</CardTitle>
+                <CardDescription className="text-sm">
                   Configure when videos should be automatically uploaded to this channel
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
+              <CardContent className="space-y-4 sm:space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="uploadTime">Upload Time</Label>
+                    <Label htmlFor="uploadTime" className="text-sm">Upload Time</Label>
                     <Input
                       id="uploadTime"
                       type="time"
                       value={editSettings.uploadTime}
                       onChange={(e) => setEditSettings({ ...editSettings, uploadTime: e.target.value })}
+                      className="h-10 sm:h-9"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Videos will upload within ±15 min of this time randomly (e.g., 6:00 PM may upload at 5:52, 6:03, 6:12, etc.)
+                      Videos will upload within ±15 min of this time randomly
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="frequency">Upload Frequency</Label>
+                    <Label htmlFor="frequency" className="text-sm">Upload Frequency</Label>
                     <Select
                       value={editSettings.frequency}
                       onValueChange={(value) => setEditSettings({ ...editSettings, frequency: value })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-10 sm:h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1415,11 +1453,11 @@ export default function YouTubeAutomationDashboard() {
                 </div>
 
                 {/* Random Delay Section */}
-                <div className="space-y-4 p-4 rounded-lg border">
-                  <div className="flex items-center justify-between">
+                <div className="space-y-4 p-3 sm:p-4 rounded-lg border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <Label htmlFor="randomDelay" className="text-base font-medium">Random Delay</Label>
-                      <p className="text-sm text-muted-foreground">
+                      <Label htmlFor="randomDelay" className="text-sm sm:text-base font-medium">Random Delay</Label>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Add a random delay before each upload to appear more natural
                       </p>
                     </div>
@@ -1427,11 +1465,12 @@ export default function YouTubeAutomationDashboard() {
                       id="randomDelay"
                       checked={editSettings.randomDelayEnabled}
                       onValueChange={(value) => setEditSettings({ ...editSettings, randomDelayEnabled: value })}
+                      className="touch-manipulation"
                     />
                   </div>
                   {editSettings.randomDelayEnabled && (
                     <div className="space-y-2">
-                      <Label htmlFor="maxDelay">Maximum Delay (minutes)</Label>
+                      <Label htmlFor="maxDelay" className="text-sm">Maximum Delay (minutes)</Label>
                       <Input
                         id="maxDelay"
                         type="number"
@@ -1439,6 +1478,7 @@ export default function YouTubeAutomationDashboard() {
                         max={180}
                         value={editSettings.randomDelayMinutes}
                         onChange={(e) => setEditSettings({ ...editSettings, randomDelayMinutes: parseInt(e.target.value) || 30 })}
+                        className="h-10 sm:h-9"
                       />
                       <p className="text-xs text-muted-foreground">
                         Videos will be delayed by a random amount (0 to {editSettings.randomDelayMinutes} minutes)
@@ -1447,16 +1487,16 @@ export default function YouTubeAutomationDashboard() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-muted/50 gap-3 sm:gap-4">
                   <div>
-                    <p className="font-medium">Last Upload</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm font-medium">Last Upload</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {formatDate(selectedChannel.lastUploadDate)}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">Next Scheduled Upload</p>
-                    <p className="text-sm text-muted-foreground">
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm font-medium">Next Scheduled Upload</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {selectedChannel.nextUploadTime 
                         ? formatNextUpload(new Date(selectedChannel.nextUploadTime))
                         : 'Calculating...'}
@@ -1467,7 +1507,10 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                 </div>
 
-                <Button onClick={updateChannelSettings}>
+                <Button 
+                  onClick={updateChannelSettings}
+                  className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                >
                   Save Settings
                 </Button>
               </CardContent>
@@ -1477,41 +1520,43 @@ export default function YouTubeAutomationDashboard() {
           {/* Upload Tab */}
           <TabsContent value="upload">
             <Card>
-              <CardHeader>
-                <CardTitle>Bulk Upload Videos</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="text-lg sm:text-xl">Bulk Upload Videos</CardTitle>
+                <CardDescription className="text-sm">
                   Upload multiple videos to the queue. They will be published according to your schedule.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="file-upload">Video Files</Label>
+                  <Label htmlFor="file-upload" className="text-sm">Video Files</Label>
                   <Input
                     id="file-upload"
                     type="file"
                     accept="video/*"
                     multiple
                     onChange={(e) => setUploadFiles(e.target.files)}
+                    className="h-10 sm:h-9"
                   />
                   {uploadFiles && (
-                    <p className="text-sm text-muted-foreground">
-                      {uploadFiles.length} file(s) selected: {Array.from(uploadFiles).map(f => f.name).join(', ')}
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                      {uploadFiles.length} file(s) selected
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="thumbnail-upload">Thumbnail Files (Optional)</Label>
+                  <Label htmlFor="thumbnail-upload" className="text-sm">Thumbnail Files (Optional)</Label>
                   <Input
                     id="thumbnail-upload"
                     type="file"
                     accept="image/*"
                     multiple
                     onChange={(e) => setThumbnailFiles(e.target.files)}
+                    className="h-10 sm:h-9"
                   />
                   {thumbnailFiles && thumbnailFiles.length > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      {thumbnailFiles.length} thumbnail(s) selected: {Array.from(thumbnailFiles).map(f => f.name).join(', ')}
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                      {thumbnailFiles.length} thumbnail(s) selected
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground">
@@ -1519,49 +1564,52 @@ export default function YouTubeAutomationDashboard() {
                   </p>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="defaultTitle">Default Title (Optional)</Label>
+                    <Label htmlFor="defaultTitle" className="text-sm">Default Title (Optional)</Label>
                     <Input
                       id="defaultTitle"
                       placeholder="My Video"
                       value={defaultTitle}
                       onChange={(e) => setDefaultTitle(e.target.value)}
+                      className="h-10 sm:h-9"
                     />
                     <p className="text-xs text-muted-foreground">
                       Leave empty to use the filename
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="defaultTags">Tags (Optional)</Label>
+                    <Label htmlFor="defaultTags" className="text-sm">Tags (Optional)</Label>
                     <Input
                       id="defaultTags"
                       placeholder="tag1, tag2, tag3"
                       value={defaultTags}
                       onChange={(e) => setDefaultTags(e.target.value)}
+                      className="h-10 sm:h-9"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="defaultDescription">Default Description (Optional)</Label>
+                  <Label htmlFor="defaultDescription" className="text-sm">Default Description (Optional)</Label>
                   <Textarea
                     id="defaultDescription"
                     placeholder="Video description..."
                     value={defaultDescription}
                     onChange={(e) => setDefaultDescription(e.target.value)}
                     rows={4}
+                    className="resize-none"
                   />
                 </div>
 
                 {/* Upload Progress */}
                 {Object.keys(uploadProgress).length > 0 && (
                   <div className="space-y-3">
-                    <Label>Upload Progress</Label>
+                    <Label className="text-sm">Upload Progress</Label>
                     {Object.entries(uploadProgress).map(([fileName, progress]) => (
                       <div key={fileName} className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="truncate max-w-[200px]">{fileName}</span>
+                        <div className="flex justify-between text-xs sm:text-sm">
+                          <span className="truncate max-w-[150px] sm:max-w-[200px]">{fileName}</span>
                           <span>{progress}%</span>
                         </div>
                         <Progress value={progress} className="h-2" />
@@ -1573,6 +1621,7 @@ export default function YouTubeAutomationDashboard() {
                 <Button
                   onClick={uploadVideos}
                   disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
+                  className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
                 >
                   {uploading ? (
                     <>
@@ -1593,46 +1642,47 @@ export default function YouTubeAutomationDashboard() {
           {/* Queue Tab */}
           <TabsContent value="queue">
             <Card>
-              <CardHeader>
-                <CardTitle>Video Queue</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="text-lg sm:text-xl">Video Queue</CardTitle>
+                <CardDescription className="text-sm">
                   Videos waiting to be uploaded
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 sm:p-6">
                 {queuedVideos.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileVideo className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No videos in queue</p>
-                    <p className="text-sm">Upload videos to get started</p>
+                    <p className="text-sm">No videos in queue</p>
+                    <p className="text-xs">Upload videos to get started</p>
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[80px]">#</TableHead>
-                        <TableHead>Thumbnail</TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Size</TableHead>
-                        <TableHead>Added</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                  <div className="overflow-x-auto -mx-3 sm:mx-0">
+                    <Table className="min-w-[700px] sm:min-w-0">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[60px] sm:w-[80px]">#</TableHead>
+                          <TableHead>Thumbnail</TableHead>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="hidden sm:table-cell">Size</TableHead>
+                          <TableHead className="hidden md:table-cell">Added</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
                     <TableBody>
                       {queuedVideos.map((video, index) => (
                         <TableRow key={video.id} className={index === 0 ? 'bg-green-50 dark:bg-green-950' : ''}>
                           <TableCell>
                             {index === 0 ? (
-                              <Badge className="bg-green-600">Next</Badge>
+                              <Badge className="bg-green-600 text-xs">Next</Badge>
                             ) : (
-                              <span className="text-muted-foreground">{index + 1}</span>
+                              <span className="text-muted-foreground text-sm">{index + 1}</span>
                             )}
                           </TableCell>
                           <TableCell>
                             {video.thumbnailName ? (
                               <div 
-                                className="w-16 h-10 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all bg-muted"
+                                className="w-14 h-9 sm:w-16 sm:h-10 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all bg-muted touch-manipulation"
                                 onClick={() => setPreviewThumbnail(getThumbnailUrl(video.thumbnailName))}
                               >
                                 <img 
@@ -1643,51 +1693,56 @@ export default function YouTubeAutomationDashboard() {
                                 />
                               </div>
                             ) : (
-                              <div className="w-16 h-10 bg-muted rounded flex items-center justify-center">
-                                <FileVideo className="h-4 w-4 text-muted-foreground" />
+                              <div className="w-14 h-9 sm:w-16 sm:h-10 bg-muted rounded flex items-center justify-center">
+                                <FileVideo className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                               </div>
                             )}
                           </TableCell>
                           <TableCell>
-                            <div>
-                              <p className="font-medium">{video.title}</p>
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate max-w-[120px] sm:max-w-[200px]">{video.title}</p>
                               {video.tags && (
-                                <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                <p className="text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[200px] hidden sm:block">
                                   Tags: {video.tags}
                                 </p>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getVideoType(video) === 'shorts' ? 'default' : 'secondary'}>
+                            <Badge variant={getVideoType(video) === 'shorts' ? 'default' : 'secondary'} className="text-xs">
                               {getVideoType(video) === 'shorts' ? 'Shorts' : 'Video'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatFileSize(video.fileSize)}</TableCell>
-                          <TableCell>{formatDate(video.createdAt)}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">{formatFileSize(video.fileSize)}</TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">{formatDate(video.createdAt)}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-1">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => setPreviewVideo(video)}
                                 title="Preview Video"
+                                className="h-8 w-8 sm:w-auto touch-manipulation"
                               >
                                 <Play className="h-4 w-4" />
+                                <span className="hidden sm:inline ml-1">Preview</span>
                               </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => openEditVideo(video)}
                                 title="Edit Video"
+                                className="h-8 w-8 sm:w-auto touch-manipulation"
                               >
                                 <Settings className="h-4 w-4" />
+                                <span className="hidden sm:inline ml-1">Edit</span>
                               </Button>
                               <Button
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => deleteVideo(video.id)}
                                 title="Delete Video"
+                                className="h-8 w-8 touch-manipulation"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1697,6 +1752,7 @@ export default function YouTubeAutomationDashboard() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1705,56 +1761,59 @@ export default function YouTubeAutomationDashboard() {
           {/* History Tab */}
           <TabsContent value="history">
             <Card>
-              <CardHeader>
-                <CardTitle>Upload History</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="text-lg sm:text-xl">Upload History</CardTitle>
+                <CardDescription className="text-sm">
                   Previously uploaded and failed videos
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 sm:p-6">
                 {uploadedVideos.length === 0 && failedVideos.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No upload history yet</p>
+                    <p className="text-sm">No upload history yet</p>
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Error</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[...uploadedVideos, ...failedVideos].map((video) => (
-                        <TableRow key={video.id}>
-                          <TableCell className="font-medium">
-                            {video.title}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={video.status === 'uploaded' ? 'default' : 'destructive'}
-                            >
-                              {video.status === 'uploaded' ? (
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                              ) : (
-                                <XCircle className="h-3 w-3 mr-1" />
-                              )}
-                              {video.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {formatDate(video.uploadedAt || video.createdAt)}
-                          </TableCell>
-                          <TableCell className="text-red-500">
-                            {video.error || '-'}
-                          </TableCell>
+                  <div className="overflow-x-auto -mx-3 sm:mx-0">
+                    <Table className="min-w-[500px] sm:min-w-0">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="hidden sm:table-cell">Date</TableHead>
+                          <TableHead className="hidden md:table-cell">Error</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {[...uploadedVideos, ...failedVideos].map((video) => (
+                          <TableRow key={video.id}>
+                            <TableCell className="font-medium">
+                              <p className="truncate max-w-[150px] sm:max-w-none">{video.title}</p>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={video.status === 'uploaded' ? 'default' : 'destructive'}
+                                className="text-xs"
+                              >
+                                {video.status === 'uploaded' ? (
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                ) : (
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                )}
+                                {video.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell text-sm">
+                              {formatDate(video.uploadedAt || video.createdAt)}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-red-500 text-sm truncate max-w-[200px]">
+                              {video.error || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1763,44 +1822,47 @@ export default function YouTubeAutomationDashboard() {
 
         {/* Edit Video Dialog */}
         <Dialog open={!!editingVideo} onOpenChange={() => setEditingVideo(null)}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="max-w-[95vw] sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Video</DialogTitle>
               <DialogDescription>
                 Update video details before upload
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-2 sm:py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-title">Title</Label>
+                <Label htmlFor="edit-title" className="text-sm">Title</Label>
                 <Input
                   id="edit-title"
                   value={editVideoData.title}
                   onChange={(e) => setEditVideoData({ ...editVideoData, title: e.target.value })}
                   placeholder="Video title"
+                  className="h-10 sm:h-9"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
+                <Label htmlFor="edit-description" className="text-sm">Description</Label>
                 <Textarea
                   id="edit-description"
                   value={editVideoData.description}
                   onChange={(e) => setEditVideoData({ ...editVideoData, description: e.target.value })}
                   placeholder="Video description"
-                  rows={4}
+                  rows={3}
+                  className="resize-none"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-tags">Tags (comma separated)</Label>
+                <Label htmlFor="edit-tags" className="text-sm">Tags (comma separated)</Label>
                 <Input
                   id="edit-tags"
                   value={editVideoData.tags}
                   onChange={(e) => setEditVideoData({ ...editVideoData, tags: e.target.value })}
                   placeholder="tag1, tag2, tag3"
+                  className="h-10 sm:h-9"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-thumbnail-file">Thumbnail</Label>
+                <Label htmlFor="edit-thumbnail-file" className="text-sm">Thumbnail</Label>
                 <Input
                   id="edit-thumbnail-file"
                   type="file"
@@ -1811,6 +1873,7 @@ export default function YouTubeAutomationDashboard() {
                       setEditThumbnailFile(file);
                     }
                   }}
+                  className="h-10 sm:h-9"
                 />
                 {editThumbnailFile ? (
                   <div className="mt-2">
@@ -1839,11 +1902,19 @@ export default function YouTubeAutomationDashboard() {
                 </p>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingVideo(null)}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setEditingVideo(null)}
+                className="w-full sm:w-auto touch-manipulation"
+              >
                 Cancel
               </Button>
-              <Button onClick={saveVideoEdit} disabled={savingVideo}>
+              <Button 
+                onClick={saveVideoEdit} 
+                disabled={savingVideo}
+                className="w-full sm:w-auto touch-manipulation"
+              >
                 {savingVideo ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1859,22 +1930,26 @@ export default function YouTubeAutomationDashboard() {
 
         {/* Thumbnail Preview Dialog */}
         <Dialog open={!!previewThumbnail} onOpenChange={() => setPreviewThumbnail(null)}>
-          <DialogContent className="sm:max-w-[800px]">
+          <DialogContent className="max-w-[95vw] sm:max-w-[800px]">
             <DialogHeader>
               <DialogTitle>Thumbnail Preview</DialogTitle>
             </DialogHeader>
-            <div className="flex justify-center">
+            <div className="flex justify-center overflow-hidden">
               {previewThumbnail && (
                 <img 
                   src={previewThumbnail} 
                   alt="Thumbnail preview" 
-                  className="max-w-full max-h-[500px] rounded-lg"
+                  className="max-w-full max-h-[50vh] sm:max-h-[500px] rounded-lg object-contain"
                   referrerPolicy="no-referrer"
                 />
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setPreviewThumbnail(null)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setPreviewThumbnail(null)}
+                className="w-full sm:w-auto touch-manipulation"
+              >
                 Close
               </Button>
             </DialogFooter>
@@ -1883,10 +1958,10 @@ export default function YouTubeAutomationDashboard() {
 
         {/* Video Preview Dialog */}
         <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-          <DialogContent className="sm:max-w-[900px]">
+          <DialogContent className="max-w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{previewVideo?.title || 'Video Preview'}</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-lg truncate">{previewVideo?.title || 'Video Preview'}</DialogTitle>
+              <DialogDescription className="text-sm">
                 {previewVideo?.originalName} • {previewVideo?.fileSize ? formatFileSize(previewVideo.fileSize) : ''}
               </DialogDescription>
             </DialogHeader>
@@ -1904,23 +1979,23 @@ export default function YouTubeAutomationDashboard() {
               </div>
               
               {/* Video Info */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Title</p>
-                  <p className="font-medium">{previewVideo?.title}</p>
+                  <p className="text-muted-foreground text-xs">Title</p>
+                  <p className="font-medium truncate">{previewVideo?.title}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Type</p>
-                  <Badge variant={previewVideo ? (getVideoType(previewVideo) === 'shorts' ? 'default' : 'secondary') : 'secondary'}>
+                  <p className="text-muted-foreground text-xs">Type</p>
+                  <Badge variant={previewVideo ? (getVideoType(previewVideo) === 'shorts' ? 'default' : 'secondary') : 'secondary'} className="text-xs">
                     {previewVideo ? (getVideoType(previewVideo) === 'shorts' ? 'Shorts' : 'Video') : 'Video'}
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Description</p>
+                  <p className="text-muted-foreground text-xs">Description</p>
                   <p className="truncate">{previewVideo?.description || 'No description'}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Tags</p>
+                  <p className="text-muted-foreground text-xs">Tags</p>
                   <p className="truncate">{previewVideo?.tags || 'No tags'}</p>
                 </div>
               </div>
@@ -1930,7 +2005,7 @@ export default function YouTubeAutomationDashboard() {
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 h-10 sm:h-9 touch-manipulation"
                     onClick={() => window.open(getDriveLink(previewVideo.fileName) || '', '_blank')}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
@@ -1940,7 +2015,11 @@ export default function YouTubeAutomationDashboard() {
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setPreviewVideo(null)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setPreviewVideo(null)}
+                className="w-full sm:w-auto touch-manipulation"
+              >
                 Close
               </Button>
             </DialogFooter>
@@ -1951,8 +2030,8 @@ export default function YouTubeAutomationDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      <div className="w-full">
         {view === 'dashboard' ? renderDashboard() : renderChannelDetail()}
       </div>
     </div>

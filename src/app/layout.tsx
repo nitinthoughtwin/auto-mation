@@ -34,7 +34,7 @@ export default function RootLayout({
         <AuthProvider>
           <div className="min-h-screen flex flex-col">
             <Header />
-            <main className="flex-1 container py-6">
+            <main className="flex-1 container px-3 sm:px-4 md:px-6 py-4 sm:py-6 max-w-screen-2xl">
               {children}
             </main>
           </div>

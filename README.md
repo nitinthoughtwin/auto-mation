@@ -1,3 +1,10 @@
+1. Facebook connect (app review)
+2. instagram connect (app review)
+3. Google drive folder access and map
+4. Google youtube only 6 video uploads.(fix somethings)
+5. Test with multiple youtube, facebook and instagram
+
+
 # YouTube Automation Dashboard
 
 A powerful, feature-rich dashboard for managing YouTube channels, scheduling uploads, and automating video publishing to Built with Next.js 16, React 19, Tailwind CSS 4, and Prisma ORM for and shadcn/ui component library.
