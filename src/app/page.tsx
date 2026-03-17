@@ -1027,7 +1027,7 @@ export default function YouTubeAutomationDashboard() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button 
+          {/* <Button 
             variant="outline" 
             onClick={runScheduler} 
             disabled={runningScheduler}
@@ -1040,7 +1040,7 @@ export default function YouTubeAutomationDashboard() {
             )}
             <span className="hidden sm:inline">Run Scheduler</span>
             <span className="sm:hidden">Run</span>
-          </Button>
+          </Button> */}
           <Button 
             variant="outline" 
             onClick={connectFacebook} 
