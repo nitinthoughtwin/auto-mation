@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-const FACEBOOK_APP_ID = process.env.INSTAGRAM_CLIENT_ID || '';
-const FACEBOOK_APP_SECRET = process.env.INSTAGRAM_CLIENT_SECRET || '';
+const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || '';
+const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
 const REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI || 'https://www.gpmart.in/api/auth/facebook/callback';
 
 export async function GET(request: NextRequest) {
