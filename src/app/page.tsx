@@ -288,6 +288,7 @@ export default function YouTubeAutomationDashboard() {
   // Facebook SDK state
   const [fbLoaded, setFbLoaded] = useState(false);
   const [fbConnecting, setFbConnecting] = useState(false);
+  const [igConnecting, setIgConnecting] = useState(false);
 
   // Initialize Facebook SDK
   useEffect(() => {
@@ -389,6 +390,80 @@ export default function YouTubeAutomationDashboard() {
         }
       },
       { scope: 'public_profile' }
+    );
+  };
+
+  // Connect Instagram (using Facebook SDK)
+  const connectInstagram = () => {
+    if (!fbLoaded || !window.FB) {
+      toast.error('Facebook SDK not loaded', {
+        description: 'Please refresh the page and try again.',
+      });
+      return;
+    }
+
+    setIgConnecting(true);
+
+    // Instagram uses Facebook OAuth with instagram_basic permission
+    window.FB.login(
+      function (response: any) {
+        console.log('[Instagram] Login response:', response);
+        
+        if (response.authResponse) {
+          // Get user's Facebook pages and Instagram accounts
+          window.FB.api(
+            '/me/accounts',
+            { fields: 'id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}' },
+            async function (pagesResponse: any) {
+              console.log('[Instagram] Pages response:', pagesResponse);
+              
+              try {
+                // Save Instagram accounts
+                const res = await fetch('/api/channels/instagram-connect', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    accessToken: response.authResponse.accessToken,
+                    pages: pagesResponse.data || [],
+                  })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                  const count = data.channels?.length || 0;
+                  if (count > 0) {
+                    toast.success('Instagram Connected!', {
+                      description: `${count} Instagram account(s) connected successfully.`,
+                    });
+                  } else {
+                    toast.info('No Instagram Accounts Found', {
+                      description: 'Make sure your Facebook Page is connected to an Instagram Business account.',
+                    });
+                  }
+                  loadChannels();
+                } else {
+                  toast.error('Connection Failed', {
+                    description: data.error || 'Failed to save connection',
+                  });
+                }
+              } catch (error) {
+                toast.error('Connection Error', {
+                  description: 'Failed to connect Instagram account',
+                });
+              }
+              
+              setIgConnecting(false);
+            }
+          );
+        } else {
+          setIgConnecting(false);
+          toast.error('Instagram Login Cancelled', {
+            description: 'Please try again to connect your Instagram account.',
+          });
+        }
+      },
+      { scope: 'public_profile,pages_show_list' }
     );
   };
 
@@ -1043,6 +1118,19 @@ export default function YouTubeAutomationDashboard() {
               <Facebook className="mr-2 h-4 w-4" />
             )}
             Connect Facebook
+          </Button>
+          <Button 
+            variant="outline" 
+            className="bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] text-white hover:opacity-90 border-0"
+            onClick={connectInstagram} 
+            disabled={igConnecting}
+          >
+            {igConnecting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Instagram className="mr-2 h-4 w-4" />
+            )}
+            Connect Instagram
           </Button>
           <Button onClick={connectChannel}>
             <Plus className="mr-2 h-4 w-4" />
