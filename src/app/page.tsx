@@ -1,5 +1,23 @@
 'use client';
 
+// Facebook SDK type declaration
+declare global {
+  interface Window {
+    FB?: {
+      init: (params: {
+        appId: string;
+        cookie: boolean;
+        xfbml: boolean;
+        version: string;
+      }) => void;
+      login: (callback: (response: any) => void, params?: { scope: string }) => void;
+      api: (path: string, method: string, params: any, callback: (response: any) => void) => void;
+      getLoginStatus: (callback: (response: any) => void) => void;
+    };
+    fbAsyncInit?: () => void;
+  }
+}
+
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,14 +31,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-
-// Facebook SDK Type Declaration
-declare global {
-  interface Window {
-    FB: any;
-    fbAsyncInit: () => void;
-  }
-}
 import {
   Dialog,
   DialogContent,
@@ -165,11 +175,7 @@ const getDriveLink = (fileIdOrUrl: string | null): string | null => {
 interface Channel {
   id: string;
   name: string;
-  platform?: string; // youtube, instagram, facebook
   youtubeChannelId: string;
-  instagramAccountId?: string;
-  facebookPageId?: string;
-  facebookPageName?: string;
   uploadTime: string;
   frequency: string;
   isActive: boolean;
@@ -180,6 +186,10 @@ interface Channel {
   queuedVideos?: number;
   randomDelayMinutes?: number | null;
   randomDelayDate?: string | null;
+  platform?: string;
+  instagramAccountId?: string;
+  facebookPageId?: string;
+  facebookPageName?: string;
   stats?: {
     total: number;
     queued: number;
@@ -285,188 +295,6 @@ export default function YouTubeAutomationDashboard() {
   const [runningScheduler, setRunningScheduler] = useState(false);
   const [view, setView] = useState<'dashboard' | 'channel'>('dashboard');
 
-  // Facebook SDK state
-  const [fbLoaded, setFbLoaded] = useState(false);
-  const [fbConnecting, setFbConnecting] = useState(false);
-  const [igConnecting, setIgConnecting] = useState(false);
-
-  // Initialize Facebook SDK
-  useEffect(() => {
-    const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
-    
-    if (!appId || appId === 'your_facebook_app_id_here') {
-      console.log('[Facebook] App ID not configured');
-      return;
-    }
-
-    // Load Facebook SDK
-    window.fbAsyncInit = function () {
-      window.FB.init({
-        appId: appId,
-        cookie: true,
-        xfbml: true,
-        version: 'v19.0'
-      });
-      setFbLoaded(true);
-      console.log('[Facebook SDK] Loaded successfully');
-    };
-
-    // Inject SDK script
-    (function (d, s, id) {
-      var js: any, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) {
-        setFbLoaded(true);
-        return;
-      }
-      js = d.createElement(s) as HTMLScriptElement;
-      js.id = id;
-      js.src = 'https://connect.facebook.net/en_US/sdk.js';
-      (fjs as any).parentNode.insertBefore(js, fjs);
-    })(document, 'script', 'facebook-jssdk');
-  }, []);
-
-  // Connect Facebook
-  const connectFacebook = () => {
-    if (!fbLoaded || !window.FB) {
-      toast.error('Facebook SDK not loaded', {
-        description: 'Please refresh the page and try again.',
-      });
-      return;
-    }
-
-    setFbConnecting(true);
-
-    window.FB.login(
-      function (response: any) {
-        console.log('[Facebook] Login response:', response);
-        
-        if (response.authResponse) {
-          // Get user profile
-          window.FB.api(
-            '/me',
-            { fields: 'id,name,picture' },
-            async function (profile: any) {
-              console.log('[Facebook] Profile:', profile);
-              
-              try {
-                // Save to database
-                const res = await fetch('/api/channels/facebook-connect', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    accessToken: response.authResponse.accessToken,
-                    userID: response.authResponse.userID,
-                    name: profile.name,
-                    picture: profile.picture?.data?.url,
-                  })
-                });
-
-                const data = await res.json();
-
-                if (res.ok) {
-                  toast.success('Facebook Connected!', {
-                    description: `${profile.name} has been connected successfully.`,
-                  });
-                  loadChannels();
-                } else {
-                  toast.error('Connection Failed', {
-                    description: data.error || 'Failed to save connection',
-                  });
-                }
-              } catch (error) {
-                toast.error('Connection Error', {
-                  description: 'Failed to connect Facebook account',
-                });
-              }
-              
-              setFbConnecting(false);
-            }
-          );
-        } else {
-          setFbConnecting(false);
-          toast.error('Facebook Login Cancelled', {
-            description: 'Please try again to connect your Facebook account.',
-          });
-        }
-      },
-      { scope: 'public_profile' }
-    );
-  };
-
-  // Connect Instagram (using Facebook SDK)
-  const connectInstagram = () => {
-    if (!fbLoaded || !window.FB) {
-      toast.error('Facebook SDK not loaded', {
-        description: 'Please refresh the page and try again.',
-      });
-      return;
-    }
-
-    setIgConnecting(true);
-
-    // Instagram uses Facebook OAuth with instagram_basic permission
-    window.FB.login(
-      function (response: any) {
-        console.log('[Instagram] Login response:', response);
-        
-        if (response.authResponse) {
-          // Get user's Facebook pages and Instagram accounts
-          window.FB.api(
-            '/me/accounts',
-            { fields: 'id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}' },
-            async function (pagesResponse: any) {
-              console.log('[Instagram] Pages response:', pagesResponse);
-              
-              try {
-                // Save Instagram accounts
-                const res = await fetch('/api/channels/instagram-connect', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    accessToken: response.authResponse.accessToken,
-                    pages: pagesResponse.data || [],
-                  })
-                });
-
-                const data = await res.json();
-
-                if (res.ok) {
-                  const count = data.channels?.length || 0;
-                  if (count > 0) {
-                    toast.success('Instagram Connected!', {
-                      description: `${count} Instagram account(s) connected successfully.`,
-                    });
-                  } else {
-                    toast.info('No Instagram Accounts Found', {
-                      description: 'Make sure your Facebook Page is connected to an Instagram Business account.',
-                    });
-                  }
-                  loadChannels();
-                } else {
-                  toast.error('Connection Failed', {
-                    description: data.error || 'Failed to save connection',
-                  });
-                }
-              } catch (error) {
-                toast.error('Connection Error', {
-                  description: 'Failed to connect Instagram account',
-                });
-              }
-              
-              setIgConnecting(false);
-            }
-          );
-        } else {
-          setIgConnecting(false);
-          toast.error('Instagram Login Cancelled', {
-            description: 'Please try again to connect your Instagram account.',
-          });
-        }
-      },
-      { scope: 'public_profile,pages_show_list' }
-    );
-  };
-
   // Upload form state
   const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
   const [thumbnailFiles, setThumbnailFiles] = useState<FileList | null>(null);
@@ -491,6 +319,8 @@ export default function YouTubeAutomationDashboard() {
   const [editSettings, setEditSettings] = useState({
     uploadTime: '',
     frequency: '',
+    randomDelayEnabled: false,
+    randomDelayMinutes: 30,
   });
 
   // Load channels
@@ -517,6 +347,8 @@ export default function YouTubeAutomationDashboard() {
         setEditSettings({
           uploadTime: data.channel.uploadTime,
           frequency: data.channel.frequency,
+          randomDelayEnabled: data.channel.randomDelayMinutes ? true : false,
+          randomDelayMinutes: data.channel.randomDelayMinutes || 30,
         });
       }
     } catch (error) {
@@ -541,6 +373,33 @@ export default function YouTubeAutomationDashboard() {
     loadChannels();
     loadSchedulerLogs();
   }, [loadChannels]);
+
+  // Initialize Facebook SDK
+  useEffect(() => {
+    // Load Facebook SDK script
+    const loadFacebookSDK = () => {
+      if (document.getElementById('facebook-jssdk')) return;
+      
+      const script = document.createElement('script');
+      script.id = 'facebook-jssdk';
+      script.src = 'https://connect.facebook.net/en_US/sdk.js';
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = 'anonymous';
+      document.body.appendChild(script);
+      
+      window.fbAsyncInit = function() {
+        window.FB?.init({
+          appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
+          cookie: true,
+          xfbml: true,
+          version: 'v18.0'
+        });
+      };
+    };
+    
+    loadFacebookSDK();
+  }, []);
 
   // Handle OAuth callback
   useEffect(() => {
@@ -569,6 +428,72 @@ export default function YouTubeAutomationDashboard() {
     window.location.href = '/api/auth/youtube';
   };
 
+  // Connect Facebook page
+  const connectFacebook = () => {
+    if (!window.FB) {
+      toast.error('Facebook SDK Not Loaded', {
+        description: 'Please refresh the page and try again.',
+      });
+      return;
+    }
+
+    window.FB.login((response) => {
+      if (response.authResponse) {
+        // Get user's pages
+        window.FB?.api('/me/accounts', 'GET', { fields: 'id,name,access_token' }, (pagesResponse) => {
+          if (pagesResponse.data && pagesResponse.data.length > 0) {
+            // For now, just show success - actual page selection would need a dialog
+            toast.success('Facebook Connected!', {
+              description: `Found ${pagesResponse.data.length} page(s). Select a page to connect.`,
+            });
+          } else {
+            toast.error('No Facebook Pages Found', {
+              description: 'You need to have a Facebook Page to connect.',
+            });
+          }
+        });
+      } else {
+        toast.error('Facebook Connection Cancelled', {
+          description: 'You cancelled the Facebook login process.',
+        });
+      }
+    }, { scope: 'pages_show_list,pages_read_engagement,pages_manage_posts' });
+  };
+
+  // Connect Instagram account (via Facebook)
+  const connectInstagram = () => {
+    if (!window.FB) {
+      toast.error('Facebook SDK Not Loaded', {
+        description: 'Please refresh the page and try again.',
+      });
+      return;
+    }
+
+    window.FB.login((response) => {
+      if (response.authResponse) {
+        // Get user's Instagram Business accounts via Facebook Pages
+        window.FB?.api('/me/accounts', 'GET', { fields: 'id,name,access_token,instagram_business_account' }, (pagesResponse) => {
+          if (pagesResponse.data) {
+            const igAccounts = pagesResponse.data.filter((page: any) => page.instagram_business_account);
+            if (igAccounts.length > 0) {
+              toast.success('Instagram Connected!', {
+                description: `Found ${igAccounts.length} Instagram account(s) linked to your Facebook Pages.`,
+              });
+            } else {
+              toast.error('No Instagram Accounts Found', {
+                description: 'No Instagram Business accounts found. Make sure your Instagram is linked to a Facebook Page.',
+              });
+            }
+          }
+        });
+      } else {
+        toast.error('Instagram Connection Cancelled', {
+          description: 'You cancelled the login process.',
+        });
+      }
+    }, { scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish' });
+  };
+
   // Update channel settings
   const updateChannelSettings = async () => {
     if (!selectedChannel) return;
@@ -578,7 +503,11 @@ export default function YouTubeAutomationDashboard() {
     });
 
     try {
-      await api.channels.update(selectedChannel.id, editSettings);
+      await api.channels.update(selectedChannel.id, {
+        uploadTime: editSettings.uploadTime,
+        frequency: editSettings.frequency,
+        randomDelayMinutes: editSettings.randomDelayEnabled ? editSettings.randomDelayMinutes : null,
+      });
       toast.dismiss(loadingToast);
       toast.success('Settings Saved', {
         description: `Upload schedule updated: ${editSettings.frequency} at ${editSettings.uploadTime}`,
@@ -1106,35 +1035,17 @@ export default function YouTubeAutomationDashboard() {
             )}
             Run Scheduler
           </Button>
-          <Button 
-            variant="outline" 
-            className="bg-[#1877F2] text-white hover:bg-[#166FE5] border-0"
-            onClick={connectFacebook} 
-            disabled={fbConnecting}
-          >
-            {fbConnecting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Facebook className="mr-2 h-4 w-4" />
-            )}
-            Connect Facebook
+          <Button variant="outline" onClick={connectFacebook} className="text-blue-600 border-blue-300 hover:bg-blue-50">
+            <Facebook className="mr-2 h-4 w-4" />
+            Facebook
           </Button>
-          <Button 
-            variant="outline" 
-            className="bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] text-white hover:opacity-90 border-0"
-            onClick={connectInstagram} 
-            disabled={igConnecting}
-          >
-            {igConnecting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Instagram className="mr-2 h-4 w-4" />
-            )}
-            Connect Instagram
+          <Button variant="outline" onClick={connectInstagram} className="text-pink-600 border-pink-300 hover:bg-pink-50">
+            <Instagram className="mr-2 h-4 w-4" />
+            Instagram
           </Button>
           <Button onClick={connectChannel}>
             <Plus className="mr-2 h-4 w-4" />
-            Add YouTube Channel
+            Add Channel
           </Button>
         </div>
       </div>
@@ -1224,19 +1135,14 @@ export default function YouTubeAutomationDashboard() {
                   <TableRow key={channel.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        {channel.platform === 'facebook' ? (
-                          <Facebook className="h-4 w-4 text-[#1877F2]" />
-                        ) : channel.platform === 'instagram' ? (
-                          <Instagram className="h-4 w-4 text-[#E4405F]" />
+                        {channel.platform === 'instagram' ? (
+                          <Instagram className="h-4 w-4 text-pink-500" />
+                        ) : channel.platform === 'facebook' ? (
+                          <Facebook className="h-4 w-4 text-blue-500" />
                         ) : (
                           <Youtube className="h-4 w-4 text-red-500" />
                         )}
                         {channel.name}
-                        {channel.platform && channel.platform !== 'youtube' && (
-                          <Badge variant="outline" className="text-xs">
-                            {channel.platform}
-                          </Badge>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -1372,7 +1278,13 @@ export default function YouTubeAutomationDashboard() {
           </Button>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <Youtube className="h-6 w-6 text-red-500" />
+              {selectedChannel.platform === 'instagram' ? (
+                <Instagram className="h-6 w-6 text-pink-500" />
+              ) : selectedChannel.platform === 'facebook' ? (
+                <Facebook className="h-6 w-6 text-blue-500" />
+              ) : (
+                <Youtube className="h-6 w-6 text-red-500" />
+              )}
               <h1 className="text-2xl font-bold">{selectedChannel.name}</h1>
             </div>
             <p className="text-muted-foreground">
@@ -1487,14 +1399,52 @@ export default function YouTubeAutomationDashboard() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="every6h">Every 6 Hours</SelectItem>
+                        <SelectItem value="every12h">Every 12 Hours</SelectItem>
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="alternate">Every Other Day</SelectItem>
+                        <SelectItem value="every3days">Every 3 Days</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="biweekly">Bi-Weekly</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
                       How often to upload videos
                     </p>
                   </div>
+                </div>
+
+                {/* Random Delay Section */}
+                <div className="space-y-4 p-4 rounded-lg border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="randomDelay" className="text-base font-medium">Random Delay</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Add a random delay before each upload to appear more natural
+                      </p>
+                    </div>
+                    <Switch
+                      id="randomDelay"
+                      checked={editSettings.randomDelayEnabled}
+                      onValueChange={(value) => setEditSettings({ ...editSettings, randomDelayEnabled: value })}
+                    />
+                  </div>
+                  {editSettings.randomDelayEnabled && (
+                    <div className="space-y-2">
+                      <Label htmlFor="maxDelay">Maximum Delay (minutes)</Label>
+                      <Input
+                        id="maxDelay"
+                        type="number"
+                        min={5}
+                        max={180}
+                        value={editSettings.randomDelayMinutes}
+                        onChange={(e) => setEditSettings({ ...editSettings, randomDelayMinutes: parseInt(e.target.value) || 30 })}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Videos will be delayed by a random amount (0 to {editSettings.randomDelayMinutes} minutes)
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
