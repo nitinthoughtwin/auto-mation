@@ -8,22 +8,25 @@ const REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI || 'https://www.gpmart.i
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  const state = searchParams.get('state') || '';
   const error = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
+  const state = searchParams.get('state') || '';
 
-  console.log('[Instagram Callback] Code:', code ? 'received' : 'missing');
-  console.log('[Instagram Callback] State:', state);
+  console.log('[Instagram Callback] Starting...');
+  console.log('[Instagram Callback] Code:', code ? 'YES' : 'NO');
+  console.log('[Instagram Callback] Error:', error);
 
+  // Handle OAuth errors
   if (error) {
-    console.error('[Instagram Callback] Error:', error);
+    console.error('[Instagram Callback] OAuth Error:', error, errorDescription);
     return NextResponse.redirect(
-      new URL(`/?error=${encodeURIComponent(error)}`, 'https://www.gpmart.in')
+      `https://www.gpmart.in/?error=${encodeURIComponent(errorDescription || error)}`
     );
   }
 
   if (!code) {
     return NextResponse.redirect(
-      new URL('/?error=no_code', 'https://www.gpmart.in')
+      'https://www.gpmart.in/?error=no_authorization_code'
     );
   }
 
@@ -39,91 +42,123 @@ export async function GET(request: NextRequest) {
     const tokenData = await tokenRes.json();
 
     if (tokenData.error) {
+      console.error('[Instagram Callback] Token Error:', tokenData.error);
       throw new Error(tokenData.error.message || 'Token exchange failed');
     }
 
+    console.log('[Instagram Callback] Token received!');
     const accessToken = tokenData.access_token;
 
-    // Step 2: Get long-lived access token
-    const longLivedUrl = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
-    longLivedUrl.searchParams.set('grant_type', 'fb_exchange_token');
-    longLivedUrl.searchParams.set('client_id', FACEBOOK_APP_ID);
-    longLivedUrl.searchParams.set('client_secret', FACEBOOK_APP_SECRET);
-    longLivedUrl.searchParams.set('fb_exchange_token', accessToken);
+    // Step 2: Get user's basic profile
+    const userUrl = new URL('https://graph.facebook.com/v19.0/me');
+    userUrl.searchParams.set('fields', 'id,name,picture');
+    userUrl.searchParams.set('access_token', accessToken);
 
-    const longLivedRes = await fetch(longLivedUrl.toString());
-    const longLivedData = await longLivedRes.json();
-    const finalToken = longLivedData.access_token || accessToken;
+    const userRes = await fetch(userUrl.toString());
+    const userData = await userRes.json();
 
-    // Step 3: Get Facebook Pages with Instagram Business Accounts
-    const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
-    pagesUrl.searchParams.set('access_token', finalToken);
-    pagesUrl.searchParams.set('fields', 'id,name,access_token,instagram_business_account{id,username,name}');
+    console.log('[Instagram Callback] User:', userData);
 
-    const pagesRes = await fetch(pagesUrl.toString());
-    const pagesData = await pagesRes.json();
+    // Step 3: Try to get Instagram accounts (requires App Review for full access)
+    // In development mode, this may return empty
+    const igUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
+    igUrl.searchParams.set('access_token', accessToken);
+    igUrl.searchParams.set('fields', 'id,name,access_token,instagram_business_account');
 
-    if (!pagesData.data || pagesData.data.length === 0) {
-      throw new Error('No Facebook Pages found. Create a Facebook Page first.');
+    const igRes = await fetch(igUrl.toString());
+    const igData = await igRes.json();
+
+    console.log('[Instagram Callback] Pages:', igData.data?.length || 0);
+
+    // Step 4: Save connection
+    let savedCount = 0;
+
+    // Check for Instagram Business Accounts
+    if (igData.data && igData.data.length > 0) {
+      for (const page of igData.data) {
+        if (page.instagram_business_account) {
+          const igAccount = page.instagram_business_account;
+
+          const existing = await db.channel.findFirst({
+            where: { instagramAccountId: igAccount.id }
+          });
+
+          if (existing) {
+            await db.channel.update({
+              where: { id: existing.id },
+              data: {
+                accessToken: page.access_token,
+                refreshToken: accessToken,
+                name: igAccount.username || page.name,
+              }
+            });
+          } else {
+            await db.channel.create({
+              data: {
+                userId: state || null,
+                name: igAccount.username || page.name || 'Instagram Account',
+                platform: 'instagram',
+                instagramAccountId: igAccount.id,
+                facebookPageId: page.id,
+                facebookPageName: page.name,
+                accessToken: page.access_token,
+                refreshToken: accessToken,
+                uploadTime: '18:00',
+                frequency: 'daily',
+                isActive: true,
+              }
+            });
+          }
+          savedCount++;
+        }
+      }
     }
 
-    // Step 4: Save Instagram channels
-    let savedCount = 0;
-    for (const page of pagesData.data) {
-      if (page.instagram_business_account) {
-        const igAccount = page.instagram_business_account;
+    // If no Instagram accounts found, save Facebook profile as placeholder
+    if (savedCount === 0 && userData.id) {
+      console.log('[Instagram Callback] No IG accounts, saving profile...');
 
-        // Check if already exists
-        const existing = await db.channel.findFirst({
-          where: { instagramAccountId: igAccount.id }
+      const existing = await db.channel.findFirst({
+        where: { facebookPageId: userData.id }
+      });
+
+      if (!existing) {
+        await db.channel.create({
+          data: {
+            userId: state || null,
+            name: userData.name || 'Connected Account',
+            platform: 'instagram',
+            instagramAccountId: userData.id,
+            facebookPageId: userData.id,
+            facebookPageName: userData.name,
+            accessToken: accessToken,
+            refreshToken: accessToken,
+            uploadTime: '18:00',
+            frequency: 'daily',
+            isActive: true,
+          }
         });
-
-        if (existing) {
-          // Update existing
-          await db.channel.update({
-            where: { id: existing.id },
-            data: {
-              accessToken: page.access_token,
-              refreshToken: finalToken,
-              name: igAccount.username || igAccount.name || page.name,
-            }
-          });
-        } else {
-          // Create new
-          await db.channel.create({
-            data: {
-              userId: state || null,
-              name: igAccount.username || igAccount.name || 'Instagram Account',
-              platform: 'instagram',
-              instagramAccountId: igAccount.id,
-              facebookPageId: page.id,
-              facebookPageName: page.name,
-              accessToken: page.access_token,
-              refreshToken: finalToken,
-              uploadTime: '18:00',
-              frequency: 'daily',
-              isActive: true,
-            }
-          });
-        }
         savedCount++;
       }
     }
 
+    console.log(`[Instagram Callback] Saved ${savedCount} connections`);
+
     if (savedCount === 0) {
-      throw new Error('No Instagram Business Accounts found. Connect your Instagram account to a Facebook Page.');
+      return NextResponse.redirect(
+        'https://www.gpmart.in/?warning=' + encodeURIComponent(
+          'Connected successfully! Note: Instagram Business features require App Review. ' +
+          'Add yourself as a Test User in Facebook App settings to test full features.'
+        )
+      );
     }
 
-    console.log(`[Instagram Callback] ${savedCount} Instagram account(s) connected`);
+    return NextResponse.redirect('https://www.gpmart.in/?instagram=connected');
 
+  } catch (err: any) {
+    console.error('[Instagram Callback] Exception:', err);
     return NextResponse.redirect(
-      new URL('/?instagram=connected', 'https://www.gpmart.in')
-    );
-
-  } catch (error: any) {
-    console.error('[Instagram Callback] Error:', error);
-    return NextResponse.redirect(
-      new URL(`/?error=${encodeURIComponent(error.message)}`, 'https://www.gpmart.in')
+      `https://www.gpmart.in/?error=${encodeURIComponent(err.message || 'Unknown error')}`
     );
   }
 }

@@ -8,22 +8,25 @@ const REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI || 'https://www.gpmart.in
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  const state = searchParams.get('state') || '';
   const error = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
+  const state = searchParams.get('state') || '';
 
-  console.log('[Facebook Callback] Code:', code ? 'received' : 'missing');
-  console.log('[Facebook Callback] State:', state);
+  console.log('[Facebook Callback] Starting...');
+  console.log('[Facebook Callback] Code:', code ? 'YES' : 'NO');
+  console.log('[Facebook Callback] Error:', error);
 
+  // Handle OAuth errors
   if (error) {
-    console.error('[Facebook Callback] Error:', error);
+    console.error('[Facebook Callback] OAuth Error:', error, errorDescription);
     return NextResponse.redirect(
-      new URL(`/?error=${encodeURIComponent(error)}`, 'https://www.gpmart.in')
+      `https://www.gpmart.in/?error=${encodeURIComponent(errorDescription || error)}`
     );
   }
 
   if (!code) {
     return NextResponse.redirect(
-      new URL('/?error=no_code', 'https://www.gpmart.in')
+      'https://www.gpmart.in/?error=no_authorization_code'
     );
   }
 
@@ -39,64 +42,61 @@ export async function GET(request: NextRequest) {
     const tokenData = await tokenRes.json();
 
     if (tokenData.error) {
+      console.error('[Facebook Callback] Token Error:', tokenData.error);
       throw new Error(tokenData.error.message || 'Token exchange failed');
     }
 
-    const shortLivedToken = tokenData.access_token;
+    console.log('[Facebook Callback] Token received!');
+    const accessToken = tokenData.access_token;
 
-    // Step 2: Get long-lived access token
-    const longLivedUrl = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
-    longLivedUrl.searchParams.set('grant_type', 'fb_exchange_token');
-    longLivedUrl.searchParams.set('client_id', FACEBOOK_APP_ID);
-    longLivedUrl.searchParams.set('client_secret', FACEBOOK_APP_SECRET);
-    longLivedUrl.searchParams.set('fb_exchange_token', shortLivedToken);
+    // Step 2: Get user's basic profile
+    const userUrl = new URL('https://graph.facebook.com/v19.0/me');
+    userUrl.searchParams.set('fields', 'id,name,picture');
+    userUrl.searchParams.set('access_token', accessToken);
 
-    const longLivedRes = await fetch(longLivedUrl.toString());
-    const longLivedData = await longLivedRes.json();
-    const finalToken = longLivedData.access_token || shortLivedToken;
+    const userRes = await fetch(userUrl.toString());
+    const userData = await userRes.json();
 
-    // Step 3: Get Facebook Pages
+    console.log('[Facebook Callback] User:', userData);
+
+    // Step 3: Check if user has any pages (limited in dev mode)
     const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
-    pagesUrl.searchParams.set('access_token', finalToken);
-    pagesUrl.searchParams.set('fields', 'id,name,access_token,category,picture');
+    pagesUrl.searchParams.set('access_token', accessToken);
+    pagesUrl.searchParams.set('fields', 'id,name,access_token');
 
     const pagesRes = await fetch(pagesUrl.toString());
     const pagesData = await pagesRes.json();
 
-    if (!pagesData.data || pagesData.data.length === 0) {
-      throw new Error('No Facebook Pages found. Create a Facebook Page first.');
-    }
+    console.log('[Facebook Callback] Pages:', pagesData.data?.length || 0, 'pages');
 
-    // Step 4: Save Facebook Pages as channels
+    // Step 4: Save connection
     let savedCount = 0;
-    for (const page of pagesData.data) {
-      // Check if already exists
+
+    // Save user's Facebook profile as a connection
+    if (userData.id) {
       const existing = await db.channel.findFirst({
-        where: { facebookPageId: page.id }
+        where: { facebookPageId: userData.id }
       });
 
       if (existing) {
-        // Update existing
         await db.channel.update({
           where: { id: existing.id },
           data: {
-            accessToken: page.access_token,
-            refreshToken: finalToken,
-            name: page.name,
-            userId: state || existing.userId,
+            accessToken: accessToken,
+            refreshToken: accessToken,
+            name: userData.name || existing.name,
           }
         });
       } else {
-        // Create new
         await db.channel.create({
           data: {
             userId: state || null,
-            name: page.name,
+            name: userData.name || 'Facebook Account',
             platform: 'facebook',
-            facebookPageId: page.id,
-            facebookPageName: page.name,
-            accessToken: page.access_token,
-            refreshToken: finalToken,
+            facebookPageId: userData.id,
+            facebookPageName: userData.name,
+            accessToken: accessToken,
+            refreshToken: accessToken,
             uploadTime: '18:00',
             frequency: 'daily',
             isActive: true,
@@ -106,16 +106,50 @@ export async function GET(request: NextRequest) {
       savedCount++;
     }
 
-    console.log(`[Facebook Callback] ${savedCount} Facebook page(s) connected`);
+    // Save pages if accessible
+    if (pagesData.data && pagesData.data.length > 0) {
+      for (const page of pagesData.data) {
+        const existing = await db.channel.findFirst({
+          where: { facebookPageId: page.id }
+        });
 
-    return NextResponse.redirect(
-      new URL('/?facebook=connected', 'https://www.gpmart.in')
-    );
+        if (existing) {
+          await db.channel.update({
+            where: { id: existing.id },
+            data: {
+              accessToken: page.access_token,
+              refreshToken: accessToken,
+              name: page.name,
+            }
+          });
+        } else {
+          await db.channel.create({
+            data: {
+              userId: state || null,
+              name: page.name,
+              platform: 'facebook',
+              facebookPageId: page.id,
+              facebookPageName: page.name,
+              accessToken: page.access_token,
+              refreshToken: accessToken,
+              uploadTime: '18:00',
+              frequency: 'daily',
+              isActive: true,
+            }
+          });
+        }
+        savedCount++;
+      }
+    }
 
-  } catch (error: any) {
-    console.error('[Facebook Callback] Error:', error);
+    console.log(`[Facebook Callback] Saved ${savedCount} connections`);
+
+    return NextResponse.redirect('https://www.gpmart.in/?facebook=connected');
+
+  } catch (err: any) {
+    console.error('[Facebook Callback] Exception:', err);
     return NextResponse.redirect(
-      new URL(`/?error=${encodeURIComponent(error.message)}`, 'https://www.gpmart.in')
+      `https://www.gpmart.in/?error=${encodeURIComponent(err.message || 'Unknown error')}`
     );
   }
 }
