@@ -328,6 +328,7 @@ export default function YouTubeAutomationDashboard() {
   // AI Generation state
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -1025,18 +1026,20 @@ export default function YouTubeAutomationDashboard() {
   const generateAITitles = async () => {
     if (!selectedChannel) return;
     
-    // Get queued videos
+    // Get selected queued videos
     const queuedVideos = videos.filter(v => v.status === 'queued');
-    if (queuedVideos.length === 0) {
-      toast.error('No Videos in Queue', {
-        description: 'Add videos to the queue first.',
+    const selectedVideos = queuedVideos.filter(v => selectedVideoIds.has(v.id));
+    
+    if (selectedVideos.length === 0) {
+      toast.error('No Videos Selected', {
+        description: 'Please select videos from the queue to generate AI metadata.',
       });
       return;
     }
 
     setGeneratingAI(true);
     const loadingToast = toast.loading('Generating AI Metadata', {
-      description: `Processing ${queuedVideos.length} video(s)...`,
+      description: `Processing ${selectedVideos.length} selected video(s)...`,
     });
 
     try {
@@ -1045,7 +1048,7 @@ export default function YouTubeAutomationDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId: selectedChannel.id,
-          videos: queuedVideos.map(v => ({ id: v.id, title: v.title })),
+          videos: selectedVideos.map(v => ({ id: v.id, title: v.title })),
           topic: aiTopic.trim() || null,
         }),
       });
@@ -1057,6 +1060,8 @@ export default function YouTubeAutomationDashboard() {
         toast.success('AI Metadata Generated!', {
           description: `Updated ${result.updated} video(s) with AI-generated titles and descriptions.`,
         });
+        // Clear selection
+        setSelectedVideoIds(new Set());
         // Refresh channel details
         loadChannelDetails(selectedChannel.id);
         loadChannels();
@@ -1073,6 +1078,29 @@ export default function YouTubeAutomationDashboard() {
     } finally {
       setGeneratingAI(false);
     }
+  };
+
+  // Toggle video selection
+  const toggleVideoSelection = (videoId: string) => {
+    const newSelected = new Set(selectedVideoIds);
+    if (newSelected.has(videoId)) {
+      newSelected.delete(videoId);
+    } else {
+      newSelected.add(videoId);
+    }
+    setSelectedVideoIds(newSelected);
+  };
+
+  // Select all queued videos
+  const selectAllQueuedVideos = () => {
+    const queuedVideos = videos.filter(v => v.status === 'queued');
+    const allIds = new Set(queuedVideos.map(v => v.id));
+    setSelectedVideoIds(allIds);
+  };
+
+  // Deselect all
+  const deselectAllVideos = () => {
+    setSelectedVideoIds(new Set());
   };
 
   // Render Dashboard View
@@ -1711,23 +1739,43 @@ export default function YouTubeAutomationDashboard() {
                         Videos waiting to be uploaded
                       </CardDescription>
                     </div>
-                    <Button
-                      onClick={generateAITitles}
-                      disabled={generatingAI || queuedVideos.length === 0}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-10 sm:h-9 touch-manipulation"
-                    >
-                      {generatingAI ? (
-                        <>
-                          <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" />
-                          <span className="text-sm">Generating...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="mr-1 sm:mr-2 h-4 w-4" />
-                          <span className="text-sm">AI Generate All</span>
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={selectAllQueuedVideos}
+                        disabled={queuedVideos.length === 0}
+                        className="h-9 text-xs"
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={deselectAllVideos}
+                        disabled={selectedVideoIds.size === 0}
+                        className="h-9 text-xs"
+                      >
+                        Deselect
+                      </Button>
+                      <Button
+                        onClick={generateAITitles}
+                        disabled={generatingAI || selectedVideoIds.size === 0}
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-9 touch-manipulation"
+                      >
+                        {generatingAI ? (
+                          <>
+                            <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" />
+                            <span className="text-sm">Generating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="mr-1 sm:mr-2 h-4 w-4" />
+                            <span className="text-sm">AI Generate ({selectedVideoIds.size})</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   {/* Topic Input for AI */}
                   <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
@@ -1746,6 +1794,13 @@ export default function YouTubeAutomationDashboard() {
                       Topic se AI better titles generate karega
                     </p>
                   </div>
+                  {/* Selection Info */}
+                  {selectedVideoIds.size > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
+                      <CheckCircle className="h-4 w-4" />
+                      {selectedVideoIds.size} video(s) selected for AI generation
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-6">
@@ -1757,9 +1812,10 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto -mx-3 sm:mx-0">
-                    <Table className="min-w-[700px] sm:min-w-0">
+                    <Table className="min-w-[750px] sm:min-w-0">
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[50px]">Select</TableHead>
                           <TableHead className="w-[60px] sm:w-[80px]">#</TableHead>
                           <TableHead>Thumbnail</TableHead>
                           <TableHead>Title</TableHead>
@@ -1771,7 +1827,18 @@ export default function YouTubeAutomationDashboard() {
                       </TableHeader>
                     <TableBody>
                       {queuedVideos.map((video, index) => (
-                        <TableRow key={video.id} className={index === 0 ? 'bg-green-50 dark:bg-green-950' : ''}>
+                        <TableRow 
+                          key={video.id} 
+                          className={`${index === 0 ? 'bg-green-50 dark:bg-green-950' : ''} ${selectedVideoIds.has(video.id) ? 'bg-purple-50 dark:bg-purple-950/50' : ''}`}
+                        >
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedVideoIds.has(video.id)}
+                              onChange={() => toggleVideoSelection(video.id)}
+                              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                            />
+                          </TableCell>
                           <TableCell>
                             {index === 0 ? (
                               <Badge className="bg-green-600 text-xs">Next</Badge>
