@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { refreshAccessToken } from '@/lib/youtube';
 
 // Search all videos in Google Drive (not limited to folder)
 export async function GET(request: NextRequest) {
@@ -13,13 +14,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Channel ID required' }, { status: 400 });
     }
 
-    // Get channel's access token
+    // Get channel's tokens
     const channel = await db.channel.findUnique({
       where: { id: channelId }
     });
 
     if (!channel || !channel.accessToken) {
       return NextResponse.json({ error: 'Channel not found or no access token' }, { status: 404 });
+    }
+
+    // Refresh access token before using
+    let accessToken = channel.accessToken;
+    try {
+      console.log('[Drive Search] Refreshing access token...');
+      const tokens = await refreshAccessToken(channel.refreshToken);
+      accessToken = tokens.accessToken;
+      
+      // Update tokens in database
+      await db.channel.update({
+        where: { id: channelId },
+        data: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken || channel.refreshToken,
+        },
+      });
+      console.log('[Drive Search] Token refreshed successfully');
+    } catch (refreshError) {
+      console.error('[Drive Search] Token refresh failed:', refreshError);
+      // Try with existing token
     }
 
     // Build query for video files
@@ -43,13 +65,13 @@ export async function GET(request: NextRequest) {
 
     // Add search query if provided
     if (searchQuery) {
-      query += ` and name contains '${searchQuery}'`;
+      query += ` and name contains '${searchQuery.replace(/'/g, "\\'")}'`;
     }
 
     // Call Google Drive API
     let url = 'https://www.googleapis.com/drive/v3/files?';
     url += `q=${encodeURIComponent(query)}`;
-    url += '&fields=nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webViewLink,webContentLink,parents)';
+    url += '&fields=nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,thumbnailLink,webViewLink,webContentLink)';
     url += '&pageSize=50';
     url += '&orderBy=modifiedTime desc';
     
@@ -59,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${channel.accessToken}`
+        'Authorization': `Bearer ${accessToken}`
       }
     });
 
@@ -69,7 +91,7 @@ export async function GET(request: NextRequest) {
       
       if (response.status === 401) {
         return NextResponse.json({ 
-          error: 'Token expired',
+          error: 'Token expired. Please reconnect your channel.',
           needsReconnect: true 
         }, { status: 401 });
       }
@@ -83,11 +105,14 @@ export async function GET(request: NextRequest) {
 
     // Check which videos are already mapped
     const driveFileIds = (data.files || []).map((f: any) => f.id);
-    const existingMappings = await db.driveVideo.findMany({
-      where: {
-        driveFileId: { in: driveFileIds }
-      }
-    });
+    
+    const existingMappings = driveFileIds.length > 0 
+      ? await db.driveVideo.findMany({
+          where: {
+            driveFileId: { in: driveFileIds }
+          }
+        })
+      : [];
 
     const mappedIds = new Set(existingMappings.map(m => m.driveFileId));
 
