@@ -1035,6 +1035,18 @@ export default function YouTubeAutomationDashboard() {
   const generateAITitles = async () => {
     if (!selectedChannel) return;
     
+    // Get queued videos
+    const queuedVideos = videos
+      .filter(v => v.status === 'queued')
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    
+    if (queuedVideos.length === 0) {
+      toast.error('No Videos', {
+        description: 'No queued videos to generate metadata for.'
+      });
+      return;
+    }
+    
     setGeneratingAI(true);
     
     const loadingToast = toast.loading('Generating AI Metadata', {
