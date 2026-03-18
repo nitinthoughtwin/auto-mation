@@ -75,11 +75,15 @@ import {
   ExternalLink,
   Facebook,
   Instagram,
+  HardDrive,
+  Link,
   Sparkles,
   Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
+import DriveVideoBrowser from '@/components/DriveVideoBrowser';
+import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 
 // Helper to get Google Drive thumbnail URL from file ID or URL
 const getThumbnailUrl = (fileIdOrUrl: string | null): string | null => {
@@ -210,9 +214,12 @@ interface Video {
   originalName: string | null;
   fileSize: number | null;
   mimeType: string | null;
+  driveFileId?: string | null;
+  driveWebViewLink?: string | null;
   thumbnailName: string | null;
   thumbnailOriginalName: string | null;
   thumbnailSize: number | null;
+  thumbnailDriveId?: string | null;
   status: string;
   uploadedAt: string | null;
   error: string | null;
@@ -324,6 +331,10 @@ export default function YouTubeAutomationDashboard() {
     randomDelayEnabled: false,
     randomDelayMinutes: 30,
   });
+
+  // Drive video browser state
+  const [showDriveBrowser, setShowDriveBrowser] = useState(false);
+  const [showPublicDriveBrowser, setShowPublicDriveBrowser] = useState(false);
 
   // AI Generation state
   const [generatingAI, setGeneratingAI] = useState(false);
@@ -1022,24 +1033,43 @@ export default function YouTubeAutomationDashboard() {
     setVideos([]);
   };
 
-  // Generate AI titles for queued videos
+  // Toggle video selection for AI
+  const toggleVideoSelection = (videoId: string) => {
+    const newSelected = new Set(selectedVideoIds);
+    if (newSelected.has(videoId)) {
+      newSelected.delete(videoId);
+    } else {
+      newSelected.add(videoId);
+    }
+    setSelectedVideoIds(newSelected);
+  };
+
+  // Select/Deselect all videos
+  const toggleSelectAll = (queuedVideos: Video[]) => {
+    if (selectedVideoIds.size === queuedVideos.length) {
+      setSelectedVideoIds(new Set());
+    } else {
+      setSelectedVideoIds(new Set(queuedVideos.map(v => v.id)));
+    }
+  };
+
+  // Generate AI titles for selected videos
   const generateAITitles = async () => {
     if (!selectedChannel) return;
     
-    // Get selected queued videos
     const queuedVideos = videos.filter(v => v.status === 'queued');
     const selectedVideos = queuedVideos.filter(v => selectedVideoIds.has(v.id));
     
     if (selectedVideos.length === 0) {
       toast.error('No Videos Selected', {
-        description: 'Please select videos from the queue to generate AI metadata.',
+        description: 'Please select videos to generate AI metadata.',
       });
       return;
     }
 
     setGeneratingAI(true);
     const loadingToast = toast.loading('Generating AI Metadata', {
-      description: `Processing ${selectedVideos.length} selected video(s)...`,
+      description: `Processing ${selectedVideos.length} video(s)...`,
     });
 
     try {
@@ -1060,47 +1090,22 @@ export default function YouTubeAutomationDashboard() {
         toast.success('AI Metadata Generated!', {
           description: `Updated ${result.updated} video(s) with AI-generated titles and descriptions.`,
         });
-        // Clear selection
         setSelectedVideoIds(new Set());
-        // Refresh channel details
         loadChannelDetails(selectedChannel.id);
         loadChannels();
       } else {
         toast.warning('No Videos Updated', {
-          description: result.message || 'Could not generate metadata. Check if Gemini API key is set.',
+          description: result.error || result.message || 'Check if GEMINI_API_KEY is set in .env',
         });
       }
     } catch (error) {
       toast.dismiss(loadingToast);
       toast.error('Generation Failed', {
-        description: 'Failed to generate AI metadata. Please check if GEMINI_API_KEY is set in .env file.',
+        description: 'Failed to generate AI metadata. Please try again.',
       });
     } finally {
       setGeneratingAI(false);
     }
-  };
-
-  // Toggle video selection
-  const toggleVideoSelection = (videoId: string) => {
-    const newSelected = new Set(selectedVideoIds);
-    if (newSelected.has(videoId)) {
-      newSelected.delete(videoId);
-    } else {
-      newSelected.add(videoId);
-    }
-    setSelectedVideoIds(newSelected);
-  };
-
-  // Select all queued videos
-  const selectAllQueuedVideos = () => {
-    const queuedVideos = videos.filter(v => v.status === 'queued');
-    const allIds = new Set(queuedVideos.map(v => v.id));
-    setSelectedVideoIds(allIds);
-  };
-
-  // Deselect all
-  const deselectAllVideos = () => {
-    setSelectedVideoIds(new Set());
   };
 
   // Render Dashboard View
@@ -1706,23 +1711,41 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                 )}
 
-                <Button
-                  onClick={uploadVideos}
-                  disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
-                  className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload to Queue
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={uploadVideos}
+                    disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
+                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload to Queue
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDriveBrowser(true)}
+                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                  >
+                    <HardDrive className="mr-2 h-4 w-4" />
+                    Add from My Drive
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPublicDriveBrowser(true)}
+                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                  >
+                    <Link className="mr-2 h-4 w-4" />
+                    Add from Link
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1743,11 +1766,10 @@ export default function YouTubeAutomationDashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={deselectAllVideos}
-                        disabled={selectedVideoIds.size === 0}
+                        onClick={() => toggleSelectAll(queuedVideos)}
                         className="h-9 text-xs"
                       >
-                        Deselect ({selectedVideoIds.size})
+                        {selectedVideoIds.size === queuedVideos.length && queuedVideos.length > 0 ? 'Deselect All' : 'Select All'}
                       </Button>
                       <Button
                         onClick={generateAITitles}
@@ -1776,22 +1798,12 @@ export default function YouTubeAutomationDashboard() {
                     </Label>
                     <Input
                       id="ai-topic"
-                      placeholder="e.g., Premanand Ji Bhakti, Motivational Quotes, Tech News..."
+                      placeholder="e.g., Premanand Ji Maharaj, Motivational, Tech News..."
                       value={aiTopic}
                       onChange={(e) => setAiTopic(e.target.value)}
                       className="flex-1 h-9 text-sm"
                     />
-                    <p className="text-xs text-muted-foreground sm:hidden">
-                      Topic se AI better titles generate karega
-                    </p>
                   </div>
-                  {/* Selection Info */}
-                  {selectedVideoIds.size > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
-                      <CheckCircle className="h-4 w-4" />
-                      {selectedVideoIds.size} video(s) selected for AI generation
-                    </div>
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-6">
@@ -1810,18 +1822,7 @@ export default function YouTubeAutomationDashboard() {
                             <input
                               type="checkbox"
                               checked={queuedVideos.length > 0 && selectedVideoIds.size === queuedVideos.length}
-                              ref={(el) => {
-                                if (el) {
-                                  el.indeterminate = selectedVideoIds.size > 0 && selectedVideoIds.size < queuedVideos.length;
-                                }
-                              }}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  selectAllQueuedVideos();
-                                } else {
-                                  deselectAllVideos();
-                                }
-                              }}
+                              onChange={() => toggleSelectAll(queuedVideos)}
                               className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
                             />
                           </TableHead>
@@ -2201,6 +2202,28 @@ export default function YouTubeAutomationDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Drive Video Browser */}
+        <DriveVideoBrowser
+          open={showDriveBrowser}
+          onClose={() => setShowDriveBrowser(false)}
+          channelId={selectedChannel?.id || ''}
+          onVideosAdded={() => {
+            loadChannelDetails(selectedChannel?.id || '');
+            loadChannels();
+          }}
+        />
+
+        {/* Public Drive Browser */}
+        <PublicDriveBrowser
+          open={showPublicDriveBrowser}
+          onClose={() => setShowPublicDriveBrowser(false)}
+          channelId={selectedChannel?.id || ''}
+          onVideosAdded={() => {
+            loadChannelDetails(selectedChannel?.id || '');
+            loadChannels();
+          }}
+        />
       </div>
     );
   };
