@@ -75,15 +75,11 @@ import {
   ExternalLink,
   Facebook,
   Instagram,
-  HardDrive,
-  Link,
   Sparkles,
   Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
-import DriveVideoBrowser from '@/components/DriveVideoBrowser';
-import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 
 // Helper to get Google Drive thumbnail URL from file ID or URL
 const getThumbnailUrl = (fileIdOrUrl: string | null): string | null => {
@@ -214,12 +210,9 @@ interface Video {
   originalName: string | null;
   fileSize: number | null;
   mimeType: string | null;
-  driveFileId?: string | null;
-  driveWebViewLink?: string | null;
   thumbnailName: string | null;
   thumbnailOriginalName: string | null;
   thumbnailSize: number | null;
-  thumbnailDriveId?: string | null;
   status: string;
   uploadedAt: string | null;
   error: string | null;
@@ -331,10 +324,6 @@ export default function YouTubeAutomationDashboard() {
     randomDelayEnabled: false,
     randomDelayMinutes: 30,
   });
-
-  // Drive video browser state
-  const [showDriveBrowser, setShowDriveBrowser] = useState(false);
-  const [showPublicDriveBrowser, setShowPublicDriveBrowser] = useState(false);
 
   // AI Generation state
   const [generatingAI, setGeneratingAI] = useState(false);
@@ -1031,61 +1020,53 @@ export default function YouTubeAutomationDashboard() {
     setVideos([]);
   };
 
-  // Generate AI titles/descriptions for all queued videos
+  // Generate AI titles for queued videos
   const generateAITitles = async () => {
     if (!selectedChannel) return;
     
     // Get queued videos
-    const queuedVideos = videos
-      .filter(v => v.status === 'queued')
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    
+    const queuedVideos = videos.filter(v => v.status === 'queued');
     if (queuedVideos.length === 0) {
-      toast.error('No Videos', {
-        description: 'No queued videos to generate metadata for.'
+      toast.error('No Videos in Queue', {
+        description: 'Add videos to the queue first.',
       });
       return;
     }
-    
+
     setGeneratingAI(true);
-    
     const loadingToast = toast.loading('Generating AI Metadata', {
-      description: `Analyzing ${queuedVideos.length} video(s)...`
+      description: `Processing ${queuedVideos.length} video(s)...`,
     });
 
     try {
-      const res = await fetch('/api/ai/generate-for-videos', {
+      const response = await fetch('/api/ai/generate-for-videos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId: selectedChannel.id,
-          videos: queuedVideos.map(v => ({
-            id: v.id,
-            title: v.title,
-            originalName: v.originalName
-          }))
-        })
+          videos: queuedVideos.map(v => ({ id: v.id, title: v.title })),
+        }),
       });
 
-      const data = await res.json();
+      const result = await response.json();
+      toast.dismiss(loadingToast);
 
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to generate metadata');
+      if (result.updated > 0) {
+        toast.success('AI Metadata Generated!', {
+          description: `Updated ${result.updated} video(s) with AI-generated titles and descriptions.`,
+        });
+        // Refresh channel details
+        loadChannelDetails(selectedChannel.id);
+        loadChannels();
+      } else {
+        toast.warning('No Videos Updated', {
+          description: result.message || 'Could not generate metadata. Check if Gemini API key is set.',
+        });
       }
-
+    } catch (error) {
       toast.dismiss(loadingToast);
-      toast.success('AI Metadata Generated', {
-        description: `Updated ${data.updated} video(s) with AI-generated titles and descriptions`
-      });
-
-      // Refresh the video list
-      loadChannelDetails(selectedChannel.id);
-      loadChannels();
-
-    } catch (error: any) {
-      toast.dismiss(loadingToast);
-      toast.error('AI Generation Failed', {
-        description: error.message || 'Failed to generate metadata'
+      toast.error('Generation Failed', {
+        description: 'Failed to generate AI metadata. Please check if GEMINI_API_KEY is set in .env file.',
       });
     } finally {
       setGeneratingAI(false);
@@ -1695,41 +1676,23 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    onClick={uploadVideos}
-                    disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
-                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
-                  >
-                    {uploading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload to Queue
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowDriveBrowser(true)}
-                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
-                  >
-                    <HardDrive className="mr-2 h-4 w-4" />
-                    Add from My Drive
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowPublicDriveBrowser(true)}
-                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
-                  >
-                    <Link className="mr-2 h-4 w-4" />
-                    Add from Link
-                  </Button>
-                </div>
+                <Button
+                  onClick={uploadVideos}
+                  disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
+                  className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload to Queue
+                    </>
+                  )}
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1738,27 +1701,30 @@ export default function YouTubeAutomationDashboard() {
           <TabsContent value="queue">
             <Card>
               <CardHeader className="pb-3 sm:pb-4">
-                <div className="flex flex-row items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <CardTitle className="text-lg sm:text-xl">Video Queue</CardTitle>
                     <CardDescription className="text-sm">
                       Videos waiting to be uploaded
                     </CardDescription>
                   </div>
-                  {queuedVideos.length > 0 && (
-                    <Button
-                      onClick={generateAITitles}
-                      disabled={generatingAI}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white h-9 touch-manipulation"
-                    >
-                      {generatingAI ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Wand2 className="mr-2 h-4 w-4" />
-                      )}
-                      AI Generate All
-                    </Button>
-                  )}
+                  <Button
+                    onClick={generateAITitles}
+                    disabled={generatingAI || queuedVideos.length === 0}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-10 sm:h-9 touch-manipulation"
+                  >
+                    {generatingAI ? (
+                      <>
+                        <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" />
+                        <span className="text-sm">Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="mr-1 sm:mr-2 h-4 w-4" />
+                        <span className="text-sm">AI Generate All</span>
+                      </>
+                    )}
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-6">
@@ -2138,28 +2104,6 @@ export default function YouTubeAutomationDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* Drive Video Browser */}
-        <DriveVideoBrowser
-          open={showDriveBrowser}
-          onClose={() => setShowDriveBrowser(false)}
-          channelId={selectedChannel?.id || ''}
-          onVideosAdded={() => {
-            loadChannelDetails(selectedChannel?.id || '');
-            loadChannels();
-          }}
-        />
-
-        {/* Public Drive Browser */}
-        <PublicDriveBrowser
-          open={showPublicDriveBrowser}
-          onClose={() => setShowPublicDriveBrowser(false)}
-          channelId={selectedChannel?.id || ''}
-          onVideosAdded={() => {
-            loadChannelDetails(selectedChannel?.id || '');
-            loadChannels();
-          }}
-        />
       </div>
     );
   };
