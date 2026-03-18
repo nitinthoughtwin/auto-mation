@@ -1743,20 +1743,11 @@ export default function YouTubeAutomationDashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={selectAllQueuedVideos}
-                        disabled={queuedVideos.length === 0}
-                        className="h-9 text-xs"
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
                         onClick={deselectAllVideos}
                         disabled={selectedVideoIds.size === 0}
                         className="h-9 text-xs"
                       >
-                        Deselect
+                        Deselect ({selectedVideoIds.size})
                       </Button>
                       <Button
                         onClick={generateAITitles}
@@ -1815,7 +1806,25 @@ export default function YouTubeAutomationDashboard() {
                     <Table className="min-w-[750px] sm:min-w-0">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[50px]">Select</TableHead>
+                          <TableHead className="w-[50px]">
+                            <input
+                              type="checkbox"
+                              checked={queuedVideos.length > 0 && selectedVideoIds.size === queuedVideos.length}
+                              ref={(el) => {
+                                if (el) {
+                                  el.indeterminate = selectedVideoIds.size > 0 && selectedVideoIds.size < queuedVideos.length;
+                                }
+                              }}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  selectAllQueuedVideos();
+                                } else {
+                                  deselectAllVideos();
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                            />
+                          </TableHead>
                           <TableHead className="w-[60px] sm:w-[80px]">#</TableHead>
                           <TableHead>Thumbnail</TableHead>
                           <TableHead>Title</TableHead>

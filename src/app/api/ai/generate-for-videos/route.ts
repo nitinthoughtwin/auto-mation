@@ -18,6 +18,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'No videos provided', updated: 0 });
     }
 
+    // Check if Gemini API key is set
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ 
+        error: 'GEMINI_API_KEY not set', 
+        message: 'Please add GEMINI_API_KEY to your .env file',
+        updated: 0 
+      }, { status: 500 });
+    }
+
     // Process provided videos
     const results = await Promise.all(
       videos.map(async (video: { id: string; title: string }, index: number) => {
@@ -57,46 +66,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function cleanFilename(filename: string): string {
-  // Remove extension
-  let clean = filename.replace(/\.[^/.]+$/, '');
-  
-  // Remove Instagram/Facebook reel patterns
-  clean = clean.replace(/reel[s]?/gi, '');
-  
-  // Remove dates like 5_18_2024, 2024_5_18, etc.
-  clean = clean.replace(/\d{1,4}[_\-\/\.]\d{1,2}[_\-\/\.]\d{2,4}/gi, '');
-  clean = clean.replace(/\d{4}[_\-]?\d{2}[_\-]?\d{2}/gi, '');
-  
-  // Remove time patterns like 8_38_31 PM, 2_22_28 PM
-  clean = clean.replace(/\d{1,2}[_\-]?\d{2}[_\-]?\d{2}[_\-]?(AM|PM)/gi, '');
-  clean = clean.replace(/\d{1,2}[_\-]\d{2}[_\-]\d{2}/gi, '');
-  
-  // Remove long random number sequences (10+ digits - typically timestamps/IDs)
-  clean = clean.replace(/\d{10,}/g, '');
-  
-  // Remove short number sequences that look like IDs
-  clean = clean.replace(/[_\-]\d{5,}/g, '');
-  clean = clean.replace(/\d{5,}[_\-]/g, '');
-  
-  // Remove standalone numbers
-  clean = clean.replace(/[_\-]?\b\d+\b[_\-]?/g, ' ');
-  
-  // Clean up underscores and dashes
-  clean = clean.replace(/[_\-]+/g, ' ');
-  
-  // Remove extra spaces
-  clean = clean.replace(/\s+/g, ' ').trim();
-  
-  // Capitalize words
-  clean = clean.split(' ')
-    .filter(word => word.length > 0)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-  
-  return clean || 'Video';
-}
-
 async function generateAIMetadata(
   filename: string, 
   topic?: string | null,
@@ -104,49 +73,47 @@ async function generateAIMetadata(
   totalVideos?: number
 ): Promise<{ title: string; description: string; tags: string[] }> {
   
-  const cleanName = cleanFilename(filename);
   const hasTopic = topic && topic.trim().length > 0;
-  const numberSuffix = totalVideos && totalVideos > 1 ? ` Part ${videoNumber}` : '';
+  const videoLabel = totalVideos && totalVideos > 1 ? ` (Video ${videoNumber} of ${totalVideos})` : '';
 
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const prompt = `You are a YouTube Shorts SEO expert for Indian audience. Create VIRAL metadata.
+  const prompt = `You are a viral YouTube Shorts content creator expert. Generate metadata for a video.
 
-${hasTopic ? `IMPORTANT: The video is about "${topic}". Use this topic as the MAIN context for generating metadata.` : ''}
+${hasTopic ? `🎯 TOPIC: "${topic}"` : '🎯 TOPIC: General viral content'}
 
-Original Filename: "${filename}"
-Cleaned Name: "${cleanName}"
+Generate a VIRAL YouTube Shorts metadata in Hindi/Hinglish.
 
-STRICT RULES:
-1. TITLE must be in Hindi/Hinglish (mix of Hindi + English)
-2. TITLE must be under 60 characters
-3. TITLE must be CATCHY and EMOTIONAL - like a viral YouTube short
-4. Use 1-2 emojis in title if appropriate
-5. DO NOT include ANY numbers, dates, timestamps, or random digits in title
-6. DO NOT use words like "reel", "video", "mp4" in title
-${hasTopic ? `7. Title MUST relate to: ${topic}` : ''}
+=== TITLE REQUIREMENTS ===
+- Maximum 55 characters
+- Must be in Hindi/Hinglish (like: "प्रेमानंद जी का यह भजन सुनकर रो पड़ोगे")
+- Use 1-2 relevant emojis (🙏, 😭, ❤️, ✨, 🔥, 🙏‍♂️)
+- Make it EMOTIONAL and CLICKBAIT
+- Title MUST relate to the topic: "${hasTopic ? topic : 'General'}"
+- DO NOT use: video, reel, part, episode, mp4, numbers
+- Start with something catchy that creates curiosity
 
-TITLE EXAMPLES:
-- "प्रेमानंद जी का यह भजन सुनकर रो पड़ोगे 😭🙏"
+=== DESCRIPTION REQUIREMENTS ===
+- 80-100 words in Hindi/Hinglish
+- Add emotional hook in first line
+- Include subscribe/like request
+- Add 5-6 relevant hashtags at the end
+
+=== TAGS REQUIREMENTS ===
+- Exactly 10 tags
+- Mix of Hindi and English keywords
+- Must include topic-related tags
+- Include: Shorts, Viral, Trending
+
+${hasTopic ? `EXAMPLE GOOD TITLES for "${topic}":
+- "प्रेमानंद जी की यह बात सुनकर रो पड़ोगे 😭🙏"
 - "भगवान की याद में खो गए ❤️✨"
-- "Motivation जो बदल दे जिंदगी 🔥"
+- "इस भजन को सुनकर आंखें भर आएंगी 🙏😭"` : ''}
 
-DESCRIPTION RULES:
-- 80-120 words in Hindi/Hinglish
-- Include 5-8 relevant hashtags
-- Add subscribe/like request
-- Make it engaging
-
-TAGS RULES:
-- Generate exactly 10-12 tags
-- Mix of Hindi and English
-- Include trending tags
-- Include topic-specific tags
-
-RESPOND IN PURE JSON ONLY:
+Respond in ONLY this JSON format, no other text:
 {
-  "title": "Viral title here",
-  "description": "Description with hashtags",
+  "title": "your viral title here",
+  "description": "your description with hashtags",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"]
 }`;
 
@@ -154,51 +121,62 @@ RESPOND IN PURE JSON ONLY:
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
+    console.log('Gemini Response:', text.substring(0, 200));
     
     // Parse JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       
-      // Clean title one more time to remove any numbers
-      let finalTitle = parsed.title || cleanName;
-      finalTitle = finalTitle.replace(/\d{4,}/g, '').trim();
+      // Clean title
+      let finalTitle = (parsed.title || '').trim();
+      // Remove any remaining numbers/dates
+      finalTitle = finalTitle.replace(/\b\d{4,}\b/g, '').trim();
       
-      return {
-        title: finalTitle + numberSuffix,
-        description: parsed.description || generateDefaultDescription(cleanName, topic),
-        tags: Array.isArray(parsed.tags) ? parsed.tags.filter((t: string) => t.length > 0) : []
-      };
+      if (finalTitle.length > 60) {
+        finalTitle = finalTitle.substring(0, 57) + '...';
+      }
+      
+      const tags = Array.isArray(parsed.tags) 
+        ? parsed.tags.filter((t: string) => t && t.length > 0).slice(0, 12)
+        : [];
+      
+      if (finalTitle && finalTitle.length > 3) {
+        return {
+          title: finalTitle,
+          description: parsed.description || '',
+          tags: tags.length > 0 ? tags : generateTags(topic)
+        };
+      }
     }
     
-    return getFallbackMetadata(cleanName, topic, numberSuffix);
+    // Fallback if parsing fails
+    return generateFallbackMetadata(topic, videoNumber, totalVideos);
   } catch (error) {
     console.error('Gemini API error:', error);
-    return getFallbackMetadata(cleanName, topic, numberSuffix);
+    return generateFallbackMetadata(topic, videoNumber, totalVideos);
   }
 }
 
-function generateDefaultDescription(cleanName: string, topic?: string | null): string {
-  const topicText = topic ? topic : cleanName;
-  return `${topicText} के बारे में यह वीडियो देखें! 🙏\n\n🔔 Subscribe करें और Like करें! ❤️\n📱 Share करें अपने दोस्तों के साथ!\n\n#${topicText.replace(/\s+/g, '')} #Shorts #Viral #Trending #India`;
+function generateTags(topic?: string | null): string[] {
+  const baseTags = ['Shorts', 'Viral', 'Trending', 'India', 'YouTubeShorts', 'MustWatch'];
+  
+  if (topic) {
+    const topicWords = topic.split(' ').filter(w => w.length > 2);
+    const topicTag = topic.replace(/\s+/g, '');
+    return [topicTag, ...topicWords, ...baseTags].slice(0, 12);
+  }
+  
+  return baseTags;
 }
 
-function getFallbackMetadata(cleanName: string, topic?: string | null, suffix?: string): { title: string; description: string; tags: string[] } {
-  const topicText = topic || cleanName;
+function generateFallbackMetadata(topic?: string | null, videoNumber?: number, totalVideos?: number): { title: string; description: string; tags: string[] } {
+  const topicText = topic || 'Video';
+  const partLabel = totalVideos && totalVideos > 1 ? ` Part ${videoNumber}` : '';
+  
   return {
-    title: `${topicText}${suffix || ''}`,
-    description: generateDefaultDescription(cleanName, topic),
-    tags: [
-      topicText.replace(/\s+/g, ''),
-      'Shorts',
-      'Viral',
-      'Trending',
-      'India',
-      topicText.split(' ')[0],
-      'YouTube',
-      'NewVideo',
-      'MustWatch',
-      'Entertainment'
-    ]
+    title: `${topicText}${partLabel}`,
+    description: `${topicText} का यह वीडियो देखें! 🙏\n\n🔔 Subscribe करें और Like करें! ❤️\n📱 Share करें!\n\n#${topicText.replace(/\s+/g, '')} #Shorts #Viral`,
+    tags: generateTags(topic)
   };
 }
