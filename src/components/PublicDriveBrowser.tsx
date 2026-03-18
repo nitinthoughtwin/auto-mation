@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -25,7 +27,9 @@ import {
   ChevronRight,
   Home,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Wand2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,6 +50,13 @@ interface FolderInfo {
   id: string;
   name: string;
   parents?: string[];
+}
+
+interface VideoMetadata {
+  id: string;
+  title: string;
+  description: string;
+  tags: string;
 }
 
 interface PublicDriveBrowserProps {
@@ -76,6 +87,16 @@ export default function PublicDriveBrowser({
   // Selection
   const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set());
   const [addingToQueue, setAddingToQueue] = useState(false);
+
+  // Video details
+  const [defaultTitle, setDefaultTitle] = useState('');
+  const [defaultDescription, setDefaultDescription] = useState('');
+  const [defaultTags, setDefaultTags] = useState('');
+  
+  // AI Generated metadata per video
+  const [aiMetadata, setAiMetadata] = useState<Map<string, VideoMetadata>>(new Map());
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [useAI, setUseAI] = useState(true); // Default to use AI metadata
   
   // Pagination
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
@@ -93,6 +114,11 @@ export default function PublicDriveBrowser({
       setSelectedVideos(new Set());
       setNextPageToken(null);
       setHasMore(false);
+      setDefaultTitle('');
+      setDefaultDescription('');
+      setDefaultTags('');
+      setAiMetadata(new Map());
+      setUseAI(true);
     }
   }, [open]);
 
@@ -237,6 +263,71 @@ export default function PublicDriveBrowser({
     setSelectedVideos(new Set());
   };
 
+  // Generate AI metadata for selected videos
+  const generateAIMetadata = async () => {
+    if (selectedVideos.size === 0) {
+      toast.error('No Videos Selected', {
+        description: 'Please select videos first.'
+      });
+      return;
+    }
+
+    setGeneratingAI(true);
+    
+    const loadingToast = toast.loading('Generating AI Metadata', {
+      description: `Analyzing ${selectedVideos.size} video(s)...`
+    });
+
+    try {
+      const selectedVideoList = videos.filter(v => selectedVideos.has(v.id));
+      
+      const res = await fetch('/api/ai/generate-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videos: selectedVideoList.map(v => ({
+            id: v.id,
+            name: v.name
+          })),
+          language: 'hindi'
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to generate metadata');
+      }
+
+      // Store AI generated metadata
+      const newMetadata = new Map(aiMetadata);
+      data.results.forEach((result: any) => {
+        newMetadata.set(result.id, {
+          id: result.id,
+          title: result.title,
+          description: result.description,
+          tags: result.tags
+        });
+      });
+      
+      setAiMetadata(newMetadata);
+      setUseAI(true);
+      
+      toast.dismiss(loadingToast);
+      toast.success('AI Metadata Generated', {
+        description: `Generated titles and descriptions for ${data.results.length} video(s)`
+      });
+
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error('AI Generation Failed', {
+        description: error.message
+      });
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
   // Add selected videos to queue
   const addToQueue = async () => {
     if (selectedVideos.size === 0) {
@@ -251,22 +342,35 @@ export default function PublicDriveBrowser({
     try {
       const selectedVideoData = videos
         .filter(v => selectedVideos.has(v.id))
-        .map(v => ({
-          id: v.id,
-          name: v.name,
-          size: v.size,
-          mimeType: v.mimeType,
-          webViewLink: v.webViewLink,
-          thumbnailLink: v.thumbnailUrl || v.thumbnailLink,
-          isPublicDrive: true
-        }));
+        .map(v => {
+          // Check if we have AI metadata for this video
+          const aiData = useAI ? aiMetadata.get(v.id) : null;
+          
+          return {
+            id: v.id,
+            name: v.name,
+            size: v.size,
+            mimeType: v.mimeType,
+            webViewLink: v.webViewLink,
+            thumbnailLink: v.thumbnailUrl || v.thumbnailLink,
+            isPublicDrive: true,
+            // Use AI metadata if available, otherwise use defaults
+            title: aiData?.title || undefined,
+            description: aiData?.description || undefined,
+            tags: aiData?.tags || undefined
+          };
+        });
 
       const res = await fetch('/api/drive/map', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId,
-          videos: selectedVideoData
+          videos: selectedVideoData,
+          // Don't send default title/description if using AI
+          title: useAI ? undefined : (defaultTitle || undefined),
+          description: useAI ? undefined : (defaultDescription || undefined),
+          tags: useAI ? undefined : (defaultTags || undefined)
         })
       });
 
@@ -281,6 +385,9 @@ export default function PublicDriveBrowser({
       });
 
       setSelectedVideos(new Set());
+      setDefaultTitle('');
+      setDefaultDescription('');
+      setDefaultTags('');
       onVideosAdded();
       onClose();
 
@@ -393,7 +500,7 @@ export default function PublicDriveBrowser({
           {/* Selection Actions */}
           {(folders.length > 0 || videos.length > 0) && (
             <div className="flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {videos.length > 0 && (
                   <>
                     <Button variant="outline" size="sm" onClick={selectAll}>
@@ -405,6 +512,22 @@ export default function PublicDriveBrowser({
                     <Badge variant="secondary">
                       {selectedVideos.size} selected
                     </Badge>
+                    {selectedVideos.size > 0 && (
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={generateAIMetadata}
+                        disabled={generatingAI}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                      >
+                        {generatingAI ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <Wand2 className="h-4 w-4 mr-1" />
+                        )}
+                        AI Generate
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -419,6 +542,81 @@ export default function PublicDriveBrowser({
                     {videos.length} video{videos.length !== 1 ? 's' : ''}
                   </Badge>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* AI Generated Metadata Preview */}
+          {aiMetadata.size > 0 && selectedVideos.size > 0 && (
+            <div className="flex-shrink-0 p-3 border rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-purple-600" />
+                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                    AI Generated Metadata ({aiMetadata.size} videos)
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setAiMetadata(new Map())}
+                    className="h-7 text-xs"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-[150px] overflow-y-auto space-y-2">
+                {Array.from(aiMetadata.entries()).slice(0, 5).map(([id, meta]) => (
+                  <div key={id} className="p-2 bg-white/50 dark:bg-black/20 rounded text-xs">
+                    <p className="font-medium truncate">{meta.title}</p>
+                    <p className="text-muted-foreground truncate">{meta.description?.substring(0, 80)}...</p>
+                  </div>
+                ))}
+                {aiMetadata.size > 5 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    +{aiMetadata.size - 5} more...
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Video Details Form - Show when videos selected and no AI metadata */}
+          {selectedVideos.size > 0 && aiMetadata.size === 0 && (
+            <div className="flex-shrink-0 p-3 border rounded-lg bg-muted/30 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">
+                Video Details (Optional - Or use AI Generate above)
+              </p>
+              <div className="grid gap-3">
+                <div>
+                  <Label className="text-xs">Title</Label>
+                  <Input
+                    placeholder="Enter custom title (or use AI Generate)"
+                    value={defaultTitle}
+                    onChange={(e) => setDefaultTitle(e.target.value)}
+                    className="h-9 mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Description</Label>
+                  <Textarea
+                    placeholder="Enter video description..."
+                    value={defaultDescription}
+                    onChange={(e) => setDefaultDescription(e.target.value)}
+                    className="min-h-[60px] mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Tags (comma separated)</Label>
+                  <Input
+                    placeholder="tag1, tag2, tag3"
+                    value={defaultTags}
+                    onChange={(e) => setDefaultTags(e.target.value)}
+                    className="h-9 mt-1"
+                  />
+                </div>
               </div>
             </div>
           )}

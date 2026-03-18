@@ -26,15 +26,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    const addedVideos = [];
-    const errors = [];
+    const addedVideos: any[] = [];
+    const errors: any[] = [];
 
-    for (const driveVideo of videos) {
+    for (let i = 0; i < videos.length; i++) {
+      const driveVideo = videos[i];
       try {
         // Parse size as integer
         const videoSize = typeof driveVideo.size === 'string' 
           ? parseInt(driveVideo.size, 10) 
           : (driveVideo.size || 0);
+
+        // Generate title - prefer per-video title, then custom title, then filename
+        let videoTitle = driveVideo.name;
+        if (driveVideo.title) {
+          // Per-video AI generated title
+          videoTitle = driveVideo.title;
+        } else if (title) {
+          // Global custom title with number
+          videoTitle = videos.length > 1 ? `${title} (${i + 1})` : title;
+        }
 
         // Check if already mapped
         const existing = await db.driveVideo.findUnique({
@@ -55,9 +66,9 @@ export async function POST(request: NextRequest) {
           const video = await db.video.create({
             data: {
               channelId: channelId,
-              title: title || driveVideo.name,
-              description: description || '',
-              tags: tags || '',
+              title: videoTitle,
+              description: driveVideo.description || description || '',
+              tags: driveVideo.tags || tags || '',
               fileName: driveVideo.id, // Store Drive file ID as fileName
               originalName: driveVideo.name,
               fileSize: videoSize,
@@ -92,9 +103,9 @@ export async function POST(request: NextRequest) {
         const video = await db.video.create({
           data: {
             channelId: channelId,
-            title: title || driveVideo.name,
-            description: description || '',
-            tags: tags || '',
+            title: videoTitle,
+            description: driveVideo.description || description || '',
+            tags: driveVideo.tags || tags || '',
             fileName: driveVideo.id, // Store Drive file ID as fileName
             originalName: driveVideo.name,
             fileSize: videoSize,
