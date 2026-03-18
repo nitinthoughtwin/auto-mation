@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-// API endpoint to add missing database columns
+// API endpoint to add missing database columns or reset database
 // This works by checking the current schema and adding any missing columns
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +11,46 @@ export async function POST(request: NextRequest) {
     
     if (authHeader !== `Bearer ${secretKey}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if this is a reset request
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      // No body, continue with migration
+    }
+
+    // Reset database - delete all records
+    if (body.action === 'reset') {
+      console.log('[Migration] Resetting database...');
+      
+      // Delete all videos first (foreign key constraint)
+      const deletedVideos = await db.video.deleteMany({});
+      console.log(`[Migration] Deleted ${deletedVideos.count} videos`);
+      
+      // Delete all channels
+      const deletedChannels = await db.channel.deleteMany({});
+      console.log(`[Migration] Deleted ${deletedChannels.count} channels`);
+      
+      // Delete all drive videos
+      const deletedDriveVideos = await db.driveVideo.deleteMany({});
+      console.log(`[Migration] Deleted ${deletedDriveVideos.count} drive videos`);
+      
+      // Delete all scheduler logs
+      const deletedLogs = await db.schedulerLog.deleteMany({});
+      console.log(`[Migration] Deleted ${deletedLogs.count} scheduler logs`);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Database reset complete',
+        deleted: {
+          videos: deletedVideos.count,
+          channels: deletedChannels.count,
+          driveVideos: deletedDriveVideos.count,
+          schedulerLogs: deletedLogs.count
+        }
+      });
     }
 
     console.log('[Migration] Starting database schema update...');
