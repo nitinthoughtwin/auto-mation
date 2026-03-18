@@ -11,8 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -21,7 +19,8 @@ import {
   Video, 
   CheckCircle2, 
   HardDrive,
-  RefreshCw
+  RefreshCw,
+  FileVideo
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -60,11 +59,6 @@ export default function DriveVideoBrowser({
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
 
-  // Form fields
-  const [defaultTitle, setDefaultTitle] = useState('');
-  const [defaultDescription, setDefaultDescription] = useState('');
-  const [defaultTags, setDefaultTags] = useState('');
-
   // Fetch videos from Drive
   const fetchVideos = async (search: string = '', pageToken: string | null = null) => {
     if (!channelId) return;
@@ -94,7 +88,6 @@ export default function DriveVideoBrowser({
       }
 
       if (pageToken) {
-        // Append to existing videos
         setVideos(prev => [...prev, ...(data.videos || [])]);
       } else {
         setVideos(data.videos || []);
@@ -189,10 +182,7 @@ export default function DriveVideoBrowser({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId,
-          videos: selectedVideoData,
-          title: defaultTitle,
-          description: defaultDescription,
-          tags: defaultTags
+          videos: selectedVideoData
         })
       });
 
@@ -206,10 +196,6 @@ export default function DriveVideoBrowser({
         description: `${data.added} video(s) added successfully.`
       });
 
-      // Reset form
-      setDefaultTitle('');
-      setDefaultDescription('');
-      setDefaultTags('');
       setSelectedVideos(new Set());
 
       // Notify parent
@@ -234,6 +220,13 @@ export default function DriveVideoBrowser({
     if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   };
+
+  // Default thumbnail component
+  const DefaultThumbnail = () => (
+    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
+      <FileVideo className="h-8 w-8 text-gray-400" />
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -282,6 +275,11 @@ export default function DriveVideoBrowser({
                 {selectedVideos.size} selected
               </Badge>
             </div>
+            {videos.length > 0 && (
+              <Badge variant="outline">
+                {videos.length} video{videos.length !== 1 ? 's' : ''} found
+              </Badge>
+            )}
           </div>
 
           {/* Video List - Scrollable */}
@@ -306,25 +304,36 @@ export default function DriveVideoBrowser({
                         selectedVideos.has(video.id)
                           ? 'bg-primary/10 border-primary'
                           : video.isMapped
-                          ? 'bg-muted/50 opacity-60'
+                          ? 'bg-muted/50 opacity-60 cursor-not-allowed'
                           : 'hover:bg-muted/50'
                       }`}
                       onClick={() => !video.isMapped && toggleVideo(video.id)}
                     >
                       {/* Thumbnail */}
-                      <div className="w-24 h-14 bg-muted rounded overflow-hidden flex-shrink-0 relative">
+                      <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
                         {video.thumbnailUrl || video.thumbnailLink ? (
                           <img
                             src={video.thumbnailUrl || video.thumbnailLink || ''}
                             alt={video.name}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Hide broken image and show default
+                              e.currentTarget.style.display = 'none';
+                              const parent = e.currentTarget.parentElement;
+                              if (parent && !parent.querySelector('.default-thumb')) {
+                                const defaultDiv = document.createElement('div');
+                                defaultDiv.className = 'default-thumb w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800';
+                                defaultDiv.innerHTML = '<svg class="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 11-2 2 2 2"/><path d="m14 11 2 2-2 2"/></svg>';
+                                parent.appendChild(defaultDiv);
+                              }
+                            }}
                           />
                         ) : (
-                          <Video className="h-6 w-6 m-auto text-muted-foreground" />
+                          <DefaultThumbnail />
                         )}
                         {video.isMapped && (
                           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-xs bg-background">
                               In Queue
                             </Badge>
                           </div>
@@ -333,8 +342,8 @@ export default function DriveVideoBrowser({
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{video.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-medium truncate text-sm">{video.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
                           {formatSize(video.size)} • {video.mimeType.split('/')[1]?.toUpperCase() || 'VIDEO'}
                         </p>
                       </div>
@@ -344,6 +353,7 @@ export default function DriveVideoBrowser({
                         checked={selectedVideos.has(video.id)}
                         disabled={video.isMapped}
                         onCheckedChange={() => toggleVideo(video.id)}
+                        className="flex-shrink-0"
                       />
                     </div>
                   ))}
@@ -367,43 +377,6 @@ export default function DriveVideoBrowser({
               )}
             </div>
           </div>
-
-          {/* Default Fields */}
-          {selectedVideos.size > 0 && (
-            <div className="border rounded-lg p-4 space-y-4 bg-muted/30 flex-shrink-0">
-              <h4 className="font-medium text-sm">Default Values (Optional)</h4>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="driveTitle">Default Title</Label>
-                  <Input
-                    id="driveTitle"
-                    placeholder="Leave empty to use filename"
-                    value={defaultTitle}
-                    onChange={(e) => setDefaultTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="driveTags">Default Tags</Label>
-                  <Input
-                    id="driveTags"
-                    placeholder="tag1, tag2, tag3"
-                    value={defaultTags}
-                    onChange={(e) => setDefaultTags(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="driveDescription">Default Description</Label>
-                <Textarea
-                  id="driveDescription"
-                  placeholder="Enter default description..."
-                  value={defaultDescription}
-                  onChange={(e) => setDefaultDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
-            </div>
-          )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0">
