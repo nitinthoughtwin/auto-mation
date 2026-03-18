@@ -75,9 +75,11 @@ import {
   ExternalLink,
   Facebook,
   Instagram,
+  HardDrive,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
+import DriveVideoBrowser from '@/components/DriveVideoBrowser';
 
 // Helper to get Google Drive thumbnail URL from file ID or URL
 const getThumbnailUrl = (fileIdOrUrl: string | null): string | null => {
@@ -322,6 +324,9 @@ export default function YouTubeAutomationDashboard() {
     randomDelayEnabled: false,
     randomDelayMinutes: 30,
   });
+
+  // Drive video browser state
+  const [showDriveBrowser, setShowDriveBrowser] = useState(false);
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -1021,13 +1026,13 @@ export default function YouTubeAutomationDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">YouTube Automation Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">GPMart Studio</h1>
           <p className="text-sm sm:text-base text-muted-foreground">
             Manage your channels and schedule video uploads
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {/* <Button 
+          <Button 
             variant="outline" 
             onClick={runScheduler} 
             disabled={runningScheduler}
@@ -1040,7 +1045,7 @@ export default function YouTubeAutomationDashboard() {
             )}
             <span className="hidden sm:inline">Run Scheduler</span>
             <span className="sm:hidden">Run</span>
-          </Button> */}
+          </Button>
           <Button 
             variant="outline" 
             onClick={connectFacebook} 
@@ -1618,23 +1623,33 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                 )}
 
-                <Button
-                  onClick={uploadVideos}
-                  disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
-                  className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload to Queue
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={uploadVideos}
+                    disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
+                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload to Queue
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDriveBrowser(true)}
+                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                  >
+                    <HardDrive className="mr-2 h-4 w-4" />
+                    Add from Drive
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -2025,6 +2040,17 @@ export default function YouTubeAutomationDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Drive Video Browser */}
+        <DriveVideoBrowser
+          open={showDriveBrowser}
+          onClose={() => setShowDriveBrowser(false)}
+          channelId={selectedChannel?.id || ''}
+          onVideosAdded={() => {
+            loadChannelDetails(selectedChannel?.id || '');
+            loadChannels();
+          }}
+        />
       </div>
     );
   };

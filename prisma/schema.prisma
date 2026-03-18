@@ -1,5 +1,5 @@
 // This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/prisma-schema
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -13,7 +13,7 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// User table (keep your existing users)
+// User table
 model User {
   id           String   @id @default(cuid())
   name         String?
@@ -27,6 +27,7 @@ model User {
   accounts     Account[]
   sessions     Session[]
   channels     Channel[]
+  driveVideos  DriveVideo[]
 }
 
 model Account {
@@ -64,35 +65,32 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// YouTube Channel connected by user
+// Channel - Multi-platform support (YouTube, Instagram, Facebook)
 model Channel {
-  id               String    @id @default(cuid())
-  userId           String?
-  name             String
-  platform         String    @default("youtube") // youtube, instagram, facebook
-  // YouTube fields
-  youtubeChannelId String?   @unique
-  accessToken      String
-  refreshToken     String
-  // Platform-specific IDs
-  instagramAccountId String?  @unique
-  facebookPageId     String?  @unique
-  facebookPageName   String?
-  // Common settings
-  uploadTime       String    @default("18:00")
-  frequency        String    @default("daily")
-  timezone         String    @default("Asia/Kolkata")
-  isActive         Boolean   @default(true)
-  lastUploadDate   DateTime?
-  randomDelayMinutes Int?    // Random delay in minutes (-15 to +15)
-  randomDelayDate  DateTime? // Date for which random delay was calculated
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  videos           Video[]
+  id                  String    @id @default(cuid())
+  userId              String?
+  name                String
+  platform            String    @default("youtube") // youtube, instagram, facebook
+  youtubeChannelId    String?   @unique
+  instagramAccountId  String?   @unique
+  facebookPageId      String?   @unique
+  facebookPageName    String?
+  accessToken         String
+  refreshToken        String
+  uploadTime          String    @default("18:00")
+  frequency           String    @default("daily")
+  timezone            String    @default("Asia/Kolkata")
+  isActive            Boolean   @default(true)
+  lastUploadDate      DateTime?
+  randomDelayMinutes  Int?      // Random delay max minutes (0-180)
+  randomDelayDate     DateTime? // Date for which random delay was calculated
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  user                User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  videos              Video[]
 }
 
-// Video queue for uploads (YouTube, Instagram, Facebook)
+// Video queue for uploads
 model Video {
   id                    String    @id @default(cuid())
   channelId             String
@@ -103,21 +101,37 @@ model Video {
   originalName          String?
   fileSize              Int?
   mimeType              String?
+  driveFileId           String?   // Google Drive file ID for mapped videos
+  driveWebViewLink      String?   // Google Drive web view link
   thumbnailName         String?
   thumbnailOriginalName String?
   thumbnailSize         Int?
-  // Google Drive file mapping
-  googleDriveFileId     String?   @unique // If video already exists on Drive
-  googleDriveUrl        String?   // Direct download URL
-  // Status tracking
-  status                String    @default("queued")
-  platform              String    @default("youtube") // youtube, instagram, facebook
+  thumbnailDriveId      String?   // Google Drive thumbnail file ID
+  status                String    @default("queued") // queued, uploading, uploaded, failed
   uploadedAt            DateTime?
   uploadedVideoId       String?   // Platform video ID after upload
   error                 String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   channel               Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+}
+
+// Google Drive Video Mapping - Store mapped Drive videos
+model DriveVideo {
+  id            String   @id @default(cuid())
+  userId        String
+  channelId     String?  // Optional - if assigned to a channel
+  driveFileId   String   @unique
+  name          String
+  mimeType      String
+  webViewLink   String?
+  thumbnailLink String?
+  size          Int?
+  createdTime   DateTime?
+  addedToQueue  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Scheduler logs
