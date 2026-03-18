@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  serverExternalPackages: ['googleapis'],
+  experimental: {
+    instrumentationHook: true,
+  },
 };
 
 export default nextConfig;
