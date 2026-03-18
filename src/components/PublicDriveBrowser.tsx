@@ -1,0 +1,565 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Loader2, 
+  Search, 
+  Video, 
+  CheckCircle2, 
+  Link as LinkIcon,
+  RefreshCw,
+  FileVideo,
+  Folder,
+  ChevronRight,
+  Home,
+  ExternalLink,
+  AlertCircle
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+interface DriveItem {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: number;
+  thumbnailLink?: string;
+  thumbnailUrl?: string;
+  webViewLink?: string;
+  iconLink?: string;
+  createdTime?: string;
+  modifiedTime?: string;
+}
+
+interface FolderInfo {
+  id: string;
+  name: string;
+  parents?: string[];
+}
+
+interface PublicDriveBrowserProps {
+  open: boolean;
+  onClose: () => void;
+  channelId: string;
+  onVideosAdded: () => void;
+}
+
+export default function PublicDriveBrowser({
+  open,
+  onClose,
+  channelId,
+  onVideosAdded
+}: PublicDriveBrowserProps) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Current folder state
+  const [currentFolder, setCurrentFolder] = useState<FolderInfo | null>(null);
+  const [breadcrumb, setBreadcrumb] = useState<FolderInfo[]>([]);
+  
+  // Contents
+  const [folders, setFolders] = useState<DriveItem[]>([]);
+  const [videos, setVideos] = useState<DriveItem[]>([]);
+  
+  // Selection
+  const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set());
+  const [addingToQueue, setAddingToQueue] = useState(false);
+  
+  // Pagination
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+
+  // Reset when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setUrl('');
+      setError(null);
+      setCurrentFolder(null);
+      setBreadcrumb([]);
+      setFolders([]);
+      setVideos([]);
+      setSelectedVideos(new Set());
+      setNextPageToken(null);
+      setHasMore(false);
+    }
+  }, [open]);
+
+  // Fetch folder contents
+  const fetchFolderContents = async (folderId: string, append: boolean = false) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      let fetchUrl = `/api/drive/public?folderId=${folderId}`;
+      if (append && nextPageToken) {
+        fetchUrl += `&pageToken=${nextPageToken}`;
+      }
+
+      const res = await fetch(fetchUrl);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch folder contents');
+      }
+
+      if (append) {
+        setFolders(prev => [...prev, ...(data.folders || [])]);
+        setVideos(prev => [...prev, ...(data.videos || [])]);
+      } else {
+        setFolders(data.folders || []);
+        setVideos(data.videos || []);
+      }
+
+      if (data.folder) {
+        setCurrentFolder(data.folder);
+      }
+
+      setNextPageToken(data.nextPageToken || null);
+      setHasMore(!!data.nextPageToken);
+
+    } catch (err: any) {
+      console.error('[Public Drive] Error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load from URL
+  const loadFromUrl = async () => {
+    if (!url.trim()) {
+      setError('Please enter a Google Drive URL');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setBreadcrumb([]);
+    setSelectedVideos(new Set());
+
+    try {
+      const res = await fetch(`/api/drive/public?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to access Google Drive');
+      }
+
+      if (data.type === 'folder') {
+        setFolders(data.folders || []);
+        setVideos(data.videos || []);
+        setCurrentFolder(data.folder);
+        setBreadcrumb(data.folder ? [{ id: data.folder.id, name: data.folder.name }] : []);
+        setNextPageToken(data.nextPageToken || null);
+        setHasMore(!!data.nextPageToken);
+      } else if (data.type === 'file') {
+        // Single video file
+        if (data.file.mimeType?.startsWith('video/')) {
+          setVideos([data.file]);
+          setFolders([]);
+        } else {
+          setError('The provided link is not a video file');
+        }
+      }
+
+    } catch (err: any) {
+      console.error('[Public Drive] Error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Navigate to folder
+  const navigateToFolder = (folder: DriveItem) => {
+    // Add current folder to breadcrumb
+    if (currentFolder) {
+      setBreadcrumb(prev => [...prev, { id: folder.id, name: folder.name }]);
+    } else {
+      setBreadcrumb([{ id: folder.id, name: folder.name }]);
+    }
+    
+    setSelectedVideos(new Set());
+    fetchFolderContents(folder.id);
+  };
+
+  // Navigate to breadcrumb item
+  const navigateToBreadcrumb = (index: number) => {
+    const newBreadcrumb = breadcrumb.slice(0, index + 1);
+    setBreadcrumb(newBreadcrumb);
+    
+    const folder = newBreadcrumb[newBreadcrumb.length - 1];
+    if (folder) {
+      setSelectedVideos(new Set());
+      fetchFolderContents(folder.id);
+    }
+  };
+
+  // Load more videos
+  const loadMore = () => {
+    if (currentFolder && hasMore && !loading) {
+      fetchFolderContents(currentFolder.id, true);
+    }
+  };
+
+  // Toggle video selection
+  const toggleVideo = (videoId: string) => {
+    setSelectedVideos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoId)) {
+        newSet.delete(videoId);
+      } else {
+        newSet.add(videoId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all videos
+  const selectAll = () => {
+    setSelectedVideos(new Set(videos.map(v => v.id)));
+  };
+
+  // Deselect all
+  const deselectAll = () => {
+    setSelectedVideos(new Set());
+  };
+
+  // Add selected videos to queue
+  const addToQueue = async () => {
+    if (selectedVideos.size === 0) {
+      toast.error('No Videos Selected', {
+        description: 'Please select at least one video to add to queue.'
+      });
+      return;
+    }
+
+    setAddingToQueue(true);
+
+    try {
+      const selectedVideoData = videos
+        .filter(v => selectedVideos.has(v.id))
+        .map(v => ({
+          id: v.id,
+          name: v.name,
+          size: v.size,
+          mimeType: v.mimeType,
+          webViewLink: v.webViewLink,
+          thumbnailLink: v.thumbnailUrl || v.thumbnailLink,
+          isPublicDrive: true
+        }));
+
+      const res = await fetch('/api/drive/map', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId,
+          videos: selectedVideoData
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to add videos');
+      }
+
+      toast.success('Videos Added to Queue', {
+        description: `${data.added} video(s) added successfully.`
+      });
+
+      setSelectedVideos(new Set());
+      onVideosAdded();
+      onClose();
+
+    } catch (error: any) {
+      console.error('[Public Drive] Add to queue error:', error);
+      toast.error('Failed to Add Videos', {
+        description: error.message
+      });
+    } finally {
+      setAddingToQueue(false);
+    }
+  };
+
+  // Format file size
+  const formatSize = (bytes?: number) => {
+    if (!bytes) return 'Unknown size';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+  };
+
+  // Default thumbnail
+  const DefaultThumbnail = ({ isFolder = false }: { isFolder?: boolean }) => (
+    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
+      {isFolder ? (
+        <Folder className="h-8 w-8 text-yellow-400" />
+      ) : (
+        <FileVideo className="h-8 w-8 text-gray-400" />
+      )}
+    </div>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <LinkIcon className="h-5 w-5" />
+            Add Videos from Public Google Drive
+          </DialogTitle>
+          <DialogDescription>
+            Paste a public Google Drive folder link to browse and select videos
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 overflow-hidden flex-1 min-h-0">
+          {/* URL Input */}
+          <div className="flex gap-2 flex-shrink-0">
+            <div className="flex-1 relative">
+              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Paste Google Drive folder link..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && loadFromUrl()}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={loadFromUrl} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Browse'}
+            </Button>
+            {currentFolder && (
+              <Button variant="outline" onClick={() => fetchFolderContents(currentFolder.id)} disabled={loading}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Breadcrumb */}
+          {breadcrumb.length > 0 && (
+            <div className="flex items-center gap-1 flex-shrink-0 overflow-x-auto pb-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => {
+                  setBreadcrumb([]);
+                  setCurrentFolder(null);
+                  setFolders([]);
+                  setVideos([]);
+                }}
+              >
+                <Home className="h-4 w-4" />
+              </Button>
+              {breadcrumb.map((item, index) => (
+                <div key={item.id} className="flex items-center">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 truncate max-w-[150px]"
+                    onClick={() => navigateToBreadcrumb(index)}
+                  >
+                    {item.name}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Selection Actions */}
+          {(folders.length > 0 || videos.length > 0) && (
+            <div className="flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                {videos.length > 0 && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={selectAll}>
+                      Select All
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={deselectAll}>
+                      Deselect All
+                    </Button>
+                    <Badge variant="secondary">
+                      {selectedVideos.size} selected
+                    </Badge>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {folders.length > 0 && (
+                  <Badge variant="outline">
+                    {folders.length} folder{folders.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+                {videos.length > 0 && (
+                  <Badge variant="outline">
+                    {videos.length} video{videos.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Content - Scrollable */}
+          <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
+            <div className="p-2 space-y-2">
+              {loading && folders.length === 0 && videos.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !currentFolder && folders.length === 0 && videos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <LinkIcon className="h-12 w-12 mb-4 opacity-50" />
+                  <p>Paste a public Google Drive folder link above</p>
+                  <p className="text-sm mt-1">Make sure the folder is shared with "Anyone with the link"</p>
+                </div>
+              ) : (
+                <>
+                  {/* Folders */}
+                  {folders.map((folder) => (
+                    <div
+                      key={folder.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigateToFolder(folder)}
+                    >
+                      <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
+                        <DefaultThumbnail isFolder />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-sm">{folder.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Folder</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  ))}
+
+                  {/* Videos */}
+                  {videos.map((video) => (
+                    <div
+                      key={video.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        selectedVideos.has(video.id)
+                          ? 'bg-primary/10 border-primary'
+                          : 'hover:bg-muted/50'
+                      }`}
+                      onClick={() => toggleVideo(video.id)}
+                    >
+                      <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
+                        {video.thumbnailUrl || video.thumbnailLink ? (
+                          <img
+                            src={video.thumbnailUrl || video.thumbnailLink || ''}
+                            alt={video.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const parent = e.currentTarget.parentElement;
+                              if (parent && !parent.querySelector('.default-thumb')) {
+                                const defaultDiv = document.createElement('div');
+                                defaultDiv.className = 'default-thumb w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800';
+                                defaultDiv.innerHTML = '<svg class="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 11-2 2 2 2"/><path d="m14 11 2 2-2 2"/></svg>';
+                                parent.appendChild(defaultDiv);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <DefaultThumbnail />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-sm">{video.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatSize(video.size)} • {video.mimeType?.split('/')[1]?.toUpperCase() || 'VIDEO'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {video.webViewLink && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(video.webViewLink, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Checkbox
+                          checked={selectedVideos.has(video.id)}
+                          onCheckedChange={() => toggleVideo(video.id)}
+                          className="flex-shrink-0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Load More */}
+                  {hasMore && (
+                    <div className="flex justify-center pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={loadMore}
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : null}
+                        Load More
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={addToQueue}
+            disabled={selectedVideos.size === 0 || addingToQueue}
+          >
+            {addingToQueue ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Adding...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Add {selectedVideos.size} Video{selectedVideos.size !== 1 ? 's' : ''} to Queue
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

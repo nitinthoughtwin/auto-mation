@@ -76,10 +76,12 @@ import {
   Facebook,
   Instagram,
   HardDrive,
+  Link,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
 import DriveVideoBrowser from '@/components/DriveVideoBrowser';
+import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 
 // Helper to get Google Drive thumbnail URL from file ID or URL
 const getThumbnailUrl = (fileIdOrUrl: string | null): string | null => {
@@ -330,6 +332,7 @@ export default function YouTubeAutomationDashboard() {
 
   // Drive video browser state
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
+  const [showPublicDriveBrowser, setShowPublicDriveBrowser] = useState(false);
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -1650,7 +1653,15 @@ export default function YouTubeAutomationDashboard() {
                     className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
                   >
                     <HardDrive className="mr-2 h-4 w-4" />
-                    Add from Drive
+                    Add from My Drive
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPublicDriveBrowser(true)}
+                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
+                  >
+                    <Link className="mr-2 h-4 w-4" />
+                    Add from Link
                   </Button>
                 </div>
               </CardContent>
@@ -2048,6 +2059,17 @@ export default function YouTubeAutomationDashboard() {
         <DriveVideoBrowser
           open={showDriveBrowser}
           onClose={() => setShowDriveBrowser(false)}
+          channelId={selectedChannel?.id || ''}
+          onVideosAdded={() => {
+            loadChannelDetails(selectedChannel?.id || '');
+            loadChannels();
+          }}
+        />
+
+        {/* Public Drive Browser */}
+        <PublicDriveBrowser
+          open={showPublicDriveBrowser}
+          onClose={() => setShowPublicDriveBrowser(false)}
           channelId={selectedChannel?.id || ''}
           onVideosAdded={() => {
             loadChannelDetails(selectedChannel?.id || '');
