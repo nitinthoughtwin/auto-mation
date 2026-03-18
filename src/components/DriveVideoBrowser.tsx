@@ -15,15 +15,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Loader2, 
   Search, 
   Video, 
   CheckCircle2, 
-  Folder, 
   HardDrive,
-  AlertCircle,
   RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -240,7 +237,7 @@ export default function DriveVideoBrowser({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HardDrive className="h-5 w-5" />
@@ -251,9 +248,9 @@ export default function DriveVideoBrowser({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+        <div className="flex flex-col gap-4 overflow-hidden flex-1 min-h-0">
           {/* Search Bar */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-shrink-0">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -273,7 +270,7 @@ export default function DriveVideoBrowser({
           </div>
 
           {/* Selection Actions */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={selectAll}>
                 Select All
@@ -287,8 +284,8 @@ export default function DriveVideoBrowser({
             </div>
           </div>
 
-          {/* Video List */}
-          <ScrollArea className="flex-1 border rounded-lg h-[400px]">
+          {/* Video List - Scrollable */}
+          <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
             <div className="p-2 space-y-2">
               {loading && videos.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
@@ -369,11 +366,11 @@ export default function DriveVideoBrowser({
                 </>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Default Fields */}
           {selectedVideos.size > 0 && (
-            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/30 flex-shrink-0">
               <h4 className="font-medium text-sm">Default Values (Optional)</h4>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -409,7 +406,7 @@ export default function DriveVideoBrowser({
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
