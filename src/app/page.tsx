@@ -210,9 +210,12 @@ interface Video {
   originalName: string | null;
   fileSize: number | null;
   mimeType: string | null;
+  driveFileId?: string | null;
+  driveWebViewLink?: string | null;
   thumbnailName: string | null;
   thumbnailOriginalName: string | null;
   thumbnailSize: number | null;
+  thumbnailDriveId?: string | null;
   status: string;
   uploadedAt: string | null;
   error: string | null;

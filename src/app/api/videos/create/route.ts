@@ -54,9 +54,12 @@ export async function POST(request: NextRequest) {
         originalName,
         fileSize,
         mimeType,
-        thumbnailName: thumbnailFileId || thumbnailUrl, // Store thumbnail file ID
+        driveFileId: fileId, // Store Drive file ID for reference
+        driveWebViewLink: `https://drive.google.com/file/d/${fileId}/view`,
+        thumbnailName: thumbnailUrl || (thumbnailFileId ? `https://drive.google.com/thumbnail?id=${thumbnailFileId}` : null),
         thumbnailOriginalName,
         thumbnailSize,
+        thumbnailDriveId: thumbnailFileId,
         status: 'queued',
       },
     });

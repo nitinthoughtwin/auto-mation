@@ -1,36 +1,39 @@
 import 'server-only';
 import { db } from './db';
-import { uploadVideo, refreshAccessToken } from './youtube';
+import { uploadVideo, refreshAccessToken, setThumbnail } from './youtube';
 import { deleteFile } from './storage';
 import { downloadFromGoogleDrive, extractFileIdFromUrl } from './google-drive';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
-// Get or create random delay for the day (in minutes, -15 to +15)
-async function getRandomDelay(
-  channelId: string, 
-  randomDelayMinutes: number | null, 
-  randomDelayDate: Date | null,
-  timezone: string
-): Promise<number> {
+// Get today's date string in the channel's timezone
+function getTodayDateStr(timezone: string): string {
   const now = new Date();
-  
-  // Get today's date in the channel's timezone
   const dateFormatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   });
-  const todayStr = dateFormatter.format(now);
-  const today = new Date(todayStr);
+  return dateFormatter.format(now);
+}
+
+// Get or create random delay for the day (stored in database for persistence)
+async function getRandomDelay(channel: { id: string; randomDelayMinutes: number | null; randomDelayDate: Date | null }, timezone: string): Promise<number> {
+  const todayStr = getTodayDateStr(timezone);
   
-  // Check if we already have a delay calculated for today
-  if (randomDelayDate) {
-    const existingDateStr = dateFormatter.format(new Date(randomDelayDate));
-    if (existingDateStr === todayStr && randomDelayMinutes !== null) {
-      console.log(`[RandomDelay] Using existing delay: ${randomDelayMinutes} minutes`);
-      return randomDelayMinutes;
+  // Check if we already have a delay stored for today
+  if (channel.randomDelayDate) {
+    const storedDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(channel.randomDelayDate));
+    
+    if (storedDate === todayStr && channel.randomDelayMinutes !== null) {
+      console.log(`[RandomDelay] Using stored delay from DB: ${channel.randomDelayMinutes} minutes`);
+      return channel.randomDelayMinutes;
     }
   }
   
@@ -39,14 +42,14 @@ async function getRandomDelay(
   
   // Save to database
   await db.channel.update({
-    where: { id: channelId },
+    where: { id: channel.id },
     data: {
       randomDelayMinutes: delay,
-      randomDelayDate: today,
+      randomDelayDate: new Date(),
     },
   });
   
-  console.log(`[RandomDelay] New delay calculated: ${delay} minutes for channel ${channelId}`);
+  console.log(`[RandomDelay] New delay calculated and saved to DB: ${delay} minutes for channel ${channel.id}`);
   return delay;
 }
 
@@ -154,13 +157,8 @@ async function shouldUpload(channel: {
   const { hours: currentHours, minutes: currentMinutes } = getCurrentTimeInTimezone(timezone);
   const { hours: scheduledHours, minutes: scheduledMinutes } = convertTo24Hour(channel.uploadTime);
   
-  // Get random delay for today
-  const randomDelay = await getRandomDelay(
-    channel.id,
-    channel.randomDelayMinutes,
-    channel.randomDelayDate,
-    timezone
-  );
+  // Get random delay for today (from database)
+  const randomDelay = await getRandomDelay(channel, timezone);
   
   // Calculate actual upload time with random delay
   let actualMinutesTotal = scheduledHours * 60 + scheduledMinutes + randomDelay;
@@ -179,7 +177,7 @@ async function shouldUpload(channel: {
   // Calculate time difference in minutes
   const scheduledMinutesTotal = actualHours * 60 + actualMinutes;
   const currentMinutesTotal = currentHours * 60 + currentMinutes;
-  const timeDiff = Math.abs(currentMinutesTotal - scheduledMinutesTotal);
+  const timeDiff = currentMinutesTotal - scheduledMinutesTotal; // Positive = past scheduled time
   
   const actualTimeStr = `${String(actualHours).padStart(2, '0')}:${String(actualMinutes).padStart(2, '0')}`;
   const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
@@ -193,15 +191,31 @@ async function shouldUpload(channel: {
     randomDelayMinutes: randomDelay,
     actualUploadTime: actualTimeStr,
     timeDifferenceMinutes: timeDiff,
+    currentMinutesTotal,
+    scheduledMinutesTotal,
   };
   
   console.log('Debug info:', JSON.stringify(debugInfo, null, 2));
   
-  // Check if current time matches upload time (within 5 minutes window)
-  if (timeDiff > 5) {
+  // Check if current time is within upload window:
+  // - Must be AT or AFTER scheduled time (timeDiff >= 0)
+  // - Must be within 30 minutes AFTER scheduled time (timeDiff <= 30)
+  // - OR within 5 minutes BEFORE scheduled time (timeDiff >= -5)
+  if (timeDiff < -5) {
+    // Too early - more than 5 minutes before scheduled time
     return { 
       allowed: false, 
-      reason: `Not scheduled time. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min)`,
+      reason: `Too early. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min). Wait ${Math.abs(timeDiff)} more minutes.`,
+      debugInfo
+    };
+  }
+  
+  if (timeDiff > 30) {
+    // Too late - more than 30 minutes past scheduled time
+    // This might mean we missed the window, skip for today
+    return { 
+      allowed: false, 
+      reason: `Too late. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr}. Missed window by ${timeDiff - 30} minutes.`,
       debugInfo
     };
   }
@@ -251,17 +265,6 @@ async function shouldUpload(channel: {
       return { allowed: true, reason: 'Every 5th day ready', debugInfo };
     }
 
-    case 'every7days': {
-      if (channel.lastUploadDate) {
-        const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
-        if (daysSince < 7) {
-          return { allowed: false, reason: `Need 7 days, only ${daysSince} passed`, debugInfo };
-        }
-      }
-      return { allowed: true, reason: 'Every 7th day ready', debugInfo };
-    }
-
     case 'everySunday': {
       if (getDayOfWeekInTimezone(timezone) !== 0) {
         return { allowed: false, reason: 'Not Sunday', debugInfo };
@@ -275,82 +278,52 @@ async function shouldUpload(channel: {
       return { allowed: true, reason: 'Sunday upload ready', debugInfo };
     }
 
-    case 'everyMonday': {
-      if (getDayOfWeekInTimezone(timezone) !== 1) {
-        return { allowed: false, reason: 'Not Monday', debugInfo };
-      }
+    case 'every6h': {
+      // Upload every 6 hours - check if 6 hours have passed since last upload
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
-          return { allowed: false, reason: 'Already uploaded this Monday', debugInfo };
+        const hoursSince = (Date.now() - lastUpload.getTime()) / (1000 * 60 * 60);
+        if (hoursSince < 6) {
+          return { allowed: false, reason: `Need 6 hours, only ${hoursSince.toFixed(1)} passed`, debugInfo };
         }
       }
-      return { allowed: true, reason: 'Monday upload ready', debugInfo };
+      return { allowed: true, reason: '6-hour upload ready', debugInfo };
     }
 
-    case 'everyTuesday': {
-      if (getDayOfWeekInTimezone(timezone) !== 2) {
-        return { allowed: false, reason: 'Not Tuesday', debugInfo };
-      }
+    case 'every12h': {
+      // Upload every 12 hours - check if 12 hours have passed since last upload
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
-          return { allowed: false, reason: 'Already uploaded this Tuesday', debugInfo };
+        const hoursSince = (Date.now() - lastUpload.getTime()) / (1000 * 60 * 60);
+        if (hoursSince < 12) {
+          return { allowed: false, reason: `Need 12 hours, only ${hoursSince.toFixed(1)} passed`, debugInfo };
         }
       }
-      return { allowed: true, reason: 'Tuesday upload ready', debugInfo };
+      return { allowed: true, reason: '12-hour upload ready', debugInfo };
     }
 
-    case 'everyWednesday': {
-      if (getDayOfWeekInTimezone(timezone) !== 3) {
-        return { allowed: false, reason: 'Not Wednesday', debugInfo };
-      }
+    case 'weekly': {
+      // Upload once per week (7 days)
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
-          return { allowed: false, reason: 'Already uploaded this Wednesday', debugInfo };
+        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        if (daysSince < 7) {
+          return { allowed: false, reason: `Need 7 days, only ${daysSince} passed`, debugInfo };
         }
       }
-      return { allowed: true, reason: 'Wednesday upload ready', debugInfo };
+      return { allowed: true, reason: 'Weekly upload ready', debugInfo };
     }
 
-    case 'everyThursday': {
-      if (getDayOfWeekInTimezone(timezone) !== 4) {
-        return { allowed: false, reason: 'Not Thursday', debugInfo };
-      }
+    case 'biweekly': {
+      // Upload once every 2 weeks (14 days)
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
-          return { allowed: false, reason: 'Already uploaded this Thursday', debugInfo };
+        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        if (daysSince < 14) {
+          return { allowed: false, reason: `Need 14 days, only ${daysSince} passed`, debugInfo };
         }
       }
-      return { allowed: true, reason: 'Thursday upload ready', debugInfo };
-    }
-
-    case 'everyFriday': {
-      if (getDayOfWeekInTimezone(timezone) !== 5) {
-        return { allowed: false, reason: 'Not Friday', debugInfo };
-      }
-      if (channel.lastUploadDate) {
-        const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
-          return { allowed: false, reason: 'Already uploaded this Friday', debugInfo };
-        }
-      }
-      return { allowed: true, reason: 'Friday upload ready', debugInfo };
-    }
-
-    case 'everySaturday': {
-      if (getDayOfWeekInTimezone(timezone) !== 6) {
-        return { allowed: false, reason: 'Not Saturday', debugInfo };
-      }
-      if (channel.lastUploadDate) {
-        const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
-          return { allowed: false, reason: 'Already uploaded this Saturday', debugInfo };
-        }
-      }
-      return { allowed: true, reason: 'Saturday upload ready', debugInfo };
+      return { allowed: true, reason: 'Bi-weekly upload ready', debugInfo };
     }
 
     default:
@@ -461,7 +434,7 @@ export async function processScheduledUploads(): Promise<{
         let videoBuffer: Buffer;
         
         if (isUrl) {
-          // Download from URL (Google Drive public URL or Vercel Blob)
+          // Download from URL (Google Drive public URL)
           console.log(`Downloading video from URL: ${video.fileName}`);
           const response = await fetch(video.fileName);
           if (!response.ok) {
@@ -478,22 +451,67 @@ export async function processScheduledUploads(): Promise<{
 
         console.log(`Video downloaded, size: ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
+        // Prepare video metadata
+        const videoTitle = video.title || video.originalName || 'Untitled Video';
+        const videoDescription = video.description || '';
+        const videoTags = video.tags ? video.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+        console.log('=== Video Metadata ===');
+        console.log('Title:', videoTitle);
+        console.log('Description:', videoDescription.substring(0, 100) + (videoDescription.length > 100 ? '...' : ''));
+        console.log('Tags:', videoTags.join(', '));
+        console.log('Thumbnail:', video.thumbnailName || 'None');
+        console.log('======================');
+
         // Upload to YouTube
         const result = await uploadVideo(accessToken, channel.refreshToken, {
-          title: video.title,
-          description: video.description || '',
-          tags: video.tags ? video.tags.split(',').map(t => t.trim()) : [],
+          title: videoTitle,
+          description: videoDescription,
+          tags: videoTags,
           fileBuffer: videoBuffer,
           fileName: video.originalName || 'video.mp4',
         });
 
         if (result.success) {
+          // Upload thumbnail if available
+          if (video.thumbnailName && result.videoId) {
+            try {
+              console.log(`[Thumbnail] Uploading thumbnail for video ${result.videoId}...`);
+
+              let thumbnailBuffer: Buffer;
+
+              // Check if thumbnail is a URL
+              if (video.thumbnailName.startsWith('http')) {
+                const thumbResponse = await fetch(video.thumbnailName);
+                if (thumbResponse.ok) {
+                  const thumbArrayBuffer = await thumbResponse.arrayBuffer();
+                  thumbnailBuffer = Buffer.from(thumbArrayBuffer);
+
+                  await setThumbnail(accessToken, channel.refreshToken, result.videoId, thumbnailBuffer);
+                  console.log(`✅ [Thumbnail] Uploaded successfully`);
+                } else {
+                  console.warn(`[Thumbnail] Failed to download from URL: ${thumbResponse.status}`);
+                }
+              } else {
+                // It's a Google Drive file ID
+                const thumbFileId = extractFileIdFromUrl(video.thumbnailName) || video.thumbnailName;
+                thumbnailBuffer = await downloadFromGoogleDrive(accessToken, channel.refreshToken, thumbFileId);
+
+                await setThumbnail(accessToken, channel.refreshToken, result.videoId, thumbnailBuffer);
+                console.log(`✅ [Thumbnail] Uploaded successfully`);
+              }
+            } catch (thumbError: any) {
+              console.warn(`[Thumbnail] Upload failed (non-critical):`, thumbError.message);
+            }
+          }
+
           // Update video status
           await db.video.update({
             where: { id: video.id },
             data: {
               status: 'uploaded',
               uploadedAt: new Date(),
+              uploadedVideoId: result.videoId,
             },
           });
 

@@ -53,10 +53,12 @@ export async function POST(request: NextRequest) {
               title: title || driveVideo.name,
               description: description || '',
               tags: tags || '',
-              fileName: driveVideo.id, // Store Drive file ID
+              fileName: driveVideo.id, // Store Drive file ID as fileName
               originalName: driveVideo.name,
               fileSize: driveVideo.size,
               mimeType: driveVideo.mimeType,
+              driveFileId: driveVideo.id, // Store Drive file ID for reference
+              driveWebViewLink: driveVideo.webViewLink,
               thumbnailName: driveVideo.thumbnailLink || `https://drive.google.com/thumbnail?id=${driveVideo.id}`,
               status: 'queued'
             }
@@ -88,10 +90,12 @@ export async function POST(request: NextRequest) {
             title: title || driveVideo.name,
             description: description || '',
             tags: tags || '',
-            fileName: driveVideo.id, // Store Drive file ID
+            fileName: driveVideo.id, // Store Drive file ID as fileName
             originalName: driveVideo.name,
             fileSize: driveVideo.size,
             mimeType: driveVideo.mimeType,
+            driveFileId: driveVideo.id, // Store Drive file ID for reference
+            driveWebViewLink: driveVideo.webViewLink,
             thumbnailName: driveVideo.thumbnailLink || `https://drive.google.com/thumbnail?id=${driveVideo.id}`,
             status: 'queued'
           }
