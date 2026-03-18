@@ -17,38 +17,51 @@ interface DriveItem {
 
 // Extract ID from various Google Drive URL formats
 function extractIdFromUrl(url: string): { type: 'file' | 'folder'; id: string } | null {
+  // Clean URL - remove query parameters for better matching
+  const cleanUrl = url.split('?')[0];
+  
   // Folder patterns
   const folderPatterns = [
+    /drive\.google\.com\/drive\/mobile\/folders\/([a-zA-Z0-9_-]+)/,
     /drive\.google\.com\/drive\/folders\/([a-zA-Z0-9_-]+)/,
     /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/,
     /drive\.google\.com\/folderview\?id=([a-zA-Z0-9_-]+)/,
+    /drive\.google\.com\/drive\/u\/\d+\/folders\/([a-zA-Z0-9_-]+)/,
   ];
 
   // File patterns
   const filePatterns = [
     /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/,
-    /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/,
   ];
 
-  // Check folder patterns first
-  for (const pattern of folderPatterns) {
+  // Try original URL first (for patterns with query params)
+  for (const pattern of [...folderPatterns, ...filePatterns]) {
     const match = url.match(pattern);
+    if (match) {
+      const isFile = filePatterns.some(p => url.match(p));
+      return { type: isFile ? 'file' : 'folder', id: match[1] };
+    }
+  }
+
+  // Try cleaned URL
+  for (const pattern of folderPatterns) {
+    const match = cleanUrl.match(pattern);
     if (match) {
       return { type: 'folder', id: match[1] };
     }
   }
 
-  // Check file patterns
   for (const pattern of filePatterns) {
-    const match = url.match(pattern);
+    const match = cleanUrl.match(pattern);
     if (match) {
       return { type: 'file', id: match[1] };
     }
   }
 
   // If just an ID is provided (assuming folder)
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(url)) {
-    return { type: 'folder', id: url };
+  const trimmedUrl = url.trim();
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmedUrl)) {
+    return { type: 'folder', id: trimmedUrl };
   }
 
   return null;
@@ -57,7 +70,7 @@ function extractIdFromUrl(url: string): { type: 'file' | 'folder'; id: string } 
 // List contents of a public folder
 async function listFolderContents(folderId: string, pageToken?: string) {
   if (!GOOGLE_API_KEY) {
-    throw new Error('Google Drive API key not configured');
+    throw new Error('Google Drive API key not configured. Please add GOOGLE_DRIVE_API_KEY to your environment variables.');
   }
 
   let url = `https://www.googleapis.com/drive/v3/files?`;
@@ -75,7 +88,7 @@ async function listFolderContents(folderId: string, pageToken?: string) {
   
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error?.message || 'Failed to access folder');
+    throw new Error(error.error?.message || 'Failed to access folder. Make sure the folder is shared publicly.');
   }
 
   return response.json();
