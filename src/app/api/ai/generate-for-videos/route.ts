@@ -8,7 +8,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { channelId, videos } = body;
+    const { channelId, videos, topic } = body;
 
     if (!channelId) {
       return NextResponse.json({ error: 'Channel ID is required' }, { status: 400 });
@@ -31,9 +31,9 @@ export async function POST(request: NextRequest) {
 
       // Generate AI metadata for each video
       const results = await Promise.all(
-        queuedVideos.map(async (video) => {
+        queuedVideos.map(async (video, index) => {
           try {
-            const metadata = await generateAIMetadata(video.title);
+            const metadata = await generateAIMetadata(video.title, topic, index + 1, queuedVideos.length);
             
             // Update video in database
             await db.video.update({
@@ -63,9 +63,9 @@ export async function POST(request: NextRequest) {
 
     // Process provided videos
     const results = await Promise.all(
-      videos.map(async (video: { id: string; title: string }) => {
+      videos.map(async (video: { id: string; title: string }, index: number) => {
         try {
-          const metadata = await generateAIMetadata(video.title);
+          const metadata = await generateAIMetadata(video.title, topic, index + 1, videos.length);
           
           await db.video.update({
             where: { id: video.id },
@@ -100,34 +100,76 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function generateAIMetadata(filename: string): Promise<{ title: string; description: string; tags: string[] }> {
-  // Clean filename - remove extension and underscores
-  const cleanName = filename
-    .replace(/\.[^/.]+$/, '') // Remove extension
-    .replace(/[_\-]/g, ' ') // Replace underscores and dashes with spaces
-    .replace(/\s+/g, ' ') // Remove extra spaces
-    .trim();
+function cleanFilename(filename: string): string {
+  // Remove extension
+  let clean = filename.replace(/\.[^/.]+$/, '');
+  
+  // Remove common patterns like timestamps, random numbers
+  // Pattern: _2024, _2023, numbers at end, etc.
+  clean = clean.replace(/[_\-]?\d{4}[_\-]?\d{1,2}[_\-]?\d{1,2}[_\-]?\d{1,2}[_\-]?\d{1,2}[_\-]?(AM|PM)?\d*/gi, '');
+  clean = clean.replace(/[_\-]?\d{10,}/g, ''); // Remove long number sequences
+  clean = clean.replace(/[_\-]reel[_\-]?\d*/gi, '');
+  clean = clean.replace(/[_\-]reels?[_\-]?\d*/gi, '');
+  
+  // Replace underscores and dashes with spaces
+  clean = clean.replace(/[_\-]+/g, ' ');
+  
+  // Remove extra spaces
+  clean = clean.replace(/\s+/g, ' ').trim();
+  
+  // Capitalize first letter of each word
+  clean = clean.split(' ').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  ).join(' ');
+  
+  return clean || filename.replace(/\.[^/.]+$/, '');
+}
+
+async function generateAIMetadata(
+  filename: string, 
+  topic?: string | null,
+  videoNumber?: number,
+  totalVideos?: number
+): Promise<{ title: string; description: string; tags: string[] }> {
+  
+  const cleanName = cleanFilename(filename);
+  const topicContext = topic ? `\n\nVideo Topic/Context: "${topic}"` : '';
+  const numberSuffix = totalVideos && totalVideos > 1 ? ` Part ${videoNumber}` : '';
 
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const prompt = `You are a YouTube video SEO expert. Generate metadata for a video based on its filename.
+  const prompt = `You are a YouTube Shorts SEO expert for Indian audience. Generate viral metadata for a video.
 
-Filename: "${cleanName}"
+Original Filename: "${filename}"
+Cleaned Name: "${cleanName}"${topicContext}
 
-Generate:
-1. A catchy, SEO-optimized title in Hindi/Hinglish (max 70 characters)
-2. A detailed description in Hindi/Hinglish (150-200 words) that includes:
-   - Video content summary
-   - Key points covered
-   - Call to action for subscribe/like
-   - Relevant hashtags
-3. 5-8 relevant tags/keywords
+TASK: Create viral YouTube Shorts metadata in Hindi/Hinglish.
 
-Respond in this exact JSON format (no markdown, just pure JSON):
+RULES FOR TITLE:
+1. Maximum 60 characters (important for Shorts)
+2. Use Hindi/Hinglish language
+3. Make it CLICKBAIT and ENGAGING
+4. Include emotional words like "😭", "❤️", "🙏", "✨" if appropriate
+5. NO numbers from filename, NO dates, NO timestamps
+6. If topic is provided, use it as context${numberSuffix ? `7. Add "${numberSuffix}" at the end` : ''}
+
+RULES FOR DESCRIPTION:
+1. 100-150 words in Hindi/Hinglish
+2. Include emojis
+3. Ask viewers to subscribe, like, share
+4. Add relevant hashtags (5-8 hashtags)
+5. Make it engaging and emotional
+
+RULES FOR TAGS:
+1. Generate 8-12 relevant Hindi/English tags
+2. Include mix of short and long-tail keywords
+3. Include trending tags related to topic
+
+RESPOND IN PURE JSON ONLY (no markdown):
 {
-  "title": "Your generated title here",
-  "description": "Your generated description here with hashtags",
-  "tags": ["tag1", "tag2", "tag3"]
+  "title": "Viral title here with emoji",
+  "description": "Description with emojis and hashtags",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"]
 }`;
 
   try {
@@ -142,23 +184,22 @@ Respond in this exact JSON format (no markdown, just pure JSON):
       return {
         title: parsed.title || cleanName,
         description: parsed.description || `Video about ${cleanName}`,
-        tags: parsed.tags || []
+        tags: Array.isArray(parsed.tags) ? parsed.tags : []
       };
     }
     
-    // Fallback if parsing fails
+    // Fallback
     return {
-      title: cleanName,
-      description: `Video about ${cleanName}. Subscribe for more content!`,
-      tags: []
+      title: cleanName + numberSuffix,
+      description: `${cleanName} के बारे में यह वीडियो देखें! 🙏\n\nSubscribe करें और Like करें! ❤️\n\n#${cleanName.replace(/\s+/g, '')} #Shorts #Viral`,
+      tags: [cleanName, 'Shorts', 'Viral', 'Trending']
     };
   } catch (error) {
     console.error('Gemini API error:', error);
-    // Return basic metadata if AI fails
     return {
-      title: cleanName,
-      description: `Video about ${cleanName}. Subscribe for more content!`,
-      tags: []
+      title: cleanName + numberSuffix,
+      description: `${cleanName} के बारे में यह वीडियो देखें! 🙏 Subscribe करें! ❤️`,
+      tags: [cleanName, 'Shorts', 'Viral', 'Trending', 'India']
     };
   }
 }

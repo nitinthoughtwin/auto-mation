@@ -327,6 +327,7 @@ export default function YouTubeAutomationDashboard() {
 
   // AI Generation state
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [aiTopic, setAiTopic] = useState('');
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -1045,6 +1046,7 @@ export default function YouTubeAutomationDashboard() {
         body: JSON.stringify({
           channelId: selectedChannel.id,
           videos: queuedVideos.map(v => ({ id: v.id, title: v.title })),
+          topic: aiTopic.trim() || null,
         }),
       });
 
@@ -1701,30 +1703,49 @@ export default function YouTubeAutomationDashboard() {
           <TabsContent value="queue">
             <Card>
               <CardHeader className="pb-3 sm:pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-lg sm:text-xl">Video Queue</CardTitle>
-                    <CardDescription className="text-sm">
-                      Videos waiting to be uploaded
-                    </CardDescription>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg sm:text-xl">Video Queue</CardTitle>
+                      <CardDescription className="text-sm">
+                        Videos waiting to be uploaded
+                      </CardDescription>
+                    </div>
+                    <Button
+                      onClick={generateAITitles}
+                      disabled={generatingAI || queuedVideos.length === 0}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-10 sm:h-9 touch-manipulation"
+                    >
+                      {generatingAI ? (
+                        <>
+                          <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" />
+                          <span className="text-sm">Generating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="mr-1 sm:mr-2 h-4 w-4" />
+                          <span className="text-sm">AI Generate All</span>
+                        </>
+                      )}
+                    </Button>
                   </div>
-                  <Button
-                    onClick={generateAITitles}
-                    disabled={generatingAI || queuedVideos.length === 0}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white h-10 sm:h-9 touch-manipulation"
-                  >
-                    {generatingAI ? (
-                      <>
-                        <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" />
-                        <span className="text-sm">Generating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="mr-1 sm:mr-2 h-4 w-4" />
-                        <span className="text-sm">AI Generate All</span>
-                      </>
-                    )}
-                  </Button>
+                  {/* Topic Input for AI */}
+                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <Label htmlFor="ai-topic" className="text-sm font-medium whitespace-nowrap flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-600" />
+                      Video Topic:
+                    </Label>
+                    <Input
+                      id="ai-topic"
+                      placeholder="e.g., Premanand Ji Bhakti, Motivational Quotes, Tech News..."
+                      value={aiTopic}
+                      onChange={(e) => setAiTopic(e.target.value)}
+                      className="flex-1 h-9 text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground sm:hidden">
+                      Topic se AI better titles generate karega
+                    </p>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-6">
