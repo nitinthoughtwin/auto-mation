@@ -77,6 +77,8 @@ import {
   Instagram,
   HardDrive,
   Link,
+  Sparkles,
+  Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
@@ -333,6 +335,9 @@ export default function YouTubeAutomationDashboard() {
   // Drive video browser state
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
   const [showPublicDriveBrowser, setShowPublicDriveBrowser] = useState(false);
+
+  // AI Generation state
+  const [generatingAI, setGeneratingAI] = useState(false);
 
   // Load channels
   const loadChannels = useCallback(async () => {
@@ -1026,6 +1031,55 @@ export default function YouTubeAutomationDashboard() {
     setVideos([]);
   };
 
+  // Generate AI titles/descriptions for all queued videos
+  const generateAITitles = async () => {
+    if (!selectedChannel) return;
+    
+    setGeneratingAI(true);
+    
+    const loadingToast = toast.loading('Generating AI Metadata', {
+      description: `Analyzing ${queuedVideos.length} video(s)...`
+    });
+
+    try {
+      const res = await fetch('/api/ai/generate-for-videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId: selectedChannel.id,
+          videos: queuedVideos.map(v => ({
+            id: v.id,
+            title: v.title,
+            originalName: v.originalName
+          }))
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to generate metadata');
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success('AI Metadata Generated', {
+        description: `Updated ${data.updated} video(s) with AI-generated titles and descriptions`
+      });
+
+      // Refresh the video list
+      loadChannelDetails(selectedChannel.id);
+      loadChannels();
+
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error('AI Generation Failed', {
+        description: error.message || 'Failed to generate metadata'
+      });
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
   // Render Dashboard View
   const renderDashboard = () => (
     <div className="space-y-4 sm:space-y-6">
@@ -1672,10 +1726,28 @@ export default function YouTubeAutomationDashboard() {
           <TabsContent value="queue">
             <Card>
               <CardHeader className="pb-3 sm:pb-4">
-                <CardTitle className="text-lg sm:text-xl">Video Queue</CardTitle>
-                <CardDescription className="text-sm">
-                  Videos waiting to be uploaded
-                </CardDescription>
+                <div className="flex flex-row items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg sm:text-xl">Video Queue</CardTitle>
+                    <CardDescription className="text-sm">
+                      Videos waiting to be uploaded
+                    </CardDescription>
+                  </div>
+                  {queuedVideos.length > 0 && (
+                    <Button
+                      onClick={generateAITitles}
+                      disabled={generatingAI}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white h-9 touch-manipulation"
+                    >
+                      {generatingAI ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Wand2 className="mr-2 h-4 w-4" />
+                      )}
+                      AI Generate All
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-6">
                 {queuedVideos.length === 0 ? (
