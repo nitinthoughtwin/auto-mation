@@ -339,6 +339,7 @@ export default function YouTubeAutomationDashboard() {
   // AI Generation state
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
+  const [aiLanguage, setAiLanguage] = useState<'english' | 'hindi'>('english');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
 
   // Load channels
@@ -1080,6 +1081,7 @@ export default function YouTubeAutomationDashboard() {
           channelId: selectedChannel.id,
           videos: selectedVideos.map(v => ({ id: v.id, title: v.title })),
           topic: aiTopic.trim() || null,
+          language: aiLanguage,
         }),
       });
 
@@ -1791,7 +1793,7 @@ export default function YouTubeAutomationDashboard() {
                     </div>
                   </div>
                   {/* Topic Input for AI */}
-                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
                     <Label htmlFor="ai-topic" className="text-sm font-medium whitespace-nowrap flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-purple-600" />
                       Video Topic:
@@ -1803,6 +1805,28 @@ export default function YouTubeAutomationDashboard() {
                       onChange={(e) => setAiTopic(e.target.value)}
                       className="flex-1 h-9 text-sm"
                     />
+                    {/* Language Selector */}
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm font-medium whitespace-nowrap">Language:</Label>
+                      <div className="flex gap-1 bg-white dark:bg-gray-800 rounded-lg p-1 border">
+                        <Button
+                          variant={aiLanguage === 'english' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setAiLanguage('english')}
+                          className={`h-7 text-xs px-3 ${aiLanguage === 'english' ? 'bg-purple-600 text-white hover:bg-purple-700' : ''}`}
+                        >
+                          English
+                        </Button>
+                        <Button
+                          variant={aiLanguage === 'hindi' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setAiLanguage('hindi')}
+                          className={`h-7 text-xs px-3 ${aiLanguage === 'hindi' ? 'bg-purple-600 text-white hover:bg-purple-700' : ''}`}
+                        >
+                          Hindi
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardHeader>

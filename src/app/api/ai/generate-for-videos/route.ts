@@ -8,7 +8,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { channelId, videos, topic } = body;
+    const { channelId, videos, topic, language } = body;
 
     if (!channelId) {
       return NextResponse.json({ error: 'Channel ID is required' }, { status: 400 });
@@ -27,13 +27,15 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    const selectedLanguage = language || 'english';
+
     // Process videos one by one
     const results: Array<{ id: string; success: boolean; metadata?: { title: string; description: string; tags: string[] }; error?: string }> = [];
     
     for (let i = 0; i < videos.length; i++) {
       const video = videos[i];
       try {
-        const metadata = await generateUniqueAIMetadata(video.title, topic, i, videos.length);
+        const metadata = await generateUniqueAIMetadata(video.title, topic, i, videos.length, selectedLanguage);
         
         await db.video.update({
           where: { id: video.id },
@@ -73,34 +75,67 @@ export async function POST(request: NextRequest) {
 }
 
 // Different emotions for variety
-const emotions = [
+const emotionsEnglish = [
   'emotional and heart-touching',
   'inspiring and motivational', 
-  'devotional and spiritual',
   'powerful and intense',
-  'peaceful and calming',
   'transformative and life-changing',
   'deep and philosophical',
-  'pure and divine'
+  'captivating and engaging',
+  'shocking and surprising',
+  'uplifting and positive'
+];
+
+const emotionsHindi = [
+  'भावुक और दिल को छूने वाला',
+  'प्रेरणादायक और मोटिवेशनल',
+  'शक्तिशाली और गहरा',
+  'जीवन बदलने वाला',
+  'आध्यात्मिक और शांत',
+  'प्यारा और मधुर',
+  'चौंकाने वाला',
+  'रोमांचक'
 ];
 
 // Different content angles
-const angles = [
+const anglesEnglish = [
   'focus on a key teaching or message',
   'focus on an emotional moment',
   'focus on wisdom shared',
   'focus on life lessons',
-  'focus on spiritual connection',
-  'focus on devotion and faith',
-  'focus on inner peace',
-  'focus on personal transformation'
+  'focus on motivation',
+  'focus on personal growth',
+  'focus on shocking revelation',
+  'focus on heartwarming story'
 ];
 
-// Different description hooks
-const descriptionHooks = [
+const anglesHindi = [
+  'एक महत्वपूर्ण सीख पर ध्यान केंद्रित करें',
+  'भावुक क्षण पर ध्यान दें',
+  'ज्ञान पर ध्यान केंद्रित करें',
+  'जीवन की सीख पर ध्यान दें',
+  'प्रेरणा पर ध्यान केंद्रित करें',
+  'व्यक्तिगत विकास पर ध्यान दें',
+  'चौंकाने वाली बात पर ध्यान दें',
+  'दिल को छूने वाली कहानी पर ध्यान दें'
+];
+
+// Description hooks
+const hooksEnglish = [
+  'This video will touch your heart',
+  'You need to watch this',
+  'This changed my perspective',
+  'A must-watch moment',
+  'This will inspire you',
+  'Wait for the ending',
+  'You won\'t believe this',
+  'Life-changing content ahead'
+];
+
+const hooksHindi = [
   'यह वीडियो आपके दिल को छू जाएगी',
   'इस वीडियो में छुपा है जीवन का राज़',
-  'देखें यह अद्भुत प्रवचन',
+  'देखें यह अद्भुत वीडियो',
   'आज जानें एक खास बात',
   'यह संदेश आपकी जिंदगी बदल सकता है',
   'इसे जरूर देखें और सुनें',
@@ -108,8 +143,17 @@ const descriptionHooks = [
   'आध्यात्मिक उन्नति के लिए जरूरी'
 ];
 
-// Different CTA styles
-const ctaStyles = [
+// CTA styles
+const ctaEnglish = [
+  '🔔 Subscribe! ❤️ Like! 📲 Share!',
+  '👍 Like if you enjoyed! 🔔 Subscribe for more!',
+  '🙏 Support us - Subscribe! ❤️ Share with friends!',
+  '✨ Join our community - Subscribe! 💬 Comment below!',
+  '🔥 Don\'t miss out! Subscribe! Like! Share!',
+  '🙌 Share this video! 🔔 Hit the bell icon!'
+];
+
+const ctaHindi = [
   '🔔 Subscribe करें! ❤️ Like करें! 📲 Share करें!',
   '👍 Video पसंद आए तो Like करें! 🔔 Channel Subscribe करें!',
   '🙏 आपका समर्थन करें - Subscribe! ❤️ Share करें!',
@@ -122,57 +166,98 @@ async function generateUniqueAIMetadata(
   filename: string, 
   topic?: string | null,
   videoIndex?: number,
-  totalVideos?: number
+  totalVideos?: number,
+  language: string = 'english'
 ): Promise<{ title: string; description: string; tags: string[] }> {
   
   const hasTopic = topic && topic.trim().length > 0;
   const topicText = hasTopic ? topic!.trim() : 'Video';
+  const isHindi = language === 'hindi';
   
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  // Random selections for variety
+  // Random selections for variety based on language
+  const emotions = isHindi ? emotionsHindi : emotionsEnglish;
+  const angles = isHindi ? anglesHindi : anglesEnglish;
+  const hooks = isHindi ? hooksHindi : hooksEnglish;
+  const ctas = isHindi ? ctaHindi : ctaEnglish;
+
   const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
   const randomAngle = angles[Math.floor(Math.random() * angles.length)];
-  const randomHook = descriptionHooks[Math.floor(Math.random() * descriptionHooks.length)];
-  const randomCTA = ctaStyles[Math.floor(Math.random() * ctaStyles.length)];
+  const randomHook = hooks[Math.floor(Math.random() * hooks.length)];
+  const randomCTA = ctas[Math.floor(Math.random() * ctas.length)];
   const randomSeed = Date.now() + Math.floor(Math.random() * 100000);
   const uniqueId = Math.random().toString(36).substring(7);
 
   const videoNum = (videoIndex || 0) + 1;
 
-  const prompt = `You are a viral YouTube Shorts expert for Indian audience. Create UNIQUE title AND description for video #${videoNum}.
+  const prompt = isHindi ? `
+You are a viral YouTube Shorts title expert for Indian audience. Create UNIQUE title AND description for video #${videoNum}.
 
 TOPIC: "${topicText}"
 EMOTION: ${randomEmotion}
 ANGLE: ${randomAngle}
-HOOK STYLE: ${randomHook}
+HOOK: "${randomHook}"
+CTA: "${randomCTA}"
 SEED: ${randomSeed}-${uniqueId}
 
-== TITLE RULES ==
-1. Hindi/Hinglish (Devanagari script)
-2. End with #shorts (exact)
+== TITLE RULES (हिंदी में) ==
+1. Title MUST be in Hindi (Devanagari script) - जैसे: "प्रेमानंद जी की यह बात सुनकर रो पड़ोगे"
+2. End with #shorts (exact spelling)
 3. 40-60 characters total
 4. 1-2 emojis (🙏, ❤️, ✨, 🔥, 😭, 📿)
 5. Emotional + Clickbait
 6. NO: numbers, Part 1/2/3, dates
+7. Each title MUST be DIFFERENT and UNIQUE
 
-== DESCRIPTION RULES ==
-1. Start with emotional hook: "${randomHook}"
-2. Write 3-4 unique lines about the content (different each time!)
-3. Add hashtags: #Shorts #Viral #Trending #India #${topicText.replace(/\s+/g, '')}
+== DESCRIPTION RULES (हिंदी में) ==
+1. Start with hook: "${randomHook}"! 
+2. Write 3-4 unique lines about content in Hindi
+3. Add hashtags: #Shorts #Viral #Trending #India
+4. End with CTA: "${randomCTA}"
+5. Total 80-120 words in Hindi
+6. Make it PERSONAL and ENGAGING
+7. Each description MUST be DIFFERENT
+
+Respond ONLY with valid JSON (no markdown):
+{"title": "यहाँ हिंदी में unique title #shorts", "description": "हिंदी में description with hashtags", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12"]}
+` : `
+You are a viral YouTube Shorts title expert. Create UNIQUE title AND description for video #${videoNum}.
+
+TOPIC: "${topicText}"
+EMOTION: ${randomEmotion}
+ANGLE: ${randomAngle}
+HOOK: "${randomHook}"
+CTA: "${randomCTA}"
+SEED: ${randomSeed}-${uniqueId}
+
+== TITLE RULES (English) ==
+1. Title MUST be in English
+2. End with #shorts (exact spelling)
+3. 40-60 characters total
+4. 1-2 emojis (🙏, ❤️, ✨, 🔥, 😭, 📿)
+5. Emotional + Clickbait + Create curiosity
+6. NO: numbers, Part 1/2/3, dates
+7. Each title MUST be DIFFERENT and UNIQUE
+
+== DESCRIPTION RULES (English) ==
+1. Start with hook: "${randomHook}"!
+2. Write 3-4 unique lines about content
+3. Add hashtags: #Shorts #Viral #Trending #India
 4. End with CTA: "${randomCTA}"
 5. Total 80-120 words
 6. Make it PERSONAL and ENGAGING
-7. Each description should feel UNIQUE and DIFFERENT
+7. Each description MUST be DIFFERENT
 
-Respond ONLY with valid JSON:
-{"title": "unique title #shorts", "description": "unique description with hashtags", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12"]}`;
+Respond ONLY with valid JSON (no markdown):
+{"title": "unique english title here #shorts", "description": "english description with hashtags", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12"]}
+`;
 
   try {
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    console.log(`Gemini response for video ${videoNum}:`, text.substring(0, 300));
+    console.log(`Gemini response for video ${videoNum} (${language}):`, text.substring(0, 300));
     
     let parsed: { title?: string; description?: string; tags?: string[] } | null = null;
     
@@ -229,11 +314,11 @@ Respond ONLY with valid JSON:
     
     // Fallback
     console.log('Using fallback for video', videoNum);
-    return generateFallbackMetadata(topicText, videoIndex);
+    return generateFallbackMetadata(topicText, videoIndex, language);
 
   } catch (error) {
     console.error('Gemini API error:', error);
-    return generateFallbackMetadata(topicText, videoIndex);
+    return generateFallbackMetadata(topicText, videoIndex, language);
   }
 }
 
@@ -245,8 +330,24 @@ function generateDefaultTags(topic: string): string[] {
   return [topicTag, ...words, ...baseTags].slice(0, 12);
 }
 
-// Fallback title templates
-const titleTemplates = [
+// English fallback templates
+const titleTemplatesEnglish = [
+  (topic: string) => `This ${topic} Video Will Touch Your Heart 😭🙏 #shorts`,
+  (topic: string) => `${topic} | Life Changing Content ❤️✨ #shorts`,
+  (topic: string) => `You Need To Watch This ${topic} Video 🔥 #shorts`,
+  (topic: string) => `${topic} - Wait For The Ending 😲🙏 #shorts`,
+  (topic: string) => `This ${topic} Moment Is Precious 🙏‍♂️ #shorts`,
+  (topic: string) => `The Truth About ${topic} ✨🙏 #shorts`,
+  (topic: string) => `${topic} Changed My Life 🔥 #shorts`,
+  (topic: string) => `${topic} - Must Watch 😭❤️ #shorts`,
+  (topic: string) => `Beautiful ${topic} Moment 🙏✨ #shorts`,
+  (topic: string) => `${topic} Message For You ❤️ #shorts`,
+  (topic: string) => `Inspiring ${topic} Content 🙏🔥 #shorts`,
+  (topic: string) => `${topic} Story You Must See ✨ #shorts`,
+];
+
+// Hindi fallback templates
+const titleTemplatesHindi = [
   (topic: string) => `${topic} की यह बात सुनकर रो पड़ोगे 😭🙏 #shorts`,
   (topic: string) => `${topic} | दिल छू लेने वाला प्रवचन ❤️✨ #shorts`,
   (topic: string) => `यह ${topic} वीडियो देखकर बदल जाओगे 🔥 #shorts`,
@@ -261,8 +362,23 @@ const titleTemplates = [
   (topic: string) => `${topic} की अद्भुत कहानी ✨ #shorts`,
 ];
 
-// Fallback description templates
-const descriptionTemplates = [
+// English description templates
+const descriptionTemplatesEnglish = [
+  (topic: string, hook: string, cta: string) => `${hook}! 🙏\n\nThis ${topic} content will inspire you. Watch till the end for the full message!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Viral #Trending #India`,
+  
+  (topic: string, hook: string, cta: string) => `${hook}! ✨\n\n${topic} - This is something you need to see. Life changing content awaits!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Motivation #Inspiration`,
+  
+  (topic: string, hook: string, cta: string) => `${hook}! ❤️\n\nThis ${topic} moment will give you peace. Watch and share with loved ones!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Spiritual #Peace`,
+  
+  (topic: string, hook: string, cta: string) => `${hook}! 🔥\n\n${topic} - You won't find this anywhere else. Like and Share!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Viral #Trending`,
+  
+  (topic: string, hook: string, cta: string) => `${hook}! 🙏‍♂️\n\nThis ${topic} video will bring new light to your life. Subscribe!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Life #Wisdom`,
+  
+  (topic: string, hook: string, cta: string) => `${hook}! ✨\n\n${topic} - This will inspire you. Share with your friends!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Inspirational #Motivation`,
+];
+
+// Hindi description templates
+const descriptionTemplatesHindi = [
   (topic: string, hook: string, cta: string) => `${hook}! 🙏\n\n${topic} के बारे में यह वीडियो आपको बहुत पसंद आएगी। इसमें छुपे राज़ को जानें और अपनी जिंदगी में लागू करें।\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Viral #Trending #India`,
   
   (topic: string, hook: string, cta: string) => `${hook}! ✨\n\n${topic} से जुड़ी यह जानकारी आपके लिए बहुत महत्वपूर्ण है। पूरा देखें और सीखें!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Motivation #Inspiration`,
@@ -276,14 +392,21 @@ const descriptionTemplates = [
   (topic: string, hook: string, cta: string) => `${hook}! ✨\n\n${topic} से जुड़ी यह बात आपको प्रेरित करेगी। अपने दोस्तों के साथ Share करें!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Inspirational #Motivation`,
 ];
 
-function generateFallbackMetadata(topic: string, videoIndex?: number): { title: string; description: string; tags: string[] } {
+function generateFallbackMetadata(topic: string, videoIndex?: number, language: string = 'english'): { title: string; description: string; tags: string[] } {
+  const isHindi = language === 'hindi';
+  
+  const titleTemplates = isHindi ? titleTemplatesHindi : titleTemplatesEnglish;
+  const descriptionTemplates = isHindi ? descriptionTemplatesHindi : descriptionTemplatesEnglish;
+  const hooks = isHindi ? hooksHindi : hooksEnglish;
+  const ctas = isHindi ? ctaHindi : ctaEnglish;
+  
   const titleIndex = videoIndex !== undefined ? videoIndex % titleTemplates.length : Math.floor(Math.random() * titleTemplates.length);
   const descIndex = videoIndex !== undefined ? videoIndex % descriptionTemplates.length : Math.floor(Math.random() * descriptionTemplates.length);
-  const hookIndex = videoIndex !== undefined ? videoIndex % descriptionHooks.length : Math.floor(Math.random() * descriptionHooks.length);
-  const ctaIndex = videoIndex !== undefined ? videoIndex % ctaStyles.length : Math.floor(Math.random() * ctaStyles.length);
+  const hookIndex = videoIndex !== undefined ? videoIndex % hooks.length : Math.floor(Math.random() * hooks.length);
+  const ctaIndex = videoIndex !== undefined ? videoIndex % ctas.length : Math.floor(Math.random() * ctas.length);
   
   const title = titleTemplates[titleIndex](topic);
-  const description = descriptionTemplates[descIndex](topic, descriptionHooks[hookIndex], ctaStyles[ctaIndex]);
+  const description = descriptionTemplates[descIndex](topic, hooks[hookIndex], ctas[ctaIndex]);
   
   return {
     title,
