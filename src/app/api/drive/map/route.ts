@@ -31,6 +31,11 @@ export async function POST(request: NextRequest) {
 
     for (const driveVideo of videos) {
       try {
+        // Parse size as integer
+        const videoSize = typeof driveVideo.size === 'string' 
+          ? parseInt(driveVideo.size, 10) 
+          : (driveVideo.size || 0);
+
         // Check if already mapped
         const existing = await db.driveVideo.findUnique({
           where: { driveFileId: driveVideo.id }
@@ -55,7 +60,7 @@ export async function POST(request: NextRequest) {
               tags: tags || '',
               fileName: driveVideo.id, // Store Drive file ID as fileName
               originalName: driveVideo.name,
-              fileSize: driveVideo.size,
+              fileSize: videoSize,
               mimeType: driveVideo.mimeType,
               driveFileId: driveVideo.id, // Store Drive file ID for reference
               driveWebViewLink: driveVideo.webViewLink,
@@ -78,7 +83,7 @@ export async function POST(request: NextRequest) {
             mimeType: driveVideo.mimeType,
             webViewLink: driveVideo.webViewLink,
             thumbnailLink: driveVideo.thumbnailLink,
-            size: driveVideo.size,
+            size: videoSize,
             addedToQueue: true
           }
         });
@@ -92,7 +97,7 @@ export async function POST(request: NextRequest) {
             tags: tags || '',
             fileName: driveVideo.id, // Store Drive file ID as fileName
             originalName: driveVideo.name,
-            fileSize: driveVideo.size,
+            fileSize: videoSize,
             mimeType: driveVideo.mimeType,
             driveFileId: driveVideo.id, // Store Drive file ID for reference
             driveWebViewLink: driveVideo.webViewLink,

@@ -288,7 +288,7 @@ export default function DriveVideoBrowser({
           </div>
 
           {/* Video List */}
-          <ScrollArea className="flex-1 border rounded-lg">
+          <ScrollArea className="flex-1 border rounded-lg h-[400px]">
             <div className="p-2 space-y-2">
               {loading && videos.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
@@ -316,9 +316,9 @@ export default function DriveVideoBrowser({
                     >
                       {/* Thumbnail */}
                       <div className="w-24 h-14 bg-muted rounded overflow-hidden flex-shrink-0 relative">
-                        {video.thumbnailUrl ? (
+                        {video.thumbnailUrl || video.thumbnailLink ? (
                           <img
-                            src={video.thumbnailUrl}
+                            src={video.thumbnailUrl || video.thumbnailLink || ''}
                             alt={video.name}
                             className="w-full h-full object-cover"
                           />
