@@ -1310,8 +1310,13 @@ export default function YouTubeAutomationDashboard() {
                               variant="destructive" 
                               size="sm"
                               className="h-8 w-8 sm:w-auto touch-manipulation"
+                              disabled={deletingChannelId === channel.id}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {deletingChannelId === channel.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
@@ -1325,9 +1330,17 @@ export default function YouTubeAutomationDashboard() {
                               <AlertDialogCancel className="w-full sm:w-auto touch-manipulation">Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteChannel(channel.id)}
+                                disabled={deletingChannelId === channel.id}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto touch-manipulation"
                               >
-                                Disconnect
+                                {deletingChannelId === channel.id ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    Disconnecting...
+                                  </>
+                                ) : (
+                                  'Disconnect'
+                                )}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
