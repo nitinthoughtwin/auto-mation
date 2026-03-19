@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -21,9 +20,8 @@ import {
   ChevronRight,
   ChevronLeft,
   HardDrive,
-  FileVideo,
   Play,
-  X
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -216,17 +214,26 @@ export default function DriveVideoBrowser({
     return `https://drive.google.com/file/d/${fileId}/preview`;
   };
 
+  // Reset on close
+  const handleClose = () => {
+    setFolders([]);
+    setFiles([]);
+    setSelectedFiles(new Set());
+    setFolderStack([]);
+    onClose();
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onClose}>
+      <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <HardDrive className="h-5 w-5 text-blue-500" />
-              Add Videos from Google Drive
+              Add Videos from My Google Drive
             </DialogTitle>
             <DialogDescription>
-              Browse your Google Drive, preview and select videos to add to the queue
+              Browse your Google Drive, play videos and select them
             </DialogDescription>
           </DialogHeader>
 
@@ -244,7 +251,7 @@ export default function DriveVideoBrowser({
             </div>
             <div className="ml-auto flex items-center gap-2">
               {selectedFiles.size > 0 && (
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                   {selectedFiles.size} selected
                 </Badge>
               )}
@@ -284,7 +291,7 @@ export default function DriveVideoBrowser({
                 {files.filter(f => isVideo(f.mimeType)).map((file) => (
                   <Card 
                     key={file.id}
-                    className={`cursor-pointer transition-all hover:shadow-md group ${
+                    className={`cursor-pointer transition-all hover:shadow-md ${
                       selectedFiles.has(file.id) 
                         ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
                         : ''
@@ -303,37 +310,47 @@ export default function DriveVideoBrowser({
                         </div>
                       )}
                       
-                      {/* Play Button Overlay */}
+                      {/* Play Button - Always Visible */}
                       <button
-                        className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           setPreviewVideo(file);
                         }}
+                        title="Click to play preview"
                       >
-                        <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                          <Play className="h-6 w-6 text-blue-600 ml-1" />
+                        <div className="w-14 h-14 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                          <Play className="h-7 w-7 text-blue-600 ml-1" />
                         </div>
                       </button>
 
                       {/* Selection Check */}
                       {selectedFiles.has(file.id) && (
-                        <div className="absolute top-2 right-2">
+                        <div className="absolute top-2 left-2">
                           <CheckCircle2 className="h-6 w-6 text-blue-500 bg-white rounded-full" />
                         </div>
                       )}
 
                       <Badge 
                         variant="secondary" 
-                        className="absolute bottom-2 right-2 text-xs bg-black/60 text-white"
+                        className="absolute bottom-2 right-2 text-xs bg-black/70 text-white"
                       >
                         {formatSize(file.size)}
                       </Badge>
                     </div>
-                    <CardContent className="p-2" onClick={() => toggleFile(file.id)}>
-                      <p className="text-xs truncate font-medium" title={file.name}>
-                        {file.name.replace(/\.[^/.]+$/, '')}
-                      </p>
+                    <CardContent className="p-2">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedFiles.has(file.id)}
+                          onChange={() => toggleFile(file.id)}
+                          className="mt-1 h-4 w-4 rounded border-gray-300"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <p className="text-xs truncate flex-1 font-medium" title={file.name}>
+                          {file.name.replace(/\.[^/.]+$/, '')}
+                        </p>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -350,7 +367,7 @@ export default function DriveVideoBrowser({
           </div>
 
           <DialogFooter className="border-t pt-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
             <Button 
@@ -376,17 +393,8 @@ export default function DriveVideoBrowser({
 
       {/* Video Preview Dialog */}
       <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="text-lg truncate pr-8">
-              {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-            </DialogTitle>
-            <DialogDescription>
-              {formatSize(previewVideo?.size)} • Click outside to close
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="aspect-video bg-black rounded-lg overflow-hidden">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden p-0">
+          <div className="bg-black aspect-video w-full relative">
             {previewVideo && (
               <iframe
                 src={getVideoPreviewUrl(previewVideo.id)}
@@ -396,37 +404,61 @@ export default function DriveVideoBrowser({
               />
             )}
           </div>
-
-          <DialogFooter className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setPreviewVideo(null)}
-            >
-              Close
-            </Button>
-            <Button 
-              onClick={() => {
-                if (previewVideo) {
-                  toggleFile(previewVideo.id);
-                  setPreviewVideo(null);
-                }
-              }}
-              disabled={previewVideo && selectedFiles.has(previewVideo.id)}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {previewVideo && selectedFiles.has(previewVideo.id) ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Already Selected
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Select This Video
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+          
+          <div className="p-4 bg-background">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium truncate">
+                  {previewVideo?.name.replace(/\.[^/.]+$/, '')}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Size: {formatSize(previewVideo?.size)}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 flex-wrap">
+              <Button 
+                variant="outline" 
+                onClick={() => setPreviewVideo(null)}
+              >
+                Close
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  if (previewVideo) {
+                    window.open(`https://drive.google.com/file/d/${previewVideo.id}/view`, '_blank');
+                  }
+                }}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in Drive
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (previewVideo) {
+                    toggleFile(previewVideo.id);
+                    setPreviewVideo(null);
+                  }
+                }}
+                disabled={previewVideo ? selectedFiles.has(previewVideo.id) : false}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {previewVideo && selectedFiles.has(previewVideo.id) ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Already Selected
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Select This Video
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -20,7 +20,10 @@ import {
   CheckCircle2,
   Link2,
   ExternalLink,
-  Play
+  Play,
+  AlertTriangle,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,6 +35,7 @@ interface DriveFile {
   thumbnail?: string;
   createdTime?: string;
   url: string;
+  accessible?: boolean; // New field
 }
 
 interface PublicDriveBrowserProps {
@@ -53,18 +57,16 @@ export default function PublicDriveBrowser({
   const [loading, setLoading] = useState(false);
   const [mapping, setMapping] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<DriveFile | null>(null);
+  const [validatingFiles, setValidatingFiles] = useState<Set<string>>(new Set());
 
   // Extract folder ID from Google Drive URL
   const extractFolderId = (url: string): string | null => {
-    // https://drive.google.com/drive/folders/FOLDER_ID
     const match1 = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
     if (match1) return match1[1];
     
-    // https://drive.google.com/drive/u/0/folders/FOLDER_ID
     const match2 = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
     if (match2) return match2[1];
     
-    // Just folder ID
     if (/^[a-zA-Z0-9_-]{20,}$/.test(url)) return url;
     
     return null;
@@ -96,7 +98,13 @@ export default function PublicDriveBrowser({
         return;
       }
 
-      setFiles(data.files || []);
+      // Add accessible flag to each file (default: true, will be validated)
+      const filesWithStatus = (data.files || []).map((f: DriveFile) => ({
+        ...f,
+        accessible: true // Default to true, user can validate
+      }));
+      
+      setFiles(filesWithStatus);
       
       if (data.files?.length === 0) {
         toast.info('No Videos Found', {
@@ -104,7 +112,7 @@ export default function PublicDriveBrowser({
         });
       } else {
         toast.success('Videos Loaded', {
-          description: `Found ${data.files.length} video(s) in the folder`
+          description: `Found ${data.files.length} video(s). Click Play button to preview!`
         });
       }
     } catch (error) {
@@ -137,6 +145,46 @@ export default function PublicDriveBrowser({
     setSelectedFiles(new Set());
   };
 
+  // Validate single video accessibility
+  const validateVideo = async (fileId: string) => {
+    setValidatingFiles(prev => new Set(prev).add(fileId));
+    
+    try {
+      // Try to fetch video header to check accessibility
+      const videoUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      const response = await fetch(videoUrl, { method: 'HEAD' });
+      
+      const isAccessible = response.ok || response.status === 302;
+      
+      setFiles(prev => prev.map(f => 
+        f.id === fileId ? { ...f, accessible: isAccessible } : f
+      ));
+      
+      if (isAccessible) {
+        toast.success('Video Accessible', {
+          description: 'This video can be downloaded successfully'
+        });
+      } else {
+        toast.error('Video Not Accessible', {
+          description: 'This video may fail during upload. Try playing it first.'
+        });
+      }
+    } catch (error) {
+      setFiles(prev => prev.map(f => 
+        f.id === fileId ? { ...f, accessible: false } : f
+      ));
+      toast.warning('Cannot Verify', {
+        description: 'Could not verify video accessibility. It might still work.'
+      });
+    } finally {
+      setValidatingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(fileId);
+        return newSet;
+      });
+    }
+  };
+
   // Map selected videos to queue
   const mapVideosToQueue = async () => {
     if (selectedFiles.size === 0) {
@@ -162,7 +210,7 @@ export default function PublicDriveBrowser({
             size: v.size,
             mimeType: v.mimeType,
             thumbnail: v.thumbnail,
-            title: v.name.replace(/\.[^/.]+$/, ''), // Remove extension
+            title: v.name.replace(/\.[^/.]+$/, ''),
           }))
         })
       });
@@ -274,7 +322,7 @@ export default function PublicDriveBrowser({
                 {files.map((file) => (
                   <Card 
                     key={file.id}
-                    className={`cursor-pointer transition-all hover:shadow-md group ${
+                    className={`cursor-pointer transition-all hover:shadow-md ${
                       selectedFiles.has(file.id) 
                         ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
                         : ''
@@ -294,37 +342,48 @@ export default function PublicDriveBrowser({
                         </div>
                       )}
                       
-                      {/* Play Button Overlay */}
+                      {/* Play Button - Always Visible */}
                       <button
-                        className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           setPreviewVideo(file);
                         }}
+                        title="Click to play preview"
                       >
-                        <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                          <Play className="h-6 w-6 text-green-600 ml-1" />
+                        <div className="w-14 h-14 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                          <Play className="h-7 w-7 text-green-600 ml-1" />
                         </div>
                       </button>
 
                       {/* Selection Check */}
                       {selectedFiles.has(file.id) && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircle2 className="h-6 w-6 text-green-500 bg-white rounded-full" />
+                        <div className="absolute top-2 left-2">
+                          <CheckCircle2 className="h-6 w-6 text-blue-500 bg-white rounded-full" />
                         </div>
                       )}
 
+                      {/* File Size */}
                       <Badge 
                         variant="secondary" 
-                        className="absolute bottom-2 right-2 text-xs bg-black/60 text-white"
+                        className="absolute bottom-2 right-2 text-xs bg-black/70 text-white"
                       >
                         {formatSize(file.size)}
                       </Badge>
                     </div>
-                    <CardContent className="p-2" onClick={() => toggleFile(file.id)}>
-                      <p className="text-xs truncate font-medium" title={file.name}>
-                        {file.name.replace(/\.[^/.]+$/, '')}
-                      </p>
+                    <CardContent className="p-2">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedFiles.has(file.id)}
+                          onChange={() => toggleFile(file.id)}
+                          className="mt-1 h-4 w-4 rounded border-gray-300"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <p className="text-xs truncate flex-1 font-medium" title={file.name}>
+                          {file.name.replace(/\.[^/.]+$/, '')}
+                        </p>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -357,19 +416,10 @@ export default function PublicDriveBrowser({
         </DialogContent>
       </Dialog>
 
-      {/* Video Preview Dialog */}
+      {/* Video Preview Dialog - Full Screen Style */}
       <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="text-lg truncate pr-8">
-              {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-            </DialogTitle>
-            <DialogDescription>
-              {formatSize(previewVideo?.size)} • Click outside to close
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="aspect-video bg-black rounded-lg overflow-hidden">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden p-0">
+          <div className="bg-black aspect-video w-full relative">
             {previewVideo && (
               <iframe
                 src={getVideoPreviewUrl(previewVideo.id)}
@@ -379,37 +429,61 @@ export default function PublicDriveBrowser({
               />
             )}
           </div>
-
-          <DialogFooter className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setPreviewVideo(null)}
-            >
-              Close
-            </Button>
-            <Button 
-              onClick={() => {
-                if (previewVideo) {
-                  toggleFile(previewVideo.id);
-                  setPreviewVideo(null);
-                }
-              }}
-              disabled={previewVideo ? selectedFiles.has(previewVideo.id) : false}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {previewVideo && selectedFiles.has(previewVideo.id) ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Already Selected
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Select This Video
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+          
+          <div className="p-4 bg-background">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium truncate">
+                  {previewVideo?.name.replace(/\.[^/.]+$/, '')}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Size: {formatSize(previewVideo?.size)}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 flex-wrap">
+              <Button 
+                variant="outline" 
+                onClick={() => setPreviewVideo(null)}
+              >
+                Close
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  if (previewVideo) {
+                    window.open(`https://drive.google.com/file/d/${previewVideo.id}/view`, '_blank');
+                  }
+                }}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in Drive
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (previewVideo) {
+                    toggleFile(previewVideo.id);
+                    setPreviewVideo(null);
+                  }
+                }}
+                disabled={previewVideo ? selectedFiles.has(previewVideo.id) : false}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {previewVideo && selectedFiles.has(previewVideo.id) ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Already Selected
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Select This Video
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>
