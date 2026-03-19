@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,21 +10,20 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// User table
 model User {
-  id           String   @id @default(cuid())
-  name         String?
-  email        String?  @unique
+  id            String         @id @default(cuid())
+  name          String?
+  email         String?        @unique
   emailVerified DateTime?
-  image        String?
-  password     String?
-  role         String   @default("user")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  accounts     Account[]
-  sessions     Session[]
-  channels     Channel[]
-  driveVideos  DriveVideo[]
+  image         String?
+  password      String?
+  role          String         @default("user")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  accounts      Account[]
+  channels      Channel[]
+  sessions      Session[]
+  subscriptions Subscription[]
 }
 
 model Account {
@@ -43,8 +39,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -65,32 +60,26 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// Channel - Multi-platform support (YouTube, Instagram, Facebook)
 model Channel {
-  id                  String    @id @default(cuid())
-  userId              String?
-  name                String
-  platform            String    @default("youtube") // youtube, instagram, facebook
-  youtubeChannelId    String?   @unique
-  instagramAccountId  String?   @unique
-  facebookPageId      String?   @unique
-  facebookPageName    String?
-  accessToken         String
-  refreshToken        String
-  uploadTime          String    @default("18:00")
-  frequency           String    @default("daily")
-  timezone            String    @default("Asia/Kolkata")
-  isActive            Boolean   @default(true)
-  lastUploadDate      DateTime?
-  randomDelayMinutes  Int?      // Random delay max minutes (0-180)
-  randomDelayDate     DateTime? // Date for which random delay was calculated
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  user                User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  videos              Video[]
+  id                 String    @id @default(cuid())
+  userId             String?
+  name               String
+  youtubeChannelId   String    @unique
+  accessToken        String
+  refreshToken       String
+  uploadTime         String    @default("18:00")
+  frequency          String    @default("daily")
+  timezone           String    @default("Asia/Kolkata")
+  isActive           Boolean   @default(true)
+  lastUploadDate     DateTime?
+  randomDelayMinutes Int?
+  randomDelayDate    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User?     @relation(fields: [userId], references: [id])
+  videos             Video[]
 }
 
-// Video queue for uploads
 model Video {
   id                    String    @id @default(cuid())
   channelId             String
@@ -101,40 +90,18 @@ model Video {
   originalName          String?
   fileSize              Int?
   mimeType              String?
-  driveFileId           String?   // Google Drive file ID for mapped videos
-  driveWebViewLink      String?   // Google Drive web view link
-  thumbnailName         String?
-  thumbnailOriginalName String?
-  thumbnailSize         Int?
-  thumbnailDriveId      String?   // Google Drive thumbnail file ID
-  status                String    @default("queued") // queued, uploading, uploaded, failed
+  status                String    @default("queued")
   uploadedAt            DateTime?
-  uploadedVideoId       String?   // Platform video ID after upload
   error                 String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  thumbnailName         String?
+  thumbnailOriginalName String?
+  thumbnailSize         Int?
+  uploadedVideoId       String?
   channel               Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
 }
 
-// Google Drive Video Mapping - Store mapped Drive videos
-model DriveVideo {
-  id            String   @id @default(cuid())
-  userId        String
-  channelId     String?  // Optional - if assigned to a channel
-  driveFileId   String   @unique
-  name          String
-  mimeType      String
-  webViewLink   String?
-  thumbnailLink String?
-  size          Int?
-  createdTime   DateTime?
-  addedToQueue  Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// Scheduler logs
 model SchedulerLog {
   id        String   @id @default(cuid())
   channelId String
@@ -143,4 +110,81 @@ model SchedulerLog {
   status    String
   message   String?
   createdAt DateTime @default(now())
+}
+
+model Plan {
+  id                    String         @id @default(cuid())
+  name                  String         @unique
+  displayName           String
+  description           String?
+  priceINR              Int            @default(0)
+  priceUSD              Int            @default(0)
+  yearlyDiscountPercent Int?
+  maxVideosPerMonth     Int            @default(10)
+  maxChannels           Int            @default(1)
+  maxStorageMB          Int            @default(500)
+  aiCreditsPerMonth     Int            @default(10)
+  maxVideoSizeMB        Int            @default(100)
+  features              String
+  isActive              Boolean        @default(true)
+  sortOrder             Int            @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  subscriptions         Subscription[]
+}
+
+model Subscription {
+  id                     String    @id @default(cuid())
+  userId                 String
+  planId                 String
+  status                 String    @default("active")
+  currentPeriodStart     DateTime  @default(now())
+  currentPeriodEnd       DateTime
+  trialEndsAt            DateTime?
+  cancelledAt            DateTime?
+  cancelAtPeriodEnd      Boolean   @default(false)
+  razorpaySubscriptionId String?
+  razorpayPlanId         String?
+  stripeSubscriptionId   String?
+  stripePlanId           String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  payments               Payment[]
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                   Plan      @relation(fields: [planId], references: [id])
+  usage                  Usage?
+}
+
+model Payment {
+  id                    String       @id @default(cuid())
+  subscriptionId        String
+  amount                Int
+  currency              String       @default("INR")
+  status                String       @default("pending")
+  paymentMethod         String?
+  razorpayOrderId       String?
+  razorpayPaymentId     String?
+  razorpaySignature     String?
+  stripePaymentIntentId String?
+  invoiceNumber         String?
+  invoiceUrl            String?
+  gstAmount             Int?
+  gstPercentage         Float?       @default(18.0)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  subscription          Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model Usage {
+  id                String       @id @default(cuid())
+  subscriptionId    String       @unique
+  videosUploaded    Int          @default(0)
+  videosThisMonth   Int          @default(0)
+  channelsConnected Int          @default(0)
+  storageUsedMB     Float        @default(0)
+  aiCreditsUsed     Int          @default(0)
+  lastResetAt       DateTime     @default(now())
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 }
