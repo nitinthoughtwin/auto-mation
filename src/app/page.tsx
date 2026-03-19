@@ -303,6 +303,10 @@ export default function YouTubeAutomationDashboard() {
   const [uploading, setUploading] = useState(false);
   const [runningScheduler, setRunningScheduler] = useState(false);
   const [view, setView] = useState<'dashboard' | 'channel'>('dashboard');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [loadingChannel, setLoadingChannel] = useState(false);
+  const [togglingChannelId, setTogglingChannelId] = useState<string | null>(null);
+  const [deletingChannelId, setDeletingChannelId] = useState<string | null>(null);
 
   // Upload form state
   const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
@@ -517,9 +521,7 @@ export default function YouTubeAutomationDashboard() {
   const updateChannelSettings = async () => {
     if (!selectedChannel) return;
 
-    const loadingToast = toast.loading('Saving Settings', {
-      description: 'Updating channel configuration...',
-    });
+    setSavingSettings(true);
 
     try {
       await api.channels.update(selectedChannel.id, {
@@ -527,29 +529,26 @@ export default function YouTubeAutomationDashboard() {
         frequency: editSettings.frequency,
         randomDelayMinutes: editSettings.randomDelayEnabled ? editSettings.randomDelayMinutes : null,
       });
-      toast.dismiss(loadingToast);
       toast.success('Settings Saved', {
         description: `Upload schedule updated: ${editSettings.frequency} at ${editSettings.uploadTime}`,
       });
       loadChannelDetails(selectedChannel.id);
       loadChannels();
     } catch (error) {
-      toast.dismiss(loadingToast);
       toast.error('Failed to Save Settings', {
         description: 'Could not update channel settings. Please try again.',
       });
+    } finally {
+      setSavingSettings(false);
     }
   };
 
   // Toggle channel active status
   const toggleChannelActive = async (channel: Channel) => {
-    const loadingToast = toast.loading(channel.isActive ? 'Pausing Channel' : 'Activating Channel', {
-      description: `Updating ${channel.name} status...`,
-    });
+    setTogglingChannelId(channel.id);
     
     try {
       await api.channels.update(channel.id, { isActive: !channel.isActive });
-      toast.dismiss(loadingToast);
       if (channel.isActive) {
         toast.success('Channel Paused', {
           description: `${channel.name} has been paused. Scheduled uploads will not run.`,
@@ -564,23 +563,21 @@ export default function YouTubeAutomationDashboard() {
         loadChannelDetails(channel.id);
       }
     } catch (error) {
-      toast.dismiss(loadingToast);
       toast.error('Failed to Update Status', {
         description: 'Could not change channel status. Please try again.',
       });
+    } finally {
+      setTogglingChannelId(null);
     }
   };
 
   // Delete channel
   const deleteChannel = async (channelId: string) => {
     const channel = channels.find(c => c.id === channelId);
-    const loadingToast = toast.loading('Disconnecting Channel', {
-      description: `Removing ${channel?.name || 'Channel'} and all queued videos...`,
-    });
+    setDeletingChannelId(channelId);
     
     try {
       await api.channels.delete(channelId);
-      toast.dismiss(loadingToast);
       toast.success('Channel Disconnected', {
         description: `${channel?.name || 'Channel'} has been removed along with all queued videos.`,
       });
@@ -590,10 +587,11 @@ export default function YouTubeAutomationDashboard() {
         setView('dashboard');
       }
     } catch (error) {
-      toast.dismiss(loadingToast);
       toast.error('Failed to Disconnect Channel', {
         description: 'Could not remove the channel. Please try again.',
       });
+    } finally {
+      setDeletingChannelId(null);
     }
   };
 
@@ -1283,11 +1281,15 @@ export default function YouTubeAutomationDashboard() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Switch
-                          checked={channel.isActive}
-                          onCheckedChange={() => toggleChannelActive(channel)}
-                          className="touch-manipulation"
-                        />
+                        {togglingChannelId === channel.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          <Switch
+                            checked={channel.isActive}
+                            onCheckedChange={() => toggleChannelActive(channel)}
+                            className="touch-manipulation"
+                          />
+                        )}
                         <span className={`hidden sm:inline ${channel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
                           {channel.isActive ? 'Active' : 'Paused'}
                         </span>
@@ -1435,11 +1437,15 @@ export default function YouTubeAutomationDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Switch
-              checked={selectedChannel.isActive}
-              onCheckedChange={() => toggleChannelActive(selectedChannel)}
-              className="touch-manipulation"
-            />
+            {togglingChannelId === selectedChannel.id ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <Switch
+                checked={selectedChannel.isActive}
+                onCheckedChange={() => toggleChannelActive(selectedChannel)}
+                className="touch-manipulation"
+              />
+            )}
             <span className={`hidden sm:inline ${selectedChannel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
               {selectedChannel.isActive ? 'Active' : 'Paused'}
             </span>
@@ -1617,9 +1623,17 @@ export default function YouTubeAutomationDashboard() {
 
                 <Button 
                   onClick={updateChannelSettings}
+                  disabled={savingSettings}
                   className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation"
                 >
-                  Save Settings
+                  {savingSettings ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Settings'
+                  )}
                 </Button>
               </CardContent>
             </Card>
