@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import Stripe from 'stripe';
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the plan
-    const plan = await prisma.plan.findUnique({
+    const plan = await db.plan.findUnique({
       where: { id: planId },
     });
 

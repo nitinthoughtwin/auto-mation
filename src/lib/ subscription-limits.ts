@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 
 interface LimitCheckResult {
   allowed: boolean;
@@ -9,7 +9,7 @@ interface LimitCheckResult {
 
 export async function checkUserLimits(userId: string, type: 'video' | 'channel' | 'storage' | 'ai', additionalBytes?: number): Promise<LimitCheckResult> {
   // Get user's active subscription with plan
-  const subscription = await prisma.subscription.findFirst({
+  const subscription = await db.subscription.findFirst({
     where: {
       userId,
       status: { in: ['active', 'trialing'] },
@@ -26,7 +26,7 @@ export async function checkUserLimits(userId: string, type: 'video' | 'channel' 
 
   switch (type) {
     case 'video': {
-      const currentCount = await prisma.video.count({
+      const currentCount = await db.video.count({
         where: {
           channel: { userId },
           createdAt: {
@@ -45,7 +45,7 @@ export async function checkUserLimits(userId: string, type: 'video' | 'channel' 
     }
 
     case 'channel': {
-      const currentCount = await prisma.channel.count({
+      const currentCount = await db.channel.count({
         where: { userId },
       });
       const limit = subscription.plan.maxChannels;
@@ -58,7 +58,7 @@ export async function checkUserLimits(userId: string, type: 'video' | 'channel' 
     }
 
     case 'storage': {
-      const videos = await prisma.video.findMany({
+      const videos = await db.video.findMany({
         where: { channel: { userId } },
         select: { fileSize: true, thumbnailSize: true },
       });
@@ -90,7 +90,7 @@ export async function checkUserLimits(userId: string, type: 'video' | 'channel' 
 }
 
 export async function checkVideoFileSize(userId: string, fileSizeBytes: number): Promise<LimitCheckResult> {
-  const subscription = await prisma.subscription.findFirst({
+  const subscription = await db.subscription.findFirst({
     where: {
       userId,
       status: { in: ['active', 'trialing'] },
@@ -114,7 +114,7 @@ export async function checkVideoFileSize(userId: string, fileSizeBytes: number):
 }
 
 export async function incrementVideoCount(userId: string): Promise<void> {
-  const subscription = await prisma.subscription.findFirst({
+  const subscription = await db.subscription.findFirst({
     where: {
       userId,
       status: { in: ['active', 'trialing'] },
@@ -123,7 +123,7 @@ export async function incrementVideoCount(userId: string): Promise<void> {
   });
 
   if (subscription?.usage) {
-    await prisma.usage.update({
+    await db.usage.update({
       where: { id: subscription.usage.id },
       data: {
         videosThisMonth: { increment: 1 },
@@ -134,7 +134,7 @@ export async function incrementVideoCount(userId: string): Promise<void> {
 }
 
 export async function incrementStorageUsed(userId: string, additionalBytes: number): Promise<void> {
-  const subscription = await prisma.subscription.findFirst({
+  const subscription = await db.subscription.findFirst({
     where: {
       userId,
       status: { in: ['active', 'trialing'] },
@@ -144,7 +144,7 @@ export async function incrementStorageUsed(userId: string, additionalBytes: numb
 
   if (subscription?.usage) {
     const additionalMB = additionalBytes / (1024 * 1024);
-    await prisma.usage.update({
+    await db.usage.update({
       where: { id: subscription.usage.id },
       data: {
         storageUsedMB: { increment: additionalMB },
@@ -154,7 +154,7 @@ export async function incrementStorageUsed(userId: string, additionalBytes: numb
 }
 
 export async function getRemainingCredits(userId: string): Promise<number> {
-  const subscription = await prisma.subscription.findFirst({
+  const subscription = await db.subscription.findFirst({
     where: {
       userId,
       status: { in: ['active', 'trialing'] },

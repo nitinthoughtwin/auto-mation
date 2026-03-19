@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import crypto from 'crypto';
+
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the payment record
-    const payment = await prisma.payment.findFirst({
+    const payment = await db.payment.findFirst({
       where: { razorpayOrderId: razorpay_order_id },
       include: {
         subscription: true,
@@ -49,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update payment status
-    await prisma.payment.update({
+    await db.payment.update({
       where: { id: payment.id },
       data: {
         status: 'completed',
@@ -60,7 +64,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Activate subscription
-    await prisma.subscription.update({
+    await db.subscription.update({
       where: { id: payment.subscriptionId },
       data: {
         status: 'active',

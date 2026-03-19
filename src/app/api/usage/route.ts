@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -16,7 +16,7 @@ export async function GET() {
     }
 
     // Get user's subscription with plan limits
-    const subscription = await prisma.subscription.findFirst({
+    const subscription = await db.subscription.findFirst({
       where: {
         userId: session.user.id,
         status: { in: ['active', 'trialing'] },
@@ -35,11 +35,11 @@ export async function GET() {
     }
 
     // Get actual counts from database
-    const channelCount = await prisma.channel.count({
+    const channelCount = await db.channel.count({
       where: { userId: session.user.id },
     });
 
-    const videoCountThisMonth = await prisma.video.count({
+    const videoCountThisMonth = await db.video.count({
       where: {
         channel: { userId: session.user.id },
         createdAt: {
@@ -50,7 +50,7 @@ export async function GET() {
     });
 
     // Calculate total storage used
-    const videos = await prisma.video.findMany({
+    const videos = await db.video.findMany({
       where: { channel: { userId: session.user.id } },
       select: { fileSize: true, thumbnailSize: true },
     });
@@ -62,7 +62,7 @@ export async function GET() {
 
     // Update usage record
     if (subscription.usage) {
-      await prisma.usage.update({
+      await db.usage.update({
         where: { id: subscription.usage.id },
         data: {
           videosThisMonth: videoCountThisMonth,
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { credits = 1 } = body;
 
-    const subscription = await prisma.subscription.findFirst({
+    const subscription = await db.subscription.findFirst({
       where: {
         userId: session.user.id,
         status: { in: ['active', 'trialing'] },
@@ -169,14 +169,14 @@ export async function POST(request: NextRequest) {
 
     // Update usage
     if (subscription.usage) {
-      await prisma.usage.update({
+      await db.usage.update({
         where: { id: subscription.usage.id },
         data: {
           aiCreditsUsed: { increment: credits },
         },
       });
     } else {
-      await prisma.usage.create({
+      await db.usage.create({
         data: {
           subscriptionId: subscription.id,
           aiCreditsUsed: credits,

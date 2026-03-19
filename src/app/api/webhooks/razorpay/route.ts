@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import crypto from 'crypto';
+import { DayButton } from 'react-day-picker';
 
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
@@ -41,14 +42,14 @@ export async function POST(request: NextRequest) {
         const orderId = payment.order_id;
 
         // Find payment by order ID
-        const paymentRecord = await prisma.payment.findFirst({
+        const paymentRecord = await db.payment.findFirst({
           where: { razorpayOrderId: orderId },
           include: { subscription: true },
         });
 
         if (paymentRecord) {
           // Update payment
-          await prisma.payment.update({
+          await db.payment.update({
             where: { id: paymentRecord.id },
             data: {
               status: 'completed',
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
           });
 
           // Activate subscription
-          await prisma.subscription.update({
+          await db.subscription.update({
             where: { id: paymentRecord.subscriptionId },
             data: {
               status: 'active',
@@ -73,12 +74,12 @@ export async function POST(request: NextRequest) {
         const payment = payload.payload.payment.entity;
         const orderId = payment.order_id;
 
-        const paymentRecord = await prisma.payment.findFirst({
+        const paymentRecord = await db.payment.findFirst({
           where: { razorpayOrderId: orderId },
         });
 
         if (paymentRecord) {
-          await prisma.payment.update({
+          await db.payment.update({
             where: { id: paymentRecord.id },
             data: {
               status: 'failed',
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
         const subscription = payload.payload.subscription.entity;
         const subId = subscription.id;
 
-        await prisma.subscription.updateMany({
+        await db.subscription.updateMany({
           where: { razorpaySubscriptionId: subId },
           data: {
             status: 'cancelled',
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
         // Update subscription period
         const currentPeriodEnd = new Date(subscription.current_end * 1000);
         
-        await prisma.subscription.updateMany({
+        await db.subscription.updateMany({
           where: { razorpaySubscriptionId: subId },
           data: {
             currentPeriodEnd,
@@ -119,13 +120,13 @@ export async function POST(request: NextRequest) {
         });
 
         // Reset usage for new period
-        const sub = await prisma.subscription.findFirst({
+        const sub = await db.subscription.findFirst({
           where: { razorpaySubscriptionId: subId },
           include: { usage: true },
         });
 
         if (sub?.usage) {
-          await prisma.usage.update({
+          await db.usage.update({
             where: { id: sub.usage.id },
             data: {
               videosThisMonth: 0,
