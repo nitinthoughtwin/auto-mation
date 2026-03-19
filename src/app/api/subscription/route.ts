@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -16,7 +16,7 @@ export async function GET() {
     }
 
     // Find active subscription
-    const subscription = await prisma.subscription.findFirst({
+    const subscription = await db.subscription.findFirst({
       where: {
         userId: session.user.id,
         status: { in: ['active', 'trialing'] },
@@ -30,7 +30,7 @@ export async function GET() {
 
     if (!subscription) {
       // Create free subscription if none exists
-      const freePlan = await prisma.plan.findUnique({
+      const freePlan = await db.plan.findUnique({
         where: { name: 'free' },
       });
 
@@ -41,7 +41,7 @@ export async function GET() {
         );
       }
 
-      const newSubscription = await prisma.subscription.create({
+      const newSubscription = await db.subscription.create({
         data: {
           userId: session.user.id,
           planId: freePlan.id,
@@ -56,7 +56,7 @@ export async function GET() {
       });
 
       // Create usage record
-      await prisma.usage.create({
+      await db.usage.create({
         data: {
           subscriptionId: newSubscription.id,
         },
@@ -103,7 +103,7 @@ export async function DELETE() {
       );
     }
 
-    const subscription = await prisma.subscription.findFirst({
+    const subscription = await db.subscription.findFirst({
       where: {
         userId: session.user.id,
         status: 'active',
@@ -118,7 +118,7 @@ export async function DELETE() {
     }
 
     // Update subscription to cancel at period end
-    await prisma.subscription.update({
+    await db.subscription.update({
       where: { id: subscription.id },
       data: {
         cancelAtPeriodEnd: true,
