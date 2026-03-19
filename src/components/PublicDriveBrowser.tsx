@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/badge';
 import { Badge } from '@/components/ui/badge';
 import { 
   Loader2, 
@@ -84,6 +83,9 @@ export default function PublicDriveBrowser({
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
 
+  // Loading more items
+  const [loadingMore, setLoadingMore] = useState(false);
+
   // Reset when dialog closes
   useEffect(() => {
     if (!open) {
@@ -97,12 +99,17 @@ export default function PublicDriveBrowser({
       setNextPageToken(null);
       setHasMore(false);
       setPreviewVideo(null);
+      setLoadingMore(false);
     }
   }, [open]);
 
   // Fetch folder contents
   const fetchFolderContents = async (folderId: string, append: boolean = false) => {
-    setLoading(true);
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -138,6 +145,7 @@ export default function PublicDriveBrowser({
       setError(err.message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -169,7 +177,6 @@ export default function PublicDriveBrowser({
         setNextPageToken(data.nextPageToken || null);
         setHasMore(!!data.nextPageToken);
       } else if (data.type === 'file') {
-        // Single video file
         if (data.file.mimeType?.startsWith('video/')) {
           setVideos([data.file]);
           setFolders([]);
@@ -188,7 +195,6 @@ export default function PublicDriveBrowser({
 
   // Navigate to folder
   const navigateToFolder = (folder: DriveItem) => {
-    // Add current folder to breadcrumb
     if (currentFolder) {
       setBreadcrumb(prev => [...prev, { id: folder.id, name: folder.name }]);
     } else {
@@ -213,7 +219,7 @@ export default function PublicDriveBrowser({
 
   // Load more videos
   const loadMore = () => {
-    if (currentFolder && hasMore && !loading) {
+    if (currentFolder && hasMore && !loadingMore) {
       fetchFolderContents(currentFolder.id, true);
     }
   };
@@ -245,7 +251,7 @@ export default function PublicDriveBrowser({
   const addToQueue = async () => {
     if (selectedVideos.size === 0) {
       toast.error('No Videos Selected', {
-        description: 'Please select at least one video to add to queue.'
+        description: 'Please select at least one video.'
       });
       return;
     }
@@ -280,8 +286,8 @@ export default function PublicDriveBrowser({
         throw new Error(data.error || 'Failed to add videos');
       }
 
-      toast.success('Videos Added to Queue', {
-        description: `${data.added || data.created || selectedVideos.size} video(s) added successfully.`
+      toast.success('Videos Added!', {
+        description: `${data.added || data.created || selectedVideos.size} video(s) added to queue.`
       });
 
       setSelectedVideos(new Set());
@@ -300,7 +306,7 @@ export default function PublicDriveBrowser({
 
   // Format file size
   const formatSize = (bytes?: number) => {
-    if (!bytes) return 'Unknown size';
+    if (!bytes) return 'Unknown';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
@@ -323,22 +329,38 @@ export default function PublicDriveBrowser({
     </div>
   );
 
+  // Loading skeleton for grid
+  const GridSkeleton = ({ count = 8 }: { count?: number }) => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 p-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="rounded-lg border overflow-hidden animate-pulse">
+          <div className="aspect-video bg-muted" />
+          <div className="p-2 space-y-2">
+            <div className="h-3 bg-muted rounded w-full" />
+            <div className="h-3 bg-muted rounded w-2/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        <DialogContent className="max-w-[95vw] sm:max-w-5xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+          {/* Header */}
+          <DialogHeader className="p-4 sm:p-6 pb-0">
+            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <LinkIcon className="h-5 w-5 text-green-500" />
-              Add Videos from Public Google Drive Link
+              Add Videos from Drive Link
             </DialogTitle>
-            <DialogDescription>
-              Paste a public Google Drive folder link, preview and select videos
+            <DialogDescription className="text-sm">
+              Paste a public Google Drive folder link
             </DialogDescription>
           </DialogHeader>
 
           {/* URL Input */}
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex gap-2 p-4 sm:px-6 flex-shrink-0">
             <div className="flex-1 relative">
               <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -346,14 +368,14 @@ export default function PublicDriveBrowser({
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && loadFromUrl()}
-                className="pl-9"
+                className="pl-9 h-10 sm:h-9"
               />
             </div>
-            <Button onClick={loadFromUrl} disabled={loading}>
+            <Button onClick={loadFromUrl} disabled={loading} className="h-10 sm:h-9">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Browse'}
             </Button>
             {currentFolder && (
-              <Button variant="outline" onClick={() => fetchFolderContents(currentFolder.id)} disabled={loading}>
+              <Button variant="outline" onClick={() => fetchFolderContents(currentFolder.id)} disabled={loading} className="h-10 sm:h-9 w-10 sm:w-9 p-0">
                 <RefreshCw className="h-4 w-4" />
               </Button>
             )}
@@ -361,7 +383,7 @@ export default function PublicDriveBrowser({
 
           {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 sm:px-6 py-2 text-sm text-destructive flex-shrink-0">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               {error}
             </div>
@@ -369,7 +391,7 @@ export default function PublicDriveBrowser({
 
           {/* Breadcrumb */}
           {breadcrumb.length > 0 && (
-            <div className="flex items-center gap-1 flex-shrink-0 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1 px-4 sm:px-6 overflow-x-auto flex-shrink-0 text-sm">
               <Button
                 variant="ghost"
                 size="sm"
@@ -389,7 +411,7 @@ export default function PublicDriveBrowser({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 truncate max-w-[150px]"
+                    className="h-7 px-2 truncate max-w-[120px]"
                     onClick={() => navigateToBreadcrumb(index)}
                   >
                     {item.name}
@@ -401,17 +423,17 @@ export default function PublicDriveBrowser({
 
           {/* Selection Actions */}
           {(folders.length > 0 || videos.length > 0) && (
-            <div className="flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-2 flex-shrink-0 flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 {videos.length > 0 && (
                   <>
-                    <Button variant="outline" size="sm" onClick={selectAll}>
+                    <Button variant="outline" size="sm" onClick={selectAll} className="h-8 text-xs">
                       Select All
                     </Button>
-                    <Button variant="outline" size="sm" onClick={deselectAll}>
-                      Deselect All
+                    <Button variant="outline" size="sm" onClick={deselectAll} className="h-8 text-xs">
+                      Deselect
                     </Button>
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                    <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
                       {selectedVideos.size} selected
                     </Badge>
                   </>
@@ -419,13 +441,13 @@ export default function PublicDriveBrowser({
               </div>
               <div className="flex items-center gap-2">
                 {folders.length > 0 && (
-                  <Badge variant="outline">
-                    {folders.length} folder{folders.length !== 1 ? 's' : ''}
+                  <Badge variant="outline" className="text-xs">
+                    {folders.length} folders
                   </Badge>
                 )}
                 {videos.length > 0 && (
-                  <Badge variant="outline">
-                    {videos.length} video{videos.length !== 1 ? 's' : ''}
+                  <Badge variant="outline" className="text-xs">
+                    {videos.length} videos
                   </Badge>
                 )}
               </div>
@@ -433,121 +455,128 @@ export default function PublicDriveBrowser({
           )}
 
           {/* Content - Scrollable */}
-          <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-3">
-              {loading && folders.length === 0 && videos.length === 0 ? (
-                <div className="col-span-full flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {loading && folders.length === 0 && videos.length === 0 ? (
+              <GridSkeleton />
+            ) : !currentFolder && folders.length === 0 && videos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <LinkIcon className="h-8 w-8 opacity-50" />
                 </div>
-              ) : !currentFolder && folders.length === 0 && videos.length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <LinkIcon className="h-12 w-12 mb-4 opacity-50" />
-                  <p>Paste a public Google Drive folder link above</p>
-                  <p className="text-sm mt-1">Make sure the folder is shared with "Anyone with the link"</p>
-                </div>
-              ) : (
-                <>
-                  {/* Folders */}
-                  {folders.map((folder) => (
-                    <div
-                      key={folder.id}
-                      className="cursor-pointer border rounded-lg overflow-hidden hover:shadow-md transition-all"
-                      onClick={() => navigateToFolder(folder)}
-                    >
-                      <div className="aspect-video bg-muted relative">
-                        <DefaultThumbnail isFolder />
-                      </div>
-                      <div className="p-2">
-                        <p className="text-sm font-medium truncate">{folder.name}</p>
-                        <p className="text-xs text-muted-foreground">Folder</p>
-                      </div>
+                <p className="font-medium">Paste a Google Drive folder link</p>
+                <p className="text-sm mt-1 text-center px-4">Folder must be shared with "Anyone with the link"</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 p-2">
+                {/* Folders */}
+                {folders.map((folder) => (
+                  <div
+                    key={folder.id}
+                    className="cursor-pointer border rounded-lg overflow-hidden hover:shadow-md transition-all"
+                    onClick={() => navigateToFolder(folder)}
+                  >
+                    <div className="aspect-video bg-muted relative">
+                      <DefaultThumbnail isFolder />
                     </div>
-                  ))}
+                    <div className="p-2">
+                      <p className="text-xs font-medium truncate">{folder.name}</p>
+                      <p className="text-xs text-muted-foreground">Folder</p>
+                    </div>
+                  </div>
+                ))}
 
-                  {/* Videos */}
-                  {videos.map((video) => (
-                    <div
-                      key={video.id}
-                      className={`cursor-pointer border rounded-lg overflow-hidden transition-all hover:shadow-md ${
-                        selectedVideos.has(video.id) 
-                          ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
-                          : ''
-                      }`}
-                      onClick={() => toggleVideo(video.id)}
-                    >
-                      <div className="aspect-video bg-muted relative group">
-                        {video.thumbnailUrl || video.thumbnailLink ? (
-                          <img
-                            src={video.thumbnailUrl || video.thumbnailLink || ''}
-                            alt={video.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <DefaultThumbnail />
-                        )}
-                        
-                        {/* Play Button Overlay */}
-                        <button
-                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewVideo(video);
+                {/* Videos */}
+                {videos.map((video) => (
+                  <div
+                    key={video.id}
+                    className={`cursor-pointer border rounded-lg overflow-hidden transition-all ${
+                      selectedVideos.has(video.id) 
+                        ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' 
+                        : 'hover:shadow-md'
+                    }`}
+                    onClick={() => toggleVideo(video.id)}
+                  >
+                    <div className="aspect-video bg-muted relative group">
+                      {video.thumbnailUrl || video.thumbnailLink ? (
+                        <img
+                          src={video.thumbnailUrl || video.thumbnailLink || ''}
+                          alt={video.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
                           }}
-                        >
-                          <div className="w-12 h-12 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                            <Play className="h-6 w-6 text-green-600 ml-1" />
-                          </div>
-                        </button>
-
-                        {/* Selection Check */}
-                        {selectedVideos.has(video.id) && (
-                          <div className="absolute top-2 left-2">
-                            <CheckCircle2 className="h-6 w-6 text-blue-500 bg-white rounded-full" />
-                          </div>
-                        )}
-
-                        {/* File Size */}
-                        <Badge 
-                          variant="secondary" 
-                          className="absolute bottom-2 right-2 text-xs bg-black/70 text-white"
-                        >
-                          {formatSize(video.size)}
-                        </Badge>
-                      </div>
-                      <div className="p-2">
-                        <p className="text-xs font-medium truncate">{video.name.replace(/\.[^/.]+$/, '')}</p>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Load More */}
-                  {hasMore && (
-                    <div className="col-span-full flex justify-center pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={loadMore}
-                        disabled={loading}
+                        />
+                      ) : (
+                        <DefaultThumbnail />
+                      )}
+                      
+                      {/* Play Button */}
+                      <button
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewVideo(video);
+                        }}
                       >
-                        {loading ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : null}
-                        Load More
-                      </Button>
+                        <div className="w-12 h-12 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                          <Play className="h-6 w-6 text-green-600 ml-1" />
+                        </div>
+                      </button>
+
+                      {/* Selection Check */}
+                      {selectedVideos.has(video.id) && (
+                        <div className="absolute top-1.5 left-1.5">
+                          <CheckCircle2 className="h-5 w-5 text-green-500 bg-white rounded-full" />
+                        </div>
+                      )}
+
+                      {/* File Size */}
+                      <Badge 
+                        variant="secondary" 
+                        className="absolute bottom-1.5 right-1.5 text-[10px] sm:text-xs bg-black/70 text-white"
+                      >
+                        {formatSize(video.size)}
+                      </Badge>
                     </div>
+                    <div className="p-2">
+                      <p className="text-xs truncate font-medium">{video.name.replace(/\.[^/.]+$/, '')}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="flex justify-center py-4">
+                <Button
+                  variant="outline"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="h-9"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Loading...
+                    </>
+                  ) : (
+                    'Load More'
                   )}
-                </>
-              )}
-            </div>
+                </Button>
+              </div>
+            )}
           </div>
 
-          <DialogFooter className="flex-shrink-0">
-            <Button variant="outline" onClick={onClose}>
+          {/* Footer */}
+          <DialogFooter className="p-4 sm:p-6 pt-4 border-t flex-shrink-0 gap-2">
+            <Button variant="outline" onClick={onClose} className="h-10 sm:h-9">
               Cancel
             </Button>
             <Button
               onClick={addToQueue}
               disabled={selectedVideos.size === 0 || addingToQueue}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 h-10 sm:h-9"
             >
               {addingToQueue ? (
                 <>
@@ -557,7 +586,7 @@ export default function PublicDriveBrowser({
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Add {selectedVideos.size} Video{selectedVideos.size !== 1 ? 's' : ''} to Queue
+                  Add {selectedVideos.size} Video{selectedVideos.size !== 1 ? 's' : ''}
                 </>
               )}
             </Button>
@@ -567,7 +596,7 @@ export default function PublicDriveBrowser({
 
       {/* Video Preview Dialog */}
       <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-hidden p-0 gap-0">
           <div className="bg-black aspect-video w-full relative">
             {previewVideo && (
               <iframe
@@ -580,22 +609,17 @@ export default function PublicDriveBrowser({
           </div>
           
           <div className="p-4 bg-background">
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium truncate">
-                  {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Size: {formatSize(previewVideo?.size)}
-                </p>
-              </div>
+            <div className="mb-3">
+              <h3 className="font-medium truncate text-sm sm:text-base">
+                {previewVideo?.name.replace(/\.[^/.]+$/, '')}
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Size: {formatSize(previewVideo?.size)}
+              </p>
             </div>
             
             <div className="flex gap-2 flex-wrap">
-              <Button 
-                variant="outline" 
-                onClick={() => setPreviewVideo(null)}
-              >
+              <Button variant="outline" onClick={() => setPreviewVideo(null)} className="h-9">
                 Close
               </Button>
               <Button 
@@ -605,6 +629,7 @@ export default function PublicDriveBrowser({
                     window.open(`https://drive.google.com/file/d/${previewVideo.id}/view`, '_blank');
                   }
                 }}
+                className="h-9"
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Open in Drive
@@ -617,17 +642,17 @@ export default function PublicDriveBrowser({
                   }
                 }}
                 disabled={previewVideo ? selectedVideos.has(previewVideo.id) : false}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 h-9"
               >
                 {previewVideo && selectedVideos.has(previewVideo.id) ? (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Already Selected
+                    Selected
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Select This Video
+                    Select
                   </>
                 )}
               </Button>

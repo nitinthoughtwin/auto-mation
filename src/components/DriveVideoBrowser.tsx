@@ -21,7 +21,8 @@ import {
   ChevronLeft,
   HardDrive,
   Play,
-  ExternalLink
+  ExternalLink,
+  Home
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -179,9 +180,9 @@ export default function DriveVideoBrowser({
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success || data.created) {
         toast.success('Videos Added to Queue', {
-          description: `${data.created} video(s) added successfully`
+          description: `${data.created || data.added || selectedVideos.length} video(s) added successfully`
         });
         onVideosAdded();
         onClose();
@@ -214,75 +215,90 @@ export default function DriveVideoBrowser({
     return `https://drive.google.com/file/d/${fileId}/preview`;
   };
 
-  // Reset on close
-  const handleClose = () => {
-    setFolders([]);
-    setFiles([]);
-    setSelectedFiles(new Set());
-    setFolderStack([]);
-    onClose();
-  };
+  // Default thumbnail component
+  const DefaultThumbnail = ({ isFolder = false }: { isFolder?: boolean }) => (
+    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
+      {isFolder ? (
+        <FolderOpen className="h-8 w-8 text-yellow-400" />
+      ) : (
+        <Video className="h-8 w-8 text-gray-400" />
+      )}
+    </div>
+  );
+
+  // Loading skeleton
+  const GridSkeleton = () => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 p-2">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="rounded-lg border overflow-hidden animate-pulse">
+          <div className="aspect-video bg-muted" />
+          <div className="p-2 space-y-2">
+            <div className="h-3 bg-muted rounded w-full" />
+            <div className="h-3 bg-muted rounded w-2/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-[95vw] sm:max-w-5xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+          {/* Header */}
+          <DialogHeader className="p-4 sm:p-6 pb-0">
+            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <HardDrive className="h-5 w-5 text-blue-500" />
-              Add Videos from My Google Drive
+              Add from My Google Drive
             </DialogTitle>
-            <DialogDescription>
-              Browse your Google Drive, play videos and select them
+            <DialogDescription className="text-sm">
+              Browse and select videos from your connected Google Drive
             </DialogDescription>
           </DialogHeader>
 
           {/* Navigation */}
-          <div className="flex items-center gap-2 py-2 border-b flex-wrap">
+          <div className="flex items-center gap-2 px-4 sm:px-6 py-2 border-b flex-wrap">
             {folderStack.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={navigateBack}>
+              <Button variant="ghost" size="sm" onClick={navigateBack} className="h-8 px-2">
                 <ChevronLeft className="h-4 w-4 mr-1" />
-                Back
+                <span className="hidden sm:inline">Back</span>
               </Button>
             )}
-            <div className="flex items-center text-sm text-muted-foreground">
-              <FolderOpen className="h-4 w-4 mr-1" />
-              {currentFolderName}
+            <div className="flex items-center text-sm text-muted-foreground overflow-x-auto">
+              <FolderOpen className="h-4 w-4 mr-1 flex-shrink-0" />
+              <span className="truncate">{currentFolderName}</span>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {selectedFiles.size > 0 && (
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-xs">
                   {selectedFiles.size} selected
                 </Badge>
               )}
-              <Button variant="outline" size="sm" onClick={selectedFiles.size > 0 ? deselectAll : selectAll}>
-                {selectedFiles.size > 0 ? 'Deselect All' : 'Select All'}
+              <Button variant="outline" size="sm" onClick={selectedFiles.size > 0 ? deselectAll : selectAll} className="h-8 text-xs">
+                {selectedFiles.size > 0 ? 'Deselect' : 'Select All'}
               </Button>
             </div>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Content - Scrollable */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
+              <GridSkeleton />
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 p-2">
                 {/* Folders */}
                 {folders.map((folder) => (
                   <Card 
                     key={folder.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    className="cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden"
                     onClick={() => navigateToFolder(folder)}
                   >
-                    <CardContent className="p-3 flex items-center gap-2">
-                      <FolderOpen className="h-8 w-8 text-yellow-500" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{folder.name}</p>
-                        <p className="text-xs text-muted-foreground">Folder</p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <div className="aspect-video bg-muted relative">
+                      <DefaultThumbnail isFolder />
+                    </div>
+                    <CardContent className="p-2">
+                      <p className="text-xs font-medium truncate">{folder.name}</p>
+                      <p className="text-[10px] text-muted-foreground">Folder</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -291,13 +307,13 @@ export default function DriveVideoBrowser({
                 {files.filter(f => isVideo(f.mimeType)).map((file) => (
                   <Card 
                     key={file.id}
-                    className={`cursor-pointer transition-all hover:shadow-md ${
+                    className={`cursor-pointer transition-all overflow-hidden ${
                       selectedFiles.has(file.id) 
                         ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
-                        : ''
+                        : 'hover:shadow-md'
                     }`}
                   >
-                    <div className="relative aspect-video bg-muted">
+                    <div className="aspect-video bg-muted relative group">
                       {file.thumbnailLink ? (
                         <img 
                           src={file.thumbnailLink} 
@@ -305,85 +321,72 @@ export default function DriveVideoBrowser({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                          <Video className="h-8 w-8 text-muted-foreground" />
-                        </div>
+                        <DefaultThumbnail />
                       )}
                       
-                      {/* Play Button - Always Visible */}
+                      {/* Play Button */}
                       <button
-                        className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition-colors"
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={(e) => {
                           e.stopPropagation();
                           setPreviewVideo(file);
                         }}
-                        title="Click to play preview"
                       >
-                        <div className="w-14 h-14 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                          <Play className="h-7 w-7 text-blue-600 ml-1" />
+                        <div className="w-12 h-12 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                          <Play className="h-6 w-6 text-blue-600 ml-1" />
                         </div>
                       </button>
 
                       {/* Selection Check */}
                       {selectedFiles.has(file.id) && (
-                        <div className="absolute top-2 left-2">
-                          <CheckCircle2 className="h-6 w-6 text-blue-500 bg-white rounded-full" />
+                        <div className="absolute top-1.5 left-1.5">
+                          <CheckCircle2 className="h-5 w-5 text-blue-500 bg-white rounded-full" />
                         </div>
                       )}
 
                       <Badge 
                         variant="secondary" 
-                        className="absolute bottom-2 right-2 text-xs bg-black/70 text-white"
+                        className="absolute bottom-1.5 right-1.5 text-[10px] bg-black/70 text-white"
                       >
                         {formatSize(file.size)}
                       </Badge>
                     </div>
-                    <CardContent className="p-2">
-                      <div className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedFiles.has(file.id)}
-                          onChange={() => toggleFile(file.id)}
-                          className="mt-1 h-4 w-4 rounded border-gray-300"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <p className="text-xs truncate flex-1 font-medium" title={file.name}>
-                          {file.name.replace(/\.[^/.]+$/, '')}
-                        </p>
-                      </div>
+                    <CardContent className="p-2" onClick={() => toggleFile(file.id)}>
+                      <p className="text-xs truncate font-medium">{file.name.replace(/\.[^/.]+$/, '')}</p>
                     </CardContent>
                   </Card>
                 ))}
 
                 {/* Empty state */}
-                {folders.length === 0 && files.filter(f => isVideo(f.mimeType)).length === 0 && (
+                {folders.length === 0 && files.filter(f => isVideo(f.mimeType)).length === 0 && !loading && (
                   <div className="col-span-full text-center py-12 text-muted-foreground">
                     <Video className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No videos found in this folder</p>
+                    <p className="text-sm">No videos found in this folder</p>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          <DialogFooter className="border-t pt-4">
-            <Button variant="outline" onClick={handleClose}>
+          {/* Footer */}
+          <DialogFooter className="p-4 sm:p-6 pt-4 border-t gap-2">
+            <Button variant="outline" onClick={onClose} className="h-10 sm:h-9">
               Cancel
             </Button>
             <Button 
               onClick={addVideosToQueue}
               disabled={selectedFiles.size === 0 || adding}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-blue-600 hover:bg-blue-700 h-10 sm:h-9"
             >
               {adding ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Adding...
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Add {selectedFiles.size} Video(s) to Queue
+                  Add {selectedFiles.size} Video{selectedFiles.size !== 1 ? 's' : ''}
                 </>
               )}
             </Button>
@@ -393,7 +396,7 @@ export default function DriveVideoBrowser({
 
       {/* Video Preview Dialog */}
       <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden p-0">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-hidden p-0 gap-0">
           <div className="bg-black aspect-video w-full relative">
             {previewVideo && (
               <iframe
@@ -406,22 +409,17 @@ export default function DriveVideoBrowser({
           </div>
           
           <div className="p-4 bg-background">
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium truncate">
-                  {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Size: {formatSize(previewVideo?.size)}
-                </p>
-              </div>
+            <div className="mb-3">
+              <h3 className="font-medium truncate text-sm sm:text-base">
+                {previewVideo?.name.replace(/\.[^/.]+$/, '')}
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Size: {formatSize(previewVideo?.size)}
+              </p>
             </div>
             
             <div className="flex gap-2 flex-wrap">
-              <Button 
-                variant="outline" 
-                onClick={() => setPreviewVideo(null)}
-              >
+              <Button variant="outline" onClick={() => setPreviewVideo(null)} className="h-9">
                 Close
               </Button>
               <Button 
@@ -431,6 +429,7 @@ export default function DriveVideoBrowser({
                     window.open(`https://drive.google.com/file/d/${previewVideo.id}/view`, '_blank');
                   }
                 }}
+                className="h-9"
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Open in Drive
@@ -443,17 +442,17 @@ export default function DriveVideoBrowser({
                   }
                 }}
                 disabled={previewVideo ? selectedFiles.has(previewVideo.id) : false}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 h-9"
               >
                 {previewVideo && selectedFiles.has(previewVideo.id) ? (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Already Selected
+                    Selected
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Select This Video
+                    Select
                   </>
                 )}
               </Button>
