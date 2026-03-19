@@ -1,41 +1,62 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
+import { useState, useEffect } from 'react';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { 
-  FolderOpen, 
-  Video, 
   Loader2, 
-  CheckCircle2,
-  Link2,
+  Search, 
+  Video, 
+  CheckCircle2, 
+  Link as LinkIcon,
+  RefreshCw,
+  FileVideo,
+  Folder,
+  ChevronRight,
+  Home,
   ExternalLink,
-  Play,
-  AlertTriangle,
-  CheckCircle,
-  XCircle
+  AlertCircle,
+  Sparkles,
+  Wand2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface DriveFile {
+interface DriveItem {
   id: string;
   name: string;
   mimeType: string;
   size?: number;
-  thumbnail?: string;
+  thumbnailLink?: string;
+  thumbnailUrl?: string;
+  webViewLink?: string;
+  iconLink?: string;
   createdTime?: string;
-  url: string;
-  accessible?: boolean; // New field
+  modifiedTime?: string;
+}
+
+interface FolderInfo {
+  id: string;
+  name: string;
+  parents?: string[];
+}
+
+interface VideoMetadata {
+  id: string;
+  title: string;
+  description: string;
+  tags: string;
 }
 
 interface PublicDriveBrowserProps {
@@ -45,447 +66,698 @@ interface PublicDriveBrowserProps {
   onVideosAdded: () => void;
 }
 
-export default function PublicDriveBrowser({ 
+export default function PublicDriveBrowser({
   open,
   onClose,
-  channelId, 
+  channelId,
   onVideosAdded
 }: PublicDriveBrowserProps) {
-  const [folderUrl, setFolderUrl] = useState('');
-  const [files, setFiles] = useState<DriveFile[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mapping, setMapping] = useState(false);
-  const [previewVideo, setPreviewVideo] = useState<DriveFile | null>(null);
-  const [validatingFiles, setValidatingFiles] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  
+  // Current folder state
+  const [currentFolder, setCurrentFolder] = useState<FolderInfo | null>(null);
+  const [breadcrumb, setBreadcrumb] = useState<FolderInfo[]>([]);
+  
+  // Contents
+  const [folders, setFolders] = useState<DriveItem[]>([]);
+  const [videos, setVideos] = useState<DriveItem[]>([]);
+  
+  // Selection
+  const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set());
+  const [addingToQueue, setAddingToQueue] = useState(false);
 
-  // Extract folder ID from Google Drive URL
-  const extractFolderId = (url: string): string | null => {
-    const match1 = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-    if (match1) return match1[1];
-    
-    const match2 = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-    if (match2) return match2[1];
-    
-    if (/^[a-zA-Z0-9_-]{20,}$/.test(url)) return url;
-    
-    return null;
-  };
+  // Video details
+  const [defaultTitle, setDefaultTitle] = useState('');
+  const [defaultDescription, setDefaultDescription] = useState('');
+  const [defaultTags, setDefaultTags] = useState('');
+  
+  // AI Generated metadata per video
+  const [aiMetadata, setAiMetadata] = useState<Map<string, VideoMetadata>>(new Map());
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [useAI, setUseAI] = useState(true); // Default to use AI metadata
+  
+  // Pagination
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
 
-  // Browse folder
-  const browseFolder = async () => {
-    const folderId = extractFolderId(folderUrl);
-    
-    if (!folderId) {
-      toast.error('Invalid Folder URL', {
-        description: 'Please enter a valid Google Drive folder URL or ID'
-      });
-      return;
+  // Reset when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setUrl('');
+      setError(null);
+      setCurrentFolder(null);
+      setBreadcrumb([]);
+      setFolders([]);
+      setVideos([]);
+      setSelectedVideos(new Set());
+      setNextPageToken(null);
+      setHasMore(false);
+      setDefaultTitle('');
+      setDefaultDescription('');
+      setDefaultTags('');
+      setAiMetadata(new Map());
+      setUseAI(true);
     }
+  }, [open]);
 
+  // Fetch folder contents
+  const fetchFolderContents = async (folderId: string, append: boolean = false) => {
     setLoading(true);
-    setFiles([]);
-    setSelectedFiles(new Set());
-
+    setError(null);
+    
     try {
-      const response = await fetch(`/api/drive/browse?folderId=${folderId}&channelId=${channelId}`);
-      const data = await response.json();
-
-      if (data.error) {
-        toast.error('Cannot Access Folder', {
-          description: data.error
-        });
-        return;
+      let fetchUrl = `/api/drive/public?folderId=${folderId}`;
+      if (append && nextPageToken) {
+        fetchUrl += `&pageToken=${nextPageToken}`;
       }
 
-      // Add accessible flag to each file (default: true, will be validated)
-      const filesWithStatus = (data.files || []).map((f: DriveFile) => ({
-        ...f,
-        accessible: true // Default to true, user can validate
-      }));
-      
-      setFiles(filesWithStatus);
-      
-      if (data.files?.length === 0) {
-        toast.info('No Videos Found', {
-          description: 'This folder does not contain any video files'
-        });
+      const res = await fetch(fetchUrl);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch folder contents');
+      }
+
+      if (append) {
+        setFolders(prev => [...prev, ...(data.folders || [])]);
+        setVideos(prev => [...prev, ...(data.videos || [])]);
       } else {
-        toast.success('Videos Loaded', {
-          description: `Found ${data.files.length} video(s). Click Play button to preview!`
-        });
+        setFolders(data.folders || []);
+        setVideos(data.videos || []);
       }
-    } catch (error) {
-      toast.error('Failed to Browse Folder', {
-        description: 'Please check the URL and try again'
-      });
+
+      if (data.folder) {
+        setCurrentFolder(data.folder);
+      }
+
+      setNextPageToken(data.nextPageToken || null);
+      setHasMore(!!data.nextPageToken);
+
+    } catch (err: any) {
+      console.error('[Public Drive] Error:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Toggle file selection
-  const toggleFile = (fileId: string) => {
-    const newSelected = new Set(selectedFiles);
-    if (newSelected.has(fileId)) {
-      newSelected.delete(fileId);
-    } else {
-      newSelected.add(fileId);
+  // Load from URL
+  const loadFromUrl = async () => {
+    if (!url.trim()) {
+      setError('Please enter a Google Drive URL');
+      return;
     }
-    setSelectedFiles(newSelected);
+
+    setLoading(true);
+    setError(null);
+    setBreadcrumb([]);
+    setSelectedVideos(new Set());
+
+    try {
+      const res = await fetch(`/api/drive/public?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to access Google Drive');
+      }
+
+      if (data.type === 'folder') {
+        setFolders(data.folders || []);
+        setVideos(data.videos || []);
+        setCurrentFolder(data.folder);
+        setBreadcrumb(data.folder ? [{ id: data.folder.id, name: data.folder.name }] : []);
+        setNextPageToken(data.nextPageToken || null);
+        setHasMore(!!data.nextPageToken);
+      } else if (data.type === 'file') {
+        // Single video file
+        if (data.file.mimeType?.startsWith('video/')) {
+          setVideos([data.file]);
+          setFolders([]);
+        } else {
+          setError('The provided link is not a video file');
+        }
+      }
+
+    } catch (err: any) {
+      console.error('[Public Drive] Error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Select all files
+  // Navigate to folder
+  const navigateToFolder = (folder: DriveItem) => {
+    // Add current folder to breadcrumb
+    if (currentFolder) {
+      setBreadcrumb(prev => [...prev, { id: folder.id, name: folder.name }]);
+    } else {
+      setBreadcrumb([{ id: folder.id, name: folder.name }]);
+    }
+    
+    setSelectedVideos(new Set());
+    fetchFolderContents(folder.id);
+  };
+
+  // Navigate to breadcrumb item
+  const navigateToBreadcrumb = (index: number) => {
+    const newBreadcrumb = breadcrumb.slice(0, index + 1);
+    setBreadcrumb(newBreadcrumb);
+    
+    const folder = newBreadcrumb[newBreadcrumb.length - 1];
+    if (folder) {
+      setSelectedVideos(new Set());
+      fetchFolderContents(folder.id);
+    }
+  };
+
+  // Load more videos
+  const loadMore = () => {
+    if (currentFolder && hasMore && !loading) {
+      fetchFolderContents(currentFolder.id, true);
+    }
+  };
+
+  // Toggle video selection
+  const toggleVideo = (videoId: string) => {
+    setSelectedVideos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoId)) {
+        newSet.delete(videoId);
+      } else {
+        newSet.add(videoId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all videos
   const selectAll = () => {
-    setSelectedFiles(new Set(files.map(f => f.id)));
+    setSelectedVideos(new Set(videos.map(v => v.id)));
   };
 
   // Deselect all
   const deselectAll = () => {
-    setSelectedFiles(new Set());
+    setSelectedVideos(new Set());
   };
 
-  // Validate single video accessibility
-  const validateVideo = async (fileId: string) => {
-    setValidatingFiles(prev => new Set(prev).add(fileId));
-    
-    try {
-      // Try to fetch video header to check accessibility
-      const videoUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-      const response = await fetch(videoUrl, { method: 'HEAD' });
-      
-      const isAccessible = response.ok || response.status === 302;
-      
-      setFiles(prev => prev.map(f => 
-        f.id === fileId ? { ...f, accessible: isAccessible } : f
-      ));
-      
-      if (isAccessible) {
-        toast.success('Video Accessible', {
-          description: 'This video can be downloaded successfully'
-        });
-      } else {
-        toast.error('Video Not Accessible', {
-          description: 'This video may fail during upload. Try playing it first.'
-        });
-      }
-    } catch (error) {
-      setFiles(prev => prev.map(f => 
-        f.id === fileId ? { ...f, accessible: false } : f
-      ));
-      toast.warning('Cannot Verify', {
-        description: 'Could not verify video accessibility. It might still work.'
-      });
-    } finally {
-      setValidatingFiles(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(fileId);
-        return newSet;
-      });
-    }
-  };
-
-  // Map selected videos to queue
-  const mapVideosToQueue = async () => {
-    if (selectedFiles.size === 0) {
+  // Generate AI metadata for selected videos
+  const generateAIMetadata = async () => {
+    if (selectedVideos.size === 0) {
       toast.error('No Videos Selected', {
-        description: 'Please select at least one video'
+        description: 'Please select videos first.'
       });
       return;
     }
 
-    setMapping(true);
-    const selectedVideos = files.filter(f => selectedFiles.has(f.id));
+    setGeneratingAI(true);
+    
+    const loadingToast = toast.loading('Generating AI Metadata', {
+      description: `Analyzing ${selectedVideos.size} video(s)...`
+    });
 
     try {
-      const response = await fetch('/api/drive/map', {
+      const selectedVideoList = videos.filter(v => selectedVideos.has(v.id));
+      
+      const res = await fetch('/api/ai/generate-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videos: selectedVideoList.map(v => ({
+            id: v.id,
+            name: v.name
+          })),
+          language: 'hindi'
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to generate metadata');
+      }
+
+      // Store AI generated metadata
+      const newMetadata = new Map(aiMetadata);
+      data.results.forEach((result: any) => {
+        newMetadata.set(result.id, {
+          id: result.id,
+          title: result.title,
+          description: result.description,
+          tags: result.tags
+        });
+      });
+      
+      setAiMetadata(newMetadata);
+      setUseAI(true);
+      
+      toast.dismiss(loadingToast);
+      toast.success('AI Metadata Generated', {
+        description: `Generated titles and descriptions for ${data.results.length} video(s)`
+      });
+
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error('AI Generation Failed', {
+        description: error.message
+      });
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
+  // Add selected videos to queue
+  const addToQueue = async () => {
+    if (selectedVideos.size === 0) {
+      toast.error('No Videos Selected', {
+        description: 'Please select at least one video to add to queue.'
+      });
+      return;
+    }
+
+    setAddingToQueue(true);
+
+    try {
+      const selectedVideoData = videos
+        .filter(v => selectedVideos.has(v.id))
+        .map(v => {
+          // Check if we have AI metadata for this video
+          const aiData = useAI ? aiMetadata.get(v.id) : null;
+          
+          return {
+            id: v.id,
+            name: v.name,
+            size: v.size,
+            mimeType: v.mimeType,
+            webViewLink: v.webViewLink,
+            thumbnailLink: v.thumbnailUrl || v.thumbnailLink,
+            isPublicDrive: true,
+            // Use AI metadata if available, otherwise use defaults
+            title: aiData?.title || undefined,
+            description: aiData?.description || undefined,
+            tags: aiData?.tags || undefined
+          };
+        });
+
+      const res = await fetch('/api/drive/map', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId,
-          videos: selectedVideos.map(v => ({
-            id: v.id,
-            name: v.name,
-            url: v.url,
-            size: v.size,
-            mimeType: v.mimeType,
-            thumbnail: v.thumbnail,
-            title: v.name.replace(/\.[^/.]+$/, ''),
-          }))
+          videos: selectedVideoData,
+          // Don't send default title/description if using AI
+          title: useAI ? undefined : (defaultTitle || undefined),
+          description: useAI ? undefined : (defaultDescription || undefined),
+          tags: useAI ? undefined : (defaultTags || undefined)
         })
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (data.success) {
-        toast.success('Videos Added to Queue', {
-          description: `${data.created} video(s) added successfully`
-        });
-        onVideosAdded();
-        onClose();
-      } else {
-        toast.error('Failed to Add Videos', {
-          description: data.error || 'Unknown error occurred'
-        });
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to add videos');
       }
-    } catch (error) {
+
+      toast.success('Videos Added to Queue', {
+        description: `${data.added} video(s) added successfully.`
+      });
+
+      setSelectedVideos(new Set());
+      setDefaultTitle('');
+      setDefaultDescription('');
+      setDefaultTags('');
+      onVideosAdded();
+      onClose();
+
+    } catch (error: any) {
+      console.error('[Public Drive] Add to queue error:', error);
       toast.error('Failed to Add Videos', {
-        description: 'Please try again'
+        description: error.message
       });
     } finally {
-      setMapping(false);
+      setAddingToQueue(false);
     }
   };
 
   // Format file size
   const formatSize = (bytes?: number) => {
-    if (!bytes) return 'Unknown';
+    if (!bytes) return 'Unknown size';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   };
 
-  // Get video preview URL
-  const getVideoPreviewUrl = (fileId: string) => {
-    return `https://drive.google.com/file/d/${fileId}/preview`;
-  };
-
-  // Reset on close
-  const handleClose = () => {
-    setFolderUrl('');
-    setFiles([]);
-    setSelectedFiles(new Set());
-    onClose();
-  };
+  // Default thumbnail
+  const DefaultThumbnail = ({ isFolder = false }: { isFolder?: boolean }) => (
+    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
+      {isFolder ? (
+        <Folder className="h-8 w-8 text-yellow-400" />
+      ) : (
+        <FileVideo className="h-8 w-8 text-gray-400" />
+      )}
+    </div>
+  );
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5 text-green-500" />
-              Add Videos from Public Google Drive Link
-            </DialogTitle>
-            <DialogDescription>
-              Enter a public Google Drive folder URL, preview and select videos
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <LinkIcon className="h-5 w-5" />
+            Add Videos from Public Google Drive
+          </DialogTitle>
+          <DialogDescription>
+            Paste a public Google Drive folder link to browse and select videos
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="flex gap-2 py-4">
-            <div className="flex-1">
+        <div className="flex flex-col gap-4 overflow-hidden flex-1 min-h-0">
+          {/* URL Input */}
+          <div className="flex gap-2 flex-shrink-0">
+            <div className="flex-1 relative">
+              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="https://drive.google.com/drive/folders/..."
-                value={folderUrl}
-                onChange={(e) => setFolderUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && browseFolder()}
+                placeholder="Paste Google Drive folder link..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && loadFromUrl()}
+                className="pl-9"
               />
             </div>
-            <Button onClick={browseFolder} disabled={loading}>
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Browse
-                </>
-              )}
+            <Button onClick={loadFromUrl} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Browse'}
             </Button>
+            {currentFolder && (
+              <Button variant="outline" onClick={() => fetchFolderContents(currentFolder.id)} disabled={loading}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
-          {files.length > 0 && (
-            <div className="flex items-center justify-between py-2 border-t border-b flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{files.length} videos found</Badge>
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                  {selectedFiles.size} selected
-                </Badge>
+          {/* Error */}
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Breadcrumb */}
+          {breadcrumb.length > 0 && (
+            <div className="flex items-center gap-1 flex-shrink-0 overflow-x-auto pb-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => {
+                  setBreadcrumb([]);
+                  setCurrentFolder(null);
+                  setFolders([]);
+                  setVideos([]);
+                }}
+              >
+                <Home className="h-4 w-4" />
+              </Button>
+              {breadcrumb.map((item, index) => (
+                <div key={item.id} className="flex items-center">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 truncate max-w-[150px]"
+                    onClick={() => navigateToBreadcrumb(index)}
+                  >
+                    {item.name}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Selection Actions */}
+          {(folders.length > 0 || videos.length > 0) && (
+            <div className="flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                {videos.length > 0 && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={selectAll}>
+                      Select All
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={deselectAll}>
+                      Deselect All
+                    </Button>
+                    <Badge variant="secondary">
+                      {selectedVideos.size} selected
+                    </Badge>
+                    {selectedVideos.size > 0 && (
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={generateAIMetadata}
+                        disabled={generatingAI}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                      >
+                        {generatingAI ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <Wand2 className="h-4 w-4 mr-1" />
+                        )}
+                        AI Generate
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={selectedFiles.size > 0 ? deselectAll : selectAll}>
-                  {selectedFiles.size > 0 ? 'Deselect All' : 'Select All'}
-                </Button>
+              <div className="flex items-center gap-2">
+                {folders.length > 0 && (
+                  <Badge variant="outline">
+                    {folders.length} folder{folders.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+                {videos.length > 0 && (
+                  <Badge variant="outline">
+                    {videos.length} video{videos.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
               </div>
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto">
-            {files.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Enter a Google Drive folder URL to browse videos</p>
-                <p className="text-xs mt-2">Make sure the folder is shared publicly (Anyone with link)</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-2">
-                {files.map((file) => (
-                  <Card 
-                    key={file.id}
-                    className={`cursor-pointer transition-all hover:shadow-md ${
-                      selectedFiles.has(file.id) 
-                        ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
-                        : ''
-                    }`}
+          {/* AI Generated Metadata Preview */}
+          {aiMetadata.size > 0 && selectedVideos.size > 0 && (
+            <div className="flex-shrink-0 p-3 border rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-purple-600" />
+                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                    AI Generated Metadata ({aiMetadata.size} videos)
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setAiMetadata(new Map())}
+                    className="h-7 text-xs"
                   >
-                    <div className="relative aspect-video bg-muted">
-                      {file.thumbnail ? (
-                        <img 
-                          src={file.thumbnail} 
-                          alt={file.name}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                          <Video className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                      
-                      {/* Play Button - Always Visible */}
-                      <button
-                        className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPreviewVideo(file);
-                        }}
-                        title="Click to play preview"
-                      >
-                        <div className="w-14 h-14 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                          <Play className="h-7 w-7 text-green-600 ml-1" />
-                        </div>
-                      </button>
-
-                      {/* Selection Check */}
-                      {selectedFiles.has(file.id) && (
-                        <div className="absolute top-2 left-2">
-                          <CheckCircle2 className="h-6 w-6 text-blue-500 bg-white rounded-full" />
-                        </div>
-                      )}
-
-                      {/* File Size */}
-                      <Badge 
-                        variant="secondary" 
-                        className="absolute bottom-2 right-2 text-xs bg-black/70 text-white"
-                      >
-                        {formatSize(file.size)}
-                      </Badge>
-                    </div>
-                    <CardContent className="p-2">
-                      <div className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedFiles.has(file.id)}
-                          onChange={() => toggleFile(file.id)}
-                          className="mt-1 h-4 w-4 rounded border-gray-300"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <p className="text-xs truncate flex-1 font-medium" title={file.name}>
-                          {file.name.replace(/\.[^/.]+$/, '')}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    Clear
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
+              <div className="max-h-[150px] overflow-y-auto space-y-2">
+                {Array.from(aiMetadata.entries()).slice(0, 5).map(([id, meta]) => (
+                  <div key={id} className="p-2 bg-white/50 dark:bg-black/20 rounded text-xs">
+                    <p className="font-medium truncate">{meta.title}</p>
+                    <p className="text-muted-foreground truncate">{meta.description?.substring(0, 80)}...</p>
+                  </div>
+                ))}
+                {aiMetadata.size > 5 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    +{aiMetadata.size - 5} more...
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
-          <DialogFooter className="border-t pt-4">
-            <Button variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={mapVideosToQueue}
-              disabled={selectedFiles.size === 0 || mapping}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {mapping ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Adding...
-                </>
+          {/* Video Details Form - Show when videos selected and no AI metadata */}
+          {selectedVideos.size > 0 && aiMetadata.size === 0 && (
+            <div className="flex-shrink-0 p-3 border rounded-lg bg-muted/30 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">
+                Video Details (Optional - Or use AI Generate above)
+              </p>
+              <div className="grid gap-3">
+                <div>
+                  <Label className="text-xs">Title</Label>
+                  <Input
+                    placeholder="Enter custom title (or use AI Generate)"
+                    value={defaultTitle}
+                    onChange={(e) => setDefaultTitle(e.target.value)}
+                    className="h-9 mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Description</Label>
+                  <Textarea
+                    placeholder="Enter video description..."
+                    value={defaultDescription}
+                    onChange={(e) => setDefaultDescription(e.target.value)}
+                    className="min-h-[60px] mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Tags (comma separated)</Label>
+                  <Input
+                    placeholder="tag1, tag2, tag3"
+                    value={defaultTags}
+                    onChange={(e) => setDefaultTags(e.target.value)}
+                    className="h-9 mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Content - Scrollable */}
+          <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
+            <div className="p-2 space-y-2">
+              {loading && folders.length === 0 && videos.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !currentFolder && folders.length === 0 && videos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <LinkIcon className="h-12 w-12 mb-4 opacity-50" />
+                  <p>Paste a public Google Drive folder link above</p>
+                  <p className="text-sm mt-1">Make sure the folder is shared with "Anyone with the link"</p>
+                </div>
               ) : (
                 <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Add {selectedFiles.size} Video(s) to Queue
+                  {/* Folders */}
+                  {folders.map((folder) => (
+                    <div
+                      key={folder.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigateToFolder(folder)}
+                    >
+                      <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
+                        <DefaultThumbnail isFolder />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-sm">{folder.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Folder</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  ))}
+
+                  {/* Videos */}
+                  {videos.map((video) => (
+                    <div
+                      key={video.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        selectedVideos.has(video.id)
+                          ? 'bg-primary/10 border-primary'
+                          : 'hover:bg-muted/50'
+                      }`}
+                      onClick={() => toggleVideo(video.id)}
+                    >
+                      <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
+                        {video.thumbnailUrl || video.thumbnailLink ? (
+                          <img
+                            src={video.thumbnailUrl || video.thumbnailLink || ''}
+                            alt={video.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const parent = e.currentTarget.parentElement;
+                              if (parent && !parent.querySelector('.default-thumb')) {
+                                const defaultDiv = document.createElement('div');
+                                defaultDiv.className = 'default-thumb w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800';
+                                defaultDiv.innerHTML = '<svg class="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 11-2 2 2 2"/><path d="m14 11 2 2-2 2"/></svg>';
+                                parent.appendChild(defaultDiv);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <DefaultThumbnail />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-sm">{video.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatSize(video.size)} • {video.mimeType?.split('/')[1]?.toUpperCase() || 'VIDEO'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {video.webViewLink && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(video.webViewLink, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Checkbox
+                          checked={selectedVideos.has(video.id)}
+                          onCheckedChange={() => toggleVideo(video.id)}
+                          className="flex-shrink-0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Load More */}
+                  {hasMore && (
+                    <div className="flex justify-center pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={loadMore}
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : null}
+                        Load More
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </div>
+          </div>
+        </div>
 
-      {/* Video Preview Dialog - Full Screen Style */}
-      <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden p-0">
-          <div className="bg-black aspect-video w-full relative">
-            {previewVideo && (
-              <iframe
-                src={getVideoPreviewUrl(previewVideo.id)}
-                className="w-full h-full"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-              />
+        <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={addToQueue}
+            disabled={selectedVideos.size === 0 || addingToQueue}
+          >
+            {addingToQueue ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Adding...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Add {selectedVideos.size} Video{selectedVideos.size !== 1 ? 's' : ''} to Queue
+              </>
             )}
-          </div>
-          
-          <div className="p-4 bg-background">
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium truncate">
-                  {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Size: {formatSize(previewVideo?.size)}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex gap-2 flex-wrap">
-              <Button 
-                variant="outline" 
-                onClick={() => setPreviewVideo(null)}
-              >
-                Close
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  if (previewVideo) {
-                    window.open(`https://drive.google.com/file/d/${previewVideo.id}/view`, '_blank');
-                  }
-                }}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in Drive
-              </Button>
-              <Button 
-                onClick={() => {
-                  if (previewVideo) {
-                    toggleFile(previewVideo.id);
-                    setPreviewVideo(null);
-                  }
-                }}
-                disabled={previewVideo ? selectedFiles.has(previewVideo.id) : false}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {previewVideo && selectedFiles.has(previewVideo.id) ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Already Selected
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Select This Video
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
