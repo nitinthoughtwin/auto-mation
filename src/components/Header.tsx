@@ -11,18 +11,35 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, User, Settings, Youtube } from 'lucide-react';
+import { LogOut, User, Settings, Youtube, CreditCard, ChevronDown } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function Header() {
   const { data: session, status } = useSession();
+  const router = useRouter();
+
+  const handleProfileClick = () => {
+    router.push('/profile');
+  };
+
+  const handleSettingsClick = () => {
+    router.push('/settings');
+  };
+
+  const handleBillingClick = () => {
+    router.push('/billing');
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 sm:h-16 items-center justify-between px-4">
         {/* Logo */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div 
+          className="flex items-center gap-2 min-w-0 cursor-pointer" 
+          onClick={() => router.push('/')}
+        >
           <Youtube className="h-5 w-5 sm:h-6 sm:w-6 text-red-500 flex-shrink-0" />
-          <span className="font-bold text-base sm:text-lg truncate">Video Automation</span>
+          <span className="font-bold text-base sm:text-lg truncate">GPMart Studio</span>
         </div>
 
         {/* User Menu */}
@@ -32,7 +49,7 @@ export default function Header() {
               <DropdownMenuTrigger asChild>
                 <Button 
                   variant="ghost" 
-                  className="relative h-10 w-10 sm:h-9 sm:w-9 rounded-full touch-manipulation"
+                  className="relative h-10 sm:h-9 rounded-full touch-manipulation flex items-center gap-2 px-2"
                   aria-label="User menu"
                 >
                   <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
@@ -41,6 +58,7 @@ export default function Header() {
                       {session.user.name?.charAt(0).toUpperCase() || session.user.email?.charAt(0).toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground hidden sm:block" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 
@@ -56,22 +74,31 @@ export default function Header() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <div className="flex items-center min-h-[44px]">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
-                  </div>
+                <DropdownMenuItem 
+                  onClick={handleProfileClick}
+                  className="cursor-pointer"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <div className="flex items-center min-h-[44px]">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </div>
+                <DropdownMenuItem 
+                  onClick={handleBillingClick}
+                  className="cursor-pointer"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  <span>Billing</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleSettingsClick}
+                  className="cursor-pointer"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => signOut({ callbackUrl: '/login' })}
-                  className="text-red-600 focus:text-red-600 cursor-pointer min-h-[44px]"
+                  className="text-red-600 focus:text-red-600 cursor-pointer"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>
@@ -81,7 +108,7 @@ export default function Header() {
           ) : status === 'unauthenticated' ? (
             <Button 
               variant="default" 
-              onClick={() => window.location.href = '/login'}
+              onClick={() => router.push('/login')}
               className="h-10 sm:h-9 touch-manipulation"
             >
               Sign In
