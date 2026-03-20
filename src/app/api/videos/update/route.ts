@@ -51,16 +51,17 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description;
     if (tags !== undefined) updateData.tags = tags;
     
-    // Handle thumbnail - store the Google Drive file ID
+    // Handle thumbnail - store the Google Drive file ID in thumbnailDriveId
     if (thumbnailUrl !== undefined && thumbnailUrl !== '') {
-      // Extract file ID from URL if needed, or use the URL as-is
       const thumbFileId = extractFileIdFromUrl(thumbnailUrl) || thumbnailUrl;
-      updateData.thumbnailName = thumbFileId;
+      updateData.thumbnailName = thumbnailUrl;
+      updateData.thumbnailDriveId = thumbFileId;
     }
     
     // If fileId is provided directly
     if (fileId !== undefined) {
       updateData.thumbnailName = fileId;
+      updateData.thumbnailDriveId = fileId;
     }
 
     console.log('Update data:', updateData);

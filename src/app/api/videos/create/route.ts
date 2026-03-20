@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    // Create video record - store Google Drive file ID in fileName field
+    // Create video record with Google Drive file ID
     const video = await db.video.create({
       data: {
         channelId,
@@ -54,12 +54,12 @@ export async function POST(request: NextRequest) {
         originalName,
         fileSize,
         mimeType,
-        driveFileId: fileId, // Store Drive file ID for reference
+        driveFileId: fileId, // Store Google Drive file ID
         driveWebViewLink: `https://drive.google.com/file/d/${fileId}/view`,
-        thumbnailName: thumbnailUrl || (thumbnailFileId ? `https://drive.google.com/thumbnail?id=${thumbnailFileId}` : null),
-        thumbnailOriginalName,
-        thumbnailSize,
-        thumbnailDriveId: thumbnailFileId,
+        thumbnailName: thumbnailUrl || null,
+        thumbnailOriginalName: thumbnailOriginalName || null,
+        thumbnailSize: thumbnailSize || null,
+        thumbnailDriveId: thumbnailFileId || null,
         status: 'queued',
       },
     });

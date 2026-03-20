@@ -90,6 +90,8 @@ model Video {
   originalName          String?
   fileSize              Int?
   mimeType              String?
+  driveFileId           String?
+  driveWebViewLink      String?
   status                String    @default("queued")
   uploadedAt            DateTime?
   error                 String?
@@ -98,6 +100,7 @@ model Video {
   thumbnailName         String?
   thumbnailOriginalName String?
   thumbnailSize         Int?
+  thumbnailDriveId      String?
   uploadedVideoId       String?
   channel               Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
 }

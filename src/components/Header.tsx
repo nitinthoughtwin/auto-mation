@@ -11,23 +11,33 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, User, Settings, Youtube, CreditCard, ChevronDown } from 'lucide-react';
+import { LogOut, User, Settings, Youtube, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export default function Header() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleProfileClick = () => {
+    setDropdownOpen(false);
     router.push('/profile');
   };
 
   const handleSettingsClick = () => {
+    setDropdownOpen(false);
     router.push('/settings');
   };
 
   const handleBillingClick = () => {
+    setDropdownOpen(false);
     router.push('/billing');
+  };
+
+  const handleLogout = () => {
+    setDropdownOpen(false);
+    signOut({ callbackUrl: '/login' });
   };
 
   return (
@@ -45,26 +55,24 @@ export default function Header() {
         {/* User Menu */}
         <div className="flex items-center gap-2 sm:gap-4">
           {status === 'authenticated' && session?.user ? (
-            <DropdownMenu>
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className="relative h-10 sm:h-9 rounded-full touch-manipulation flex items-center gap-2 px-2"
+                <button 
+                  type="button"
+                  className="relative h-10 w-10 sm:h-10 sm:w-10 rounded-full touch-manipulation flex items-center justify-center hover:ring-2 hover:ring-primary/50 focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                   aria-label="User menu"
                 >
-                  <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
+                  <Avatar className="h-9 w-9 sm:h-9 sm:w-9">
                     <AvatarImage src={session.user.image || ''} alt={session.user.name || ''} />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-primary text-primary-foreground">
                       {session.user.name?.charAt(0).toUpperCase() || session.user.email?.charAt(0).toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground hidden sm:block" />
-                </Button>
+                </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 
                 className="w-56 sm:w-64" 
-                align="end" 
-                forceMount
+                align="end"
                 sideOffset={5}
               >
                 <DropdownMenuLabel className="font-normal">
@@ -74,34 +82,22 @@ export default function Header() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={handleProfileClick}
-                  className="cursor-pointer"
-                >
+                <DropdownMenuItem onClick={handleProfileClick} className="cursor-pointer">
                   <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
+                  Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={handleBillingClick}
-                  className="cursor-pointer"
-                >
+                <DropdownMenuItem onClick={handleBillingClick} className="cursor-pointer">
                   <CreditCard className="mr-2 h-4 w-4" />
-                  <span>Billing</span>
+                  Billing
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={handleSettingsClick}
-                  className="cursor-pointer"
-                >
+                <DropdownMenuItem onClick={handleSettingsClick} className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
+                  Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => signOut({ callbackUrl: '/login' })}
-                  className="text-red-600 focus:text-red-600 cursor-pointer"
-                >
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+                  Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -114,7 +110,7 @@ export default function Header() {
               Sign In
             </Button>
           ) : (
-            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-muted animate-pulse" />
+            <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
           )}
         </div>
       </div>

@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         ? `${defaultTitle} ${files.length > 1 ? `(${i + 1})` : ''}`
         : file.name.replace(`.${fileExtension}`, '');
 
-      // Create video record in database - store full Google Drive URL
+      // Create video record in database with all Drive info
       const video = await db.video.create({
         data: {
           channelId,
@@ -104,6 +104,8 @@ export async function POST(request: NextRequest) {
           originalName: file.name,
           fileSize: file.size,
           mimeType: file.type,
+          driveFileId: driveResult.id, // Google Drive file ID
+          driveWebViewLink: `https://drive.google.com/file/d/${driveResult.id}/view`,
           status: 'queued',
         },
       });
