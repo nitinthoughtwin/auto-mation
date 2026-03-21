@@ -82,7 +82,7 @@ export default function ProfilePage() {
       setLoading(false);
     }
   };
-
+  
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
       toast.error('Name cannot be empty');

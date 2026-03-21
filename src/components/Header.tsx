@@ -22,7 +22,8 @@ export default function Header() {
 
   const handleProfileClick = () => {
     setDropdownOpen(false);
-    router.push('/profile');
+    router.push('/jn,];\
+        .');
   };
 
   const handleSettingsClick = () => {
