@@ -4,188 +4,93 @@ import { db } from '@/lib/db';
 // Map Google Drive videos to queue
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { 
-      channelId, 
-      videos, // Array of { driveFileId, name, size, mimeType, webViewLink, thumbnailLink }
-      title, 
-      description, 
-      tags 
-    } = body;
-
-    if (!channelId || !videos || !Array.isArray(videos) || videos.length === 0) {
-      return NextResponse.json({ error: 'Channel ID and videos array required' }, { status: 400 });
+    // Ensure db is available
+    if (!db) {
+      console.error('Database not initialized');
+      return NextResponse.json({ 
+        error: 'Database not initialized',
+        details: 'Prisma client is undefined'
+      }, { status: 500 });
     }
 
-    // Get channel
-    const channel = await db.channel.findUnique({
-      where: { id: channelId }
-    });
+    const body = await request.json();
+    const { channelId, videos } = body;
+
+    console.log('Drive map request:', { channelId, videosCount: videos?.length });
+
+    if (!channelId) {
+      return NextResponse.json({ error: 'Channel ID is required' }, { status: 400 });
+    }
+
+    if (!videos || videos.length === 0) {
+      return NextResponse.json({ error: 'No videos provided' }, { status: 400 });
+    }
+
+    // Verify channel exists
+    let channel;
+    try {
+      channel = await db.channel.findUnique({
+        where: { id: channelId }
+      });
+    } catch (dbError: any) {
+      console.error('Database query error:', dbError);
+      return NextResponse.json({ 
+        error: 'Database error',
+        details: dbError.message 
+      }, { status: 500 });
+    }
 
     if (!channel) {
-      return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Channel not found', channelId }, { status: 404 });
     }
 
-    const addedVideos: any[] = [];
-    const errors: any[] = [];
+    // Create video records
+    const createdVideos = [];
+    const errors = [];
 
-    for (let i = 0; i < videos.length; i++) {
-      const driveVideo = videos[i];
+    for (const video of videos) {
       try {
-        // Parse size as integer
-        const videoSize = typeof driveVideo.size === 'string' 
-          ? parseInt(driveVideo.size, 10) 
-          : (driveVideo.size || 0);
-
-        // Generate title - prefer per-video title, then custom title, then filename
-        let videoTitle = driveVideo.name;
-        if (driveVideo.title) {
-          // Per-video AI generated title
-          videoTitle = driveVideo.title;
-        } else if (title) {
-          // Global custom title with number
-          videoTitle = videos.length > 1 ? `${title} (${i + 1})` : title;
-        }
-
-        // Check if already mapped
-        const existing = await db.driveVideo.findUnique({
-          where: { driveFileId: driveVideo.id }
-        });
-
-        if (existing) {
-          // Update existing
-          await db.driveVideo.update({
-            where: { id: existing.id },
-            data: {
-              channelId: channelId,
-              addedToQueue: true
-            }
-          });
-          
-          // Create video in queue
-          const video = await db.video.create({
-            data: {
-              channelId: channelId,
-              title: videoTitle,
-              description: driveVideo.description || description || '',
-              tags: driveVideo.tags || tags || '',
-              fileName: driveVideo.id, // Store Drive file ID as fileName
-              originalName: driveVideo.name,
-              fileSize: videoSize,
-              mimeType: driveVideo.mimeType,
-              driveFileId: driveVideo.id, // Store Drive file ID for reference
-              driveWebViewLink: driveVideo.webViewLink,
-              thumbnailName: driveVideo.thumbnailLink || `https://drive.google.com/thumbnail?id=${driveVideo.id}`,
-              status: 'queued'
-            }
-          });
-          
-          addedVideos.push(video);
-          continue;
-        }
-
-        // Create new DriveVideo record
-        const driveVideoRecord = await db.driveVideo.create({
-          data: {
-            userId: channel.userId || 'unknown',
-            channelId: channelId,
-            driveFileId: driveVideo.id,
-            name: driveVideo.name,
-            mimeType: driveVideo.mimeType,
-            webViewLink: driveVideo.webViewLink,
-            thumbnailLink: driveVideo.thumbnailLink,
-            size: videoSize,
-            addedToQueue: true
-          }
-        });
-
-        // Create Video in queue
-        const video = await db.video.create({
+        console.log('Creating video:', video.name);
+        
+        const newVideo = await db.video.create({
           data: {
             channelId: channelId,
-            title: videoTitle,
-            description: driveVideo.description || description || '',
-            tags: driveVideo.tags || tags || '',
-            fileName: driveVideo.id, // Store Drive file ID as fileName
-            originalName: driveVideo.name,
-            fileSize: videoSize,
-            mimeType: driveVideo.mimeType,
-            driveFileId: driveVideo.id, // Store Drive file ID for reference
-            driveWebViewLink: driveVideo.webViewLink,
-            thumbnailName: driveVideo.thumbnailLink || `https://drive.google.com/thumbnail?id=${driveVideo.id}`,
+            title: video.title || video.name || 'Untitled',
+            description: video.description || '',
+            tags: video.tags || '',
+            fileName: video.id, // Google Drive file ID
+            originalName: video.name,
+            fileSize: video.size ? parseInt(String(video.size)) : null,
+            mimeType: video.mimeType || 'video/mp4',
+            driveFileId: video.id, // Store Google Drive file ID
+            driveWebViewLink: video.url || `https://drive.google.com/file/d/${video.id}/view`,
+            thumbnailName: video.thumbnail || null,
+            thumbnailDriveId: video.thumbnailId || null,
             status: 'queued'
           }
         });
-
-        addedVideos.push(video);
-
-      } catch (err: any) {
-        console.error(`[Drive Map] Error mapping video ${driveVideo.name}:`, err);
-        errors.push({ name: driveVideo.name, error: err.message });
+        createdVideos.push(newVideo);
+        console.log('Video created:', newVideo.id);
+      } catch (createError: any) {
+        console.error('Error creating video:', createError);
+        errors.push({ name: video.name, error: createError.message });
       }
     }
 
+    console.log('Drive map complete:', { created: createdVideos.length, errors: errors.length });
+
     return NextResponse.json({
       success: true,
-      added: addedVideos.length,
-      errors: errors.length,
-      errorDetails: errors.length > 0 ? errors : undefined,
-      videos: addedVideos
+      created: createdVideos.length,
+      videos: createdVideos,
+      errors: errors.length > 0 ? errors : undefined
     });
 
   } catch (error: any) {
-    console.error('[Drive Map] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// Get mapped Drive videos
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const channelId = searchParams.get('channelId');
-    const userId = searchParams.get('userId');
-
-    const where: any = {};
-    
-    if (channelId) {
-      where.channelId = channelId;
-    }
-    if (userId) {
-      where.userId = userId;
-    }
-
-    const mappedVideos = await db.driveVideo.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
-    });
-
-    return NextResponse.json({ videos: mappedVideos });
-
-  } catch (error: any) {
-    console.error('[Drive Map] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// Delete mapped Drive video
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID required' }, { status: 400 });
-    }
-
-    await db.driveVideo.delete({
-      where: { id }
-    });
-
-    return NextResponse.json({ success: true });
-
-  } catch (error: any) {
-    console.error('[Drive Map] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Drive map error:', error);
+    return NextResponse.json({
+      error: 'Failed to map videos',
+      details: error.message || String(error)
+    }, { status: 500 });
   }
 }
