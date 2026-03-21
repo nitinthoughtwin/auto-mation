@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { refreshAccessToken } from '@/lib/youtube';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +14,13 @@ export async function OPTIONS() {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
+  });
+}
+
+// Helper to make Drive API request with auto-refresh
+async function makeDriveRequest(url: string, accessToken: string) {
+  return fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}` }
   });
 }
 
@@ -38,42 +46,72 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    const accessToken = channel.accessToken;
-    if (!accessToken) {
-      return NextResponse.json({ error: 'No access token. Please reconnect channel.' }, { status: 401 });
+    let accessToken = channel.accessToken;
+    const refreshToken = channel.refreshToken;
+    
+    if (!accessToken || !refreshToken) {
+      return NextResponse.json({ 
+        error: 'No access token. Please reconnect your channel.',
+        needsReconnect: true 
+      }, { status: 401 });
     }
 
     // Build query - list all folders and video files
     let parentQuery = folderId ? `'${folderId}'` : "'root'";
     
-    // Get folders
-    const foldersRes = await fetch(
+    // Try to get folders and files
+    let foldersRes = await makeDriveRequest(
       `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`)}&fields=files(id,name)&orderBy=name&pageSize=100`,
-      {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      }
+      accessToken
     );
 
-    // Get video files
-    const filesRes = await fetch(
+    let filesRes = await makeDriveRequest(
       `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType contains 'video/'`)}&fields=files(id,name,mimeType,size,thumbnailLink,createdTime,webViewLink)&orderBy=name&pageSize=100`,
-      {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      }
+      accessToken
     );
 
-    if (!foldersRes.ok || !filesRes.ok) {
-      const foldersError = !foldersRes.ok ? await foldersRes.text() : null;
-      const filesError = !filesRes.ok ? await filesRes.text() : null;
-      console.error('Drive API error:', { foldersError, filesError });
+    // If unauthorized, try to refresh token
+    if (foldersRes.status === 401 || filesRes.status === 401) {
+      console.log('Token expired, refreshing...');
       
-      // Token might be expired
-      if (foldersRes.status === 401 || filesRes.status === 401) {
+      try {
+        const newTokens = await refreshAccessToken(refreshToken);
+        accessToken = newTokens.accessToken;
+
+        // Update channel with new token
+        await db.channel.update({
+          where: { id: channelId },
+          data: {
+            accessToken: newTokens.accessToken,
+            refreshToken: newTokens.refreshToken,
+          }
+        });
+
+        console.log('Token refreshed successfully');
+
+        // Retry with new token
+        foldersRes = await makeDriveRequest(
+          `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`)}&fields=files(id,name)&orderBy=name&pageSize=100`,
+          accessToken
+        );
+
+        filesRes = await makeDriveRequest(
+          `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType contains 'video/'`)}&fields=files(id,name,mimeType,size,thumbnailLink,createdTime,webViewLink)&orderBy=name&pageSize=100`,
+          accessToken
+        );
+      } catch (refreshError) {
+        console.error('Failed to refresh token:', refreshError);
         return NextResponse.json({ 
           error: 'Google Drive access expired. Please reconnect your channel.',
           needsReconnect: true 
         }, { status: 401 });
       }
+    }
+
+    if (!foldersRes.ok || !filesRes.ok) {
+      const foldersError = !foldersRes.ok ? await foldersRes.text() : null;
+      const filesError = !filesRes.ok ? await filesRes.text() : null;
+      console.error('Drive API error:', { foldersError, filesError });
       
       return NextResponse.json({ error: 'Failed to access Google Drive' }, { status: 500 });
     }
