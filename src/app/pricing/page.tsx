@@ -8,7 +8,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
   Check,
-  X,
   Zap,
   Crown,
   Sparkles,
@@ -54,8 +53,12 @@ export default function PricingPage() {
     try {
       const res = await fetch('/api/plans');
       const data = await res.json();
-      setPlans(data.plans || []);
+      console.log('[Pricing] Loaded plans:', data);
+      if (data.plans && Array.isArray(data.plans)) {
+        setPlans(data.plans);
+      }
     } catch (error) {
+      console.error('[Pricing] Error loading plans:', error);
       toast.error('Failed to load plans');
     } finally {
       setLoading(false);
@@ -75,11 +78,6 @@ export default function PricingPage() {
   };
 
   const handleSelectPlan = async (plan: Plan) => {
-    if (plan.name === 'free' && currentPlan === 'free') {
-      toast.info('You are already on the Free plan');
-      return;
-    }
-
     if (plan.name === currentPlan) {
       toast.info('You are already on this plan');
       return;
@@ -88,7 +86,6 @@ export default function PricingPage() {
     setProcessingPlan(plan.name);
 
     try {
-      // For free plan, just create subscription
       if (plan.name === 'free') {
         const res = await fetch('/api/subscription', {
           method: 'POST',
@@ -104,26 +101,7 @@ export default function PricingPage() {
           throw new Error(data.error || 'Failed to activate plan');
         }
       } else {
-        // For paid plans, initiate payment
-        const res = await fetch('/api/payment/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            planId: plan.id,
-            billingPeriod,
-          }),
-        });
-        const data = await res.json();
-        
-        if (data.checkoutUrl) {
-          // Redirect to payment page
-          window.location.href = data.checkoutUrl;
-        } else if (data.orderId) {
-          // Razorpay integration - open checkout
-          openRazorpayCheckout(data, plan);
-        } else {
-          throw new Error(data.error || 'Failed to create payment');
-        }
+        toast.info('Payment integration coming soon!');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to process plan selection');
@@ -132,54 +110,8 @@ export default function PricingPage() {
     }
   };
 
-  const openRazorpayCheckout = (orderData: any, plan: Plan) => {
-    // @ts-ignore - Razorpay is loaded via script
-    const rzp = new window.Razorpay({
-      key: orderData.keyId,
-      amount: orderData.amount,
-      currency: orderData.currency,
-      order_id: orderData.orderId,
-      name: 'GPMart Studio',
-      description: plan.displayName,
-      handler: async (response: any) => {
-        try {
-          const verifyRes = await fetch('/api/payment/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-            }),
-          });
-          const verifyData = await verifyRes.json();
-          
-          if (verifyData.success) {
-            toast.success('Payment successful! Plan activated.');
-            setCurrentPlan(plan.name);
-          } else {
-            throw new Error(verifyData.error || 'Payment verification failed');
-          }
-        } catch (error: any) {
-          toast.error(error.message || 'Payment verification failed');
-        }
-      },
-      prefill: {
-        name: '',
-        email: '',
-      },
-      theme: {
-        color: '#6366f1',
-      },
-    });
-    rzp.open();
-  };
-
-  const formatPrice = (price: number, currency: 'INR' | 'USD') => {
-    if (currency === 'INR') {
-      return `₹${price.toLocaleString('en-IN')}`;
-    }
-    return `$${(price / 100).toFixed(2)}`;
+  const formatPrice = (price: number) => {
+    return `₹${price.toLocaleString('en-IN')}`;
   };
 
   const getPlanIcon = (planName: string) => {
@@ -258,92 +190,99 @@ export default function PricingPage() {
         </div>
 
         {/* Plans Grid */}
-        <div className="grid gap-6 sm:gap-8 md:grid-cols-3 max-w-6xl mx-auto px-4">
-          {plans.map((plan) => {
-            const isCurrentPlan = plan.name === currentPlan;
-            const price = billingPeriod === 'monthly' 
-              ? formatPrice(plan.priceINR, 'INR')
-              : formatPrice(plan.yearlyPriceINR, 'INR');
-            const isProcessing = processingPlan === plan.name;
+        {plans.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground mb-4">No plans available.</p>
+            <Button onClick={loadPlans}>Retry</Button>
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:gap-8 md:grid-cols-3 max-w-6xl mx-auto px-4">
+            {plans.map((plan) => {
+              const isCurrentPlan = plan.name === currentPlan;
+              const price = billingPeriod === 'monthly' 
+                ? formatPrice(plan.priceINR)
+                : formatPrice(plan.yearlyPriceINR);
+              const isProcessing = processingPlan === plan.name;
 
-            return (
-              <Card
-                key={plan.id}
-                className={`relative overflow-hidden transition-all duration-300 ${
-                  plan.name === 'pro' 
-                    ? 'border-2 border-indigo-500 shadow-xl scale-105 z-10' 
-                    : 'border hover:shadow-lg'
-                } ${isCurrentPlan ? 'ring-2 ring-green-500' : ''}`}
-              >
-                {plan.name === 'pro' && (
-                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-center py-1 text-sm font-medium">
-                    Most Popular
-                  </div>
-                )}
-                
-                <CardHeader className={plan.name === 'pro' ? 'pt-8' : ''}>
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getPlanGradient(plan.name)} text-white flex items-center justify-center mb-4`}>
-                    {getPlanIcon(plan.name)}
-                  </div>
-                  <CardTitle className="text-xl">{plan.displayName}</CardTitle>
-                  <CardDescription>{plan.description}</CardDescription>
-                </CardHeader>
-
-                <CardContent>
-                  <div className="mb-6">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl sm:text-4xl font-bold">{price}</span>
-                      <span className="text-muted-foreground">
-                        /{billingPeriod === 'yearly' ? 'year' : 'month'}
-                      </span>
+              return (
+                <Card
+                  key={plan.id}
+                  className={`relative overflow-hidden transition-all duration-300 ${
+                    plan.name === 'pro' 
+                      ? 'border-2 border-indigo-500 shadow-xl scale-105 z-10' 
+                      : 'border hover:shadow-lg'
+                  } ${isCurrentPlan ? 'ring-2 ring-green-500' : ''}`}
+                >
+                  {plan.name === 'pro' && (
+                    <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-center py-1 text-sm font-medium">
+                      Most Popular
                     </div>
-                    {billingPeriod === 'yearly' && plan.yearlyDiscountPercent && (
-                      <p className="text-sm text-green-600 mt-1">
-                        Save {plan.yearlyDiscountPercent}% with yearly billing
-                      </p>
-                    )}
-                  </div>
+                  )}
+                  
+                  <CardHeader className={plan.name === 'pro' ? 'pt-8' : ''}>
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getPlanGradient(plan.name)} text-white flex items-center justify-center mb-4`}>
+                      {getPlanIcon(plan.name)}
+                    </div>
+                    <CardTitle className="text-xl">{plan.displayName}</CardTitle>
+                    <CardDescription>{plan.description}</CardDescription>
+                  </CardHeader>
 
-                  <ul className="space-y-3">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
+                  <CardContent>
+                    <div className="mb-6">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl sm:text-4xl font-bold">{price}</span>
+                        <span className="text-muted-foreground">
+                          /{billingPeriod === 'yearly' ? 'year' : 'month'}
+                        </span>
+                      </div>
+                      {billingPeriod === 'yearly' && plan.yearlyDiscountPercent && (
+                        <p className="text-sm text-green-600 mt-1">
+                          Save {plan.yearlyDiscountPercent}% with yearly billing
+                        </p>
+                      )}
+                    </div>
 
-                <CardFooter>
-                  <Button
-                    className="w-full"
-                    variant={plan.name === 'pro' ? 'default' : 'outline'}
-                    onClick={() => handleSelectPlan(plan)}
-                    disabled={isProcessing || isCurrentPlan}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : isCurrentPlan ? (
-                      <>
-                        <Check className="mr-2 h-4 w-4" />
-                        Current Plan
-                      </>
-                    ) : plan.name === 'free' ? (
-                      'Get Started'
-                    ) : (
-                      'Subscribe'
-                    )}
-                  </Button>
-                </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
+                    <ul className="space-y-3">
+                      {Array.isArray(plan.features) && plan.features.map((feature, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span className="text-sm">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
 
-        {/* FAQ or Trust Section */}
+                  <CardFooter>
+                    <Button
+                      className="w-full"
+                      variant={plan.name === 'pro' ? 'default' : 'outline'}
+                      onClick={() => handleSelectPlan(plan)}
+                      disabled={isProcessing || isCurrentPlan}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : isCurrentPlan ? (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Current Plan
+                        </>
+                      ) : plan.name === 'free' ? (
+                        'Get Started'
+                      ) : (
+                        'Subscribe'
+                      )}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Trust Section */}
         <div className="mt-12 sm:mt-16 text-center px-4">
           <p className="text-sm text-muted-foreground">
             All plans include a 7-day free trial. Cancel anytime. No questions asked.
