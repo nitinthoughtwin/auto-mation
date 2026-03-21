@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 
 interface Plan {
   id: string;
@@ -36,15 +37,31 @@ interface Plan {
   sortOrder: number;
 }
 
+// Declare Razorpay type
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 export default function PricingPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
   useEffect(() => {
+    // Load Razorpay script
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => setRazorpayLoaded(true);
+    document.body.appendChild(script);
+
     loadPlans();
     loadCurrentSubscription();
   }, []);
@@ -53,7 +70,6 @@ export default function PricingPage() {
     try {
       const res = await fetch('/api/plans');
       const data = await res.json();
-      console.log('[Pricing] Loaded plans:', data);
       if (data.plans && Array.isArray(data.plans)) {
         setPlans(data.plans);
       }
@@ -78,6 +94,13 @@ export default function PricingPage() {
   };
 
   const handleSelectPlan = async (plan: Plan) => {
+    // Check if user is logged in
+    if (status !== 'authenticated' || !session?.user) {
+      toast.error('Please login to subscribe');
+      router.push('/login');
+      return;
+    }
+
     if (plan.name === currentPlan) {
       toast.info('You are already on this plan');
       return;
@@ -87,6 +110,7 @@ export default function PricingPage() {
 
     try {
       if (plan.name === 'free') {
+        // For free plan, create subscription directly
         const res = await fetch('/api/subscription', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -95,19 +119,97 @@ export default function PricingPage() {
         const data = await res.json();
         
         if (data.success) {
-          toast.success('Plan activated successfully!');
+          toast.success('Free plan activated successfully!');
           setCurrentPlan('free');
+          router.push('/');
         } else {
           throw new Error(data.error || 'Failed to activate plan');
         }
       } else {
-        toast.info('Payment integration coming soon!');
+        // For paid plans, initiate Razorpay payment
+        if (!razorpayLoaded) {
+          throw new Error('Payment gateway is loading. Please try again.');
+        }
+
+        const res = await fetch('/api/payment/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: plan.id,
+            billingPeriod,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to create payment');
+        }
+
+        if (data.orderId) {
+          // Open Razorpay checkout
+          openRazorpayCheckout(data, plan);
+        } else {
+          throw new Error('Invalid payment response');
+        }
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to process plan selection');
+      console.error('[Pricing] Error:', error);
+      toast.error(error.message || 'Failed to process request');
     } finally {
       setProcessingPlan(null);
     }
+  };
+
+  const openRazorpayCheckout = (orderData: any, plan: Plan) => {
+    const options = {
+      key: orderData.keyId,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      order_id: orderData.orderId,
+      name: 'GPMart Studio',
+      description: `${plan.displayName} - ${billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'}`,
+      handler: async (response: any) => {
+        try {
+          const verifyRes = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            }),
+          });
+          const verifyData = await verifyRes.json();
+          
+          if (verifyData.success) {
+            toast.success('Payment successful! Plan activated.');
+            setCurrentPlan(plan.name);
+            router.push('/');
+          } else {
+            throw new Error(verifyData.error || 'Payment verification failed');
+          }
+        } catch (error: any) {
+          toast.error(error.message || 'Payment verification failed');
+        }
+      },
+      prefill: {
+        name: session?.user?.name || '',
+        email: session?.user?.email || '',
+      },
+      theme: {
+        color: '#ef4444', // Red color matching YouTube theme
+      },
+      modal: {
+        ondismiss: () => {
+          setProcessingPlan(null);
+          toast.info('Payment cancelled');
+        },
+      },
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
   };
 
   const formatPrice = (price: number) => {
@@ -290,7 +392,7 @@ export default function PricingPage() {
           <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-green-500" />
-              Secure payments via Razorpay & Stripe
+              Secure payments via Razorpay
             </div>
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-green-500" />
