@@ -122,6 +122,8 @@ model Plan {
   description           String?
   priceINR              Int            @default(0)
   priceUSD              Int            @default(0)
+  yearlyPriceINR        Int            @default(0)
+  yearlyPriceUSD        Int            @default(0)
   yearlyDiscountPercent Int?
   maxVideosPerMonth     Int            @default(10)
   maxChannels           Int            @default(1)
