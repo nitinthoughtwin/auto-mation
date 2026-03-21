@@ -2,94 +2,100 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-// List videos from Google Drive
-export async function POST(request: NextRequest) {
+// Handle OPTIONS for CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
+// List files and folders from user's Google Drive
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { channelId, pageToken, pageSize = 50 } = body;
+    const { searchParams } = new URL(request.url);
+    const folderId = searchParams.get('folderId');
+    const channelId = searchParams.get('channelId');
+
+    console.log('Drive list request:', { folderId, channelId });
 
     if (!channelId) {
-      return NextResponse.json(
-        { success: false, error: 'Channel ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Channel ID is required' }, { status: 400 });
     }
 
-    // Get channel with access token
+    // Get channel's access token
     const channel = await db.channel.findUnique({
-      where: { id: channelId },
+      where: { id: channelId }
     });
 
     if (!channel) {
-      return NextResponse.json(
-        { success: false, error: 'Channel not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    // Refresh token if needed (using YouTube refresh mechanism)
-    let accessToken = channel.accessToken;
-
-    // List video files from Google Drive
-    const driveUrl = new URL('https://www.googleapis.com/drive/v3/files');
-    driveUrl.searchParams.set('pageSize', String(pageSize));
-    driveUrl.searchParams.set('fields', 'nextPageToken, files(id, name, size, mimeType, createdTime, thumbnailLink, webContentLink)');
-    driveUrl.searchParams.set('q', "mimeType contains 'video/' and trashed = false");
-    driveUrl.searchParams.set('orderBy', 'createdTime desc');
-
-    if (pageToken) {
-      driveUrl.searchParams.set('pageToken', pageToken);
+    const accessToken = channel.accessToken;
+    if (!accessToken) {
+      return NextResponse.json({ error: 'No access token. Please reconnect channel.' }, { status: 401 });
     }
 
-    const response = await fetch(driveUrl.toString(), {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
+    // Build query - list all folders and video files
+    let parentQuery = folderId ? `'${folderId}'` : "'root'";
+    
+    // Get folders
+    const foldersRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`)}&fields=files(id,name)&orderBy=name&pageSize=100`,
+      {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      }
+    );
+
+    // Get video files
+    const filesRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType contains 'video/'`)}&fields=files(id,name,mimeType,size,thumbnailLink,createdTime,webViewLink)&orderBy=name&pageSize=100`,
+      {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      }
+    );
+
+    if (!foldersRes.ok || !filesRes.ok) {
+      const foldersError = !foldersRes.ok ? await foldersRes.text() : null;
+      const filesError = !filesRes.ok ? await filesRes.text() : null;
+      console.error('Drive API error:', { foldersError, filesError });
+      
+      // Token might be expired
+      if (foldersRes.status === 401 || filesRes.status === 401) {
+        return NextResponse.json({ 
+          error: 'Google Drive access expired. Please reconnect your channel.',
+          needsReconnect: true 
+        }, { status: 401 });
+      }
+      
+      return NextResponse.json({ error: 'Failed to access Google Drive' }, { status: 500 });
+    }
+
+    const foldersData = await foldersRes.json();
+    const filesData = await filesRes.json();
+
+    console.log('Drive list success:', { 
+      folders: foldersData.files?.length || 0, 
+      files: filesData.files?.length || 0 
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Drive API error:', error);
-
-      if (response.status === 401) {
-        return NextResponse.json(
-          { success: false, error: 'Token expired. Please reconnect your channel.', needReconnect: true },
-          { status: 401 }
-        );
-      }
-
-      throw new Error(error.error?.message || 'Failed to fetch from Google Drive');
-    }
-
-    const data = await response.json();
-
-    // Filter only video files
-    const videos = (data.files || []).filter((file: any) =>
-      file.mimeType?.startsWith('video/')
-    ).map((file: any) => ({
-      id: file.id,
-      name: file.name,
-      size: parseInt(file.size || '0'),
-      mimeType: file.mimeType,
-      createdTime: file.createdTime,
-      thumbnailUrl: file.thumbnailLink,
-      downloadUrl: file.webContentLink,
-      driveUrl: `https://drive.google.com/file/d/${file.id}/view`,
-    }));
-
     return NextResponse.json({
-      success: true,
-      videos,
-      nextPageToken: data.nextPageToken,
-      totalResults: videos.length,
+      folders: foldersData.files || [],
+      files: filesData.files || []
     });
 
   } catch (error: any) {
     console.error('Drive list error:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to list videos' },
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      error: 'Failed to list Drive contents',
+      details: error.message || String(error) 
+    }, { status: 500 });
   }
 }
