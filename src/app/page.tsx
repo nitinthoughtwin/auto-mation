@@ -293,6 +293,8 @@ const api = {
   },
 };
 
+console.log("_____________")
+
 // Main Component
 export default function YouTubeAutomationDashboard() {
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -359,6 +361,7 @@ export default function YouTubeAutomationDashboard() {
       setLoading(false);
     }
   }, []);
+
 
   // Load channel details
   const loadChannelDetails = async (channelId: string) => {
