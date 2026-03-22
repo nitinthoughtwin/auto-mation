@@ -36,7 +36,7 @@ export default function LoginPage() {
         setError('Invalid email or password');
       } else {
         toast.success('Login successful!');
-        router.push('/');
+        router.push('/dashboard');
         router.refresh();
       }
     } catch (err) {
@@ -48,7 +48,7 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    await signIn('google', { callbackUrl: '/' });
+    signIn('google', { callbackUrl: '/dashboard' });
   };
 
   return (
@@ -120,7 +120,12 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-300">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-gray-300">Password</Label>
+                <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-gray-300">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                 <Input
