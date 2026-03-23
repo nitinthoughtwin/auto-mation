@@ -1295,103 +1295,106 @@ export default function NewDashboard() {
     if (!selectedChannel) return null;
 
     return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => { setSelectedChannel(null); setActiveTab('dashboard'); }}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+      <div className="space-y-3 sm:space-y-4">
+        {/* Header - Mobile Friendly */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedChannel(null); setActiveTab('dashboard'); }} className="w-fit h-8 text-xs sm:text-sm">
+            <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             Back
           </Button>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
-              {selectedChannel.platform === 'instagram' ? (
-                <Instagram className="h-6 w-6 text-white" />
-              ) : selectedChannel.platform === 'facebook' ? (
-                <Facebook className="h-6 w-6 text-white" />
-              ) : (
-                <Youtube className="h-6 w-6 text-white" />
-              )}
+          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
+                {selectedChannel.platform === 'instagram' ? (
+                  <Instagram className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                ) : selectedChannel.platform === 'facebook' ? (
+                  <Facebook className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                ) : (
+                  <Youtube className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                )}
+              </div>
+              <div>
+                <h1 className="text-sm sm:text-lg font-bold truncate max-w-[150px] sm:max-w-none">{selectedChannel.name}</h1>
+                <p className="text-[10px] sm:text-xs text-gray-500 hidden sm:block">ID: {selectedChannel.youtubeChannelId}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold">{selectedChannel.name}</h1>
-              <p className="text-sm text-gray-500">Channel ID: {selectedChannel.youtubeChannelId}</p>
+            <div className="flex items-center gap-1.5 sm:gap-2 sm:ml-auto">
+              <Switch
+                checked={selectedChannel.isActive}
+                onCheckedChange={() => toggleChannelActive(selectedChannel)}
+              />
+              <Badge variant={selectedChannel.isActive ? 'default' : 'secondary'} className={`text-[10px] sm:text-xs ${selectedChannel.isActive ? 'bg-green-500' : ''}`}>
+                {selectedChannel.isActive ? 'Active' : 'Paused'}
+              </Badge>
             </div>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Switch
-              checked={selectedChannel.isActive}
-              onCheckedChange={() => toggleChannelActive(selectedChannel)}
-            />
-            <Badge variant={selectedChannel.isActive ? 'default' : 'secondary'} className={selectedChannel.isActive ? 'bg-green-500' : ''}>
-              {selectedChannel.isActive ? 'Active' : 'Paused'}
-            </Badge>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <StatsCard title="Total Videos" value={selectedChannel.stats?.total || videos.length} icon={Video} color="blue" />
-          <StatsCard title="In Queue" value={selectedChannel.stats?.queued || queuedVideos.length} icon={Clock} color="green" />
+        <div className="grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-4">
+          <StatsCard title="Total" value={selectedChannel.stats?.total || videos.length} icon={Video} color="blue" />
+          <StatsCard title="Queue" value={selectedChannel.stats?.queued || queuedVideos.length} icon={Clock} color="green" />
           <StatsCard title="Uploaded" value={selectedChannel.stats?.uploaded || uploadedVideos.length} icon={CheckCircle} color="purple" />
           <StatsCard title="Failed" value={selectedChannel.stats?.failed || failedVideos.length} icon={XCircle} color="red" />
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="settings" className="space-y-6">
-          <TabsList className="bg-white dark:bg-slate-800 p-1 rounded-xl">
-            <TabsTrigger value="settings" className="rounded-lg"><Settings className="h-4 w-4 mr-2" />Settings</TabsTrigger>
-            <TabsTrigger value="upload" className="rounded-lg"><Upload className="h-4 w-4 mr-2" />Upload</TabsTrigger>
-            <TabsTrigger value="queue" className="rounded-lg"><Video className="h-4 w-4 mr-2" />Queue ({queuedVideos.length})</TabsTrigger>
-            <TabsTrigger value="ai" className="rounded-lg"><Sparkles className="h-4 w-4 mr-2" />AI Tools</TabsTrigger>
-            <TabsTrigger value="history" className="rounded-lg"><Clock className="h-4 w-4 mr-2" />History</TabsTrigger>
+        <Tabs defaultValue="settings" className="space-y-3 sm:space-y-4">
+          <TabsList className="bg-white dark:bg-slate-800 p-0.5 sm:p-1 rounded-lg sm:rounded-xl w-full overflow-x-auto flex-nowrap flex gap-0.5 sm:gap-1">
+            <TabsTrigger value="settings" className="rounded-md text-[10px] sm:text-xs px-2 sm:px-3 py-1 sm:py-1.5 flex-shrink-0"><Settings className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1.5" /><span className="hidden sm:inline">Settings</span></TabsTrigger>
+            <TabsTrigger value="upload" className="rounded-md text-[10px] sm:text-xs px-2 sm:px-3 py-1 sm:py-1.5 flex-shrink-0"><Upload className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1.5" /><span className="hidden sm:inline">Upload</span></TabsTrigger>
+            <TabsTrigger value="queue" className="rounded-md text-[10px] sm:text-xs px-2 sm:px-3 py-1 sm:py-1.5 flex-shrink-0"><Video className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1.5" /><span className="hidden sm:inline">Queue ({queuedVideos.length})</span><span className="sm:hidden">({queuedVideos.length})</span></TabsTrigger>
+            <TabsTrigger value="ai" className="rounded-md text-[10px] sm:text-xs px-2 sm:px-3 py-1 sm:py-1.5 flex-shrink-0"><Sparkles className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1.5" /><span className="hidden sm:inline">AI Tools</span></TabsTrigger>
+            <TabsTrigger value="history" className="rounded-md text-[10px] sm:text-xs px-2 sm:px-3 py-1 sm:py-1.5 flex-shrink-0"><Clock className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1.5" /><span className="hidden sm:inline">History</span></TabsTrigger>
           </TabsList>
 
           {/* Settings Tab */}
           <TabsContent value="settings">
             <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Upload Schedule</CardTitle>
-                <CardDescription>Configure when videos should be uploaded</CardDescription>
+              <CardHeader className="p-3 sm:p-4">
+                <CardTitle className="text-sm sm:text-base">Upload Schedule</CardTitle>
+                <CardDescription className="text-[10px] sm:text-xs">Configure when videos should be uploaded</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Upload Time</Label>
+              <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-4">
+                <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs sm:text-sm">Upload Time</Label>
                     <Input
                       type="time"
                       value={editSettings.uploadTime}
                       onChange={(e) => setEditSettings({ ...editSettings, uploadTime: e.target.value })}
+                      className="h-8 sm:h-10 text-xs sm:text-sm"
                     />
-                    <p className="text-xs text-gray-500">Videos will upload around this time</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500">Videos will upload around this time</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Upload Frequency</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs sm:text-sm">Upload Frequency</Label>
                     <Select
                       value={editSettings.frequency}
                       onValueChange={(value) => setEditSettings({ ...editSettings, frequency: value })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-8 sm:h-10 text-xs sm:text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="every6h">Every 6 Hours</SelectItem>
-                        <SelectItem value="every12h">Every 12 Hours</SelectItem>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="alternate">Every Other Day</SelectItem>
-                        <SelectItem value="every3days">Every 3 Days</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="biweekly">Bi-Weekly</SelectItem>
+                        <SelectItem value="every6h" className="text-xs sm:text-sm">Every 6 Hours</SelectItem>
+                        <SelectItem value="every12h" className="text-xs sm:text-sm">Every 12 Hours</SelectItem>
+                        <SelectItem value="daily" className="text-xs sm:text-sm">Daily</SelectItem>
+                        <SelectItem value="alternate" className="text-xs sm:text-sm">Every Other Day</SelectItem>
+                        <SelectItem value="every3days" className="text-xs sm:text-sm">Every 3 Days</SelectItem>
+                        <SelectItem value="weekly" className="text-xs sm:text-sm">Weekly</SelectItem>
+                        <SelectItem value="biweekly" className="text-xs sm:text-sm">Bi-Weekly</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 {/* Random Delay */}
-                <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800">
+                <div className="p-2.5 sm:p-4 rounded-lg sm:rounded-xl bg-gray-50 dark:bg-slate-800">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>Random Delay</Label>
-                      <p className="text-sm text-gray-500">Add randomness to appear more natural</p>
+                      <Label className="text-xs sm:text-sm">Random Delay</Label>
+                      <p className="text-[10px] sm:text-xs text-gray-500">Add randomness to appear more natural</p>
                     </div>
                     <Switch
                       checked={editSettings.randomDelayEnabled}
@@ -1399,21 +1402,22 @@ export default function NewDashboard() {
                     />
                   </div>
                   {editSettings.randomDelayEnabled && (
-                    <div className="mt-4 space-y-2">
-                      <Label>Maximum Delay (minutes)</Label>
+                    <div className="mt-3 sm:mt-4 space-y-1.5">
+                      <Label className="text-xs sm:text-sm">Maximum Delay (minutes)</Label>
                       <Input
                         type="number"
                         min={5}
                         max={180}
                         value={editSettings.randomDelayMinutes}
                         onChange={(e) => setEditSettings({ ...editSettings, randomDelayMinutes: parseInt(e.target.value) || 30 })}
+                        className="h-8 sm:h-10 text-xs sm:text-sm"
                       />
                     </div>
                   )}
                 </div>
 
-                <Button onClick={updateChannelSettings} disabled={savingSettings} className="bg-gradient-to-r from-red-500 to-orange-500">
-                  {savingSettings ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                <Button onClick={updateChannelSettings} disabled={savingSettings} size="sm" className="bg-gradient-to-r from-red-500 to-orange-500 h-8 sm:h-10 text-xs sm:text-sm">
+                  {savingSettings ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 animate-spin" /> : null}
                   Save Settings
                 </Button>
               </CardContent>
@@ -1423,95 +1427,98 @@ export default function NewDashboard() {
           {/* Upload Tab */}
           <TabsContent value="upload">
             <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Upload Videos</CardTitle>
-                <CardDescription>Add new videos to your upload queue</CardDescription>
+              <CardHeader className="p-3 sm:p-4">
+                <CardTitle className="text-sm sm:text-base">Upload Videos</CardTitle>
+                <CardDescription className="text-[10px] sm:text-xs">Add new videos to your upload queue</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-4">
                 {/* File Upload */}
-                <div className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-8 text-center">
-                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="font-medium mb-2">Select Video Files</h3>
-                  <p className="text-sm text-gray-500 mb-4">MP4, MOV, AVI, MKV supported</p>
+                <div className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg sm:rounded-xl p-4 sm:p-6 text-center">
+                  <Upload className="h-8 w-8 sm:h-10 sm:w-10 text-gray-400 mx-auto mb-2 sm:mb-3" />
+                  <h3 className="font-medium mb-1 text-sm sm:text-base">Select Video Files</h3>
+                  <p className="text-[10px] sm:text-xs text-gray-500 mb-2 sm:mb-3">MP4, MOV, AVI, MKV supported</p>
                   <Input
                     type="file"
                     accept="video/*"
                     multiple
                     onChange={(e) => setUploadFiles(e.target.files)}
-                    className="max-w-md mx-auto"
+                    className="text-[10px] sm:text-xs"
                   />
                 </div>
 
                 {/* Thumbnail Upload */}
-                <div className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-6">
-                  <ImageIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-center mb-2">Thumbnails (optional)</p>
+                <div className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                  <ImageIcon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 mx-auto mb-1.5 sm:mb-2" />
+                  <p className="text-[10px] sm:text-xs text-center mb-1.5 sm:mb-2">Thumbnails (optional)</p>
                   <Input
                     type="file"
                     accept="image/*"
                     multiple
                     onChange={(e) => setThumbnailFiles(e.target.files)}
-                    className="max-w-md mx-auto"
+                    className="text-[10px] sm:text-xs"
                   />
                 </div>
 
                 {/* Default Metadata */}
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Default Title</Label>
+                <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs sm:text-sm">Default Title</Label>
                     <Input
                       value={defaultTitle}
                       onChange={(e) => setDefaultTitle(e.target.value)}
                       placeholder="Enter default title..."
+                      className="h-8 sm:h-10 text-xs sm:text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Tags (comma separated)</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs sm:text-sm">Tags</Label>
                     <Input
                       value={defaultTags}
                       onChange={(e) => setDefaultTags(e.target.value)}
-                      placeholder="tag1, tag2, tag3"
+                      placeholder="tag1, tag2"
+                      className="h-8 sm:h-10 text-xs sm:text-sm"
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs sm:text-sm">Description</Label>
                   <Textarea
                     value={defaultDescription}
                     onChange={(e) => setDefaultDescription(e.target.value)}
                     placeholder="Enter default description..."
-                    rows={3}
+                    rows={2}
+                    className="text-xs sm:text-sm"
                   />
                 </div>
 
                 {/* Progress */}
                 {Object.keys(uploadProgress).length > 0 && (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {Object.entries(uploadProgress).map(([name, progress]) => (
                       <div key={name}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>{name}</span>
+                        <div className="flex justify-between text-[10px] sm:text-xs mb-1">
+                          <span className="truncate">{name}</span>
                           <span>{progress}%</span>
                         </div>
-                        <Progress value={progress} />
+                        <Progress value={progress} className="h-1.5 sm:h-2" />
                       </div>
                     ))}
                   </div>
                 )}
 
                 {/* Upload Buttons */}
-                <div className="flex flex-wrap gap-3">
-                  <Button onClick={uploadVideos} disabled={uploading || !uploadFiles} className="bg-gradient-to-r from-red-500 to-orange-500">
-                    {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button onClick={uploadVideos} disabled={uploading || !uploadFiles} size="sm" className="bg-gradient-to-r from-red-500 to-orange-500 h-8 sm:h-9 text-[10px] sm:text-xs">
+                    {uploading ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" /> : <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />}
                     Upload Videos
                   </Button>
-                  <Button variant="outline" onClick={() => setShowDriveBrowser(true)}>
-                    <HardDrive className="h-4 w-4 mr-2" />
+                  <Button variant="outline" size="sm" onClick={() => setShowDriveBrowser(true)} className="h-8 sm:h-9 text-[10px] sm:text-xs">
+                    <HardDrive className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     Import from Drive
                   </Button>
-                  <Button variant="outline" onClick={() => setShowPublicDriveBrowser(true)}>
-                    <LinkIcon className="h-4 w-4 mr-2" />
-                    Public Drive Link
+                  <Button variant="outline" size="sm" onClick={() => setShowPublicDriveBrowser(true)} className="h-8 sm:h-9 text-[10px] sm:text-xs">
+                    <LinkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    Public Link
                   </Button>
                 </div>
               </CardContent>
@@ -1521,21 +1528,21 @@ export default function NewDashboard() {
           {/* Queue Tab */}
           <TabsContent value="queue">
             <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Video Queue</CardTitle>
-                <CardDescription>Videos waiting to be uploaded</CardDescription>
+              <CardHeader className="p-3 sm:p-4">
+                <CardTitle className="text-sm sm:text-base">Video Queue</CardTitle>
+                <CardDescription className="text-[10px] sm:text-xs">Videos waiting to be uploaded</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 sm:p-4">
                 {queuedVideos.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Video className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">No videos in queue</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <Video className="h-8 w-8 sm:h-10 sm:w-10 text-gray-300 mx-auto mb-2 sm:mb-3" />
+                    <p className="text-gray-500 text-xs sm:text-sm">No videos in queue</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-2 sm:space-y-3">
                     {queuedVideos.map((video) => (
-                      <div key={video.id} className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-slate-800">
-                        <div className="w-20 h-14 rounded-lg bg-gray-200 dark:bg-slate-700 flex items-center justify-center overflow-hidden">
+                      <div key={video.id} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-gray-50 dark:bg-slate-800">
+                        <div className="w-14 h-10 sm:w-16 sm:h-12 rounded bg-gray-200 dark:bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {video.thumbnailDriveId ? (
                             <img 
                               src={getThumbnailUrl(video.thumbnailDriveId) || ''} 
@@ -1543,19 +1550,19 @@ export default function NewDashboard() {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <FileVideo className="h-6 w-6 text-gray-400" />
+                            <FileVideo className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{video.title}</p>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Badge variant="outline">{video.status}</Badge>
+                          <p className="font-medium text-xs sm:text-sm truncate">{video.title}</p>
+                          <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-gray-500">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5">{video.status}</Badge>
                             {video.fileSize && <span>{formatFileSize(video.fileSize)}</span>}
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => setPreviewVideo(video)}>
-                            <Eye className="h-4 w-4" />
+                        <div className="flex gap-1 sm:gap-1.5">
+                          <Button variant="outline" size="sm" onClick={() => setPreviewVideo(video)} className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                            <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                           </Button>
                           <Button variant="outline" size="sm" onClick={() => {
                             setEditingVideo(video);
@@ -1564,11 +1571,11 @@ export default function NewDashboard() {
                               description: video.description || '',
                               tags: video.tags || '',
                             });
-                          }}>
-                            <Settings className="h-4 w-4" />
+                          }} className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                            <Settings className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => deleteVideo(video.id)}>
-                            <Trash2 className="h-4 w-4" />
+                          <Button variant="destructive" size="sm" onClick={() => deleteVideo(video.id)} className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                            <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -1582,41 +1589,42 @@ export default function NewDashboard() {
           {/* AI Tools Tab */}
           <TabsContent value="ai">
             <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-purple-500" />
+              <CardHeader className="p-3 sm:p-4">
+                <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
+                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
                   AI Title Generation
                 </CardTitle>
-                <CardDescription>Generate titles and descriptions using AI</CardDescription>
+                <CardDescription className="text-[10px] sm:text-xs">Generate titles and descriptions using AI</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Topic (optional)</Label>
+              <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-4">
+                <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs sm:text-sm">Topic (optional)</Label>
                     <Input
                       value={aiTopic}
                       onChange={(e) => setAiTopic(e.target.value)}
-                      placeholder="e.g., Gaming, Cooking, Tech..."
+                      placeholder="e.g., Gaming, Cooking..."
+                      className="h-8 sm:h-10 text-xs sm:text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Language</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs sm:text-sm">Language</Label>
                     <Select value={aiLanguage} onValueChange={(v) => setAiLanguage(v as 'english' | 'hindi')}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-8 sm:h-10 text-xs sm:text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="english">English</SelectItem>
-                        <SelectItem value="hindi">Hindi</SelectItem>
+                        <SelectItem value="english" className="text-xs sm:text-sm">English</SelectItem>
+                        <SelectItem value="hindi" className="text-xs sm:text-sm">Hindi</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 {queuedVideos.length > 0 && (
-                  <div className="space-y-4">
+                  <div className="space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label>Select Videos</Label>
+                      <Label className="text-xs sm:text-sm">Select Videos</Label>
                       <Button 
                         variant="ghost" 
                         size="sm"
@@ -1627,27 +1635,28 @@ export default function NewDashboard() {
                             setSelectedVideoIds(new Set(queuedVideos.map(v => v.id)));
                           }
                         }}
+                        className="h-7 text-[10px] sm:text-xs"
                       >
                         {selectedVideoIds.size === queuedVideos.length ? 'Deselect All' : 'Select All'}
                       </Button>
                     </div>
-                    <div className="grid gap-2 max-h-64 overflow-y-auto">
+                    <div className="grid gap-1.5 sm:gap-2 max-h-48 sm:max-h-64 overflow-y-auto">
                       {queuedVideos.map((video) => (
                         <div 
                           key={video.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition ${
+                          className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-lg cursor-pointer transition ${
                             selectedVideoIds.has(video.id) 
                               ? 'bg-purple-50 dark:bg-purple-900/20 border border-purple-200' 
                               : 'bg-gray-50 dark:bg-slate-800'
                           }`}
                           onClick={() => toggleVideoSelection(video.id)}
                         >
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                          <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border flex items-center justify-center flex-shrink-0 ${
                             selectedVideoIds.has(video.id) ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
                           }`}>
-                            {selectedVideoIds.has(video.id) && <CheckCircle className="h-4 w-4 text-white" />}
+                            {selectedVideoIds.has(video.id) && <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-white" />}
                           </div>
-                          <span className="truncate">{video.title}</span>
+                          <span className="text-xs sm:text-sm truncate">{video.title}</span>
                         </div>
                       ))}
                     </div>
@@ -1657,10 +1666,11 @@ export default function NewDashboard() {
                 <Button 
                   onClick={generateAITitles} 
                   disabled={generatingAI || selectedVideoIds.size === 0}
-                  className="bg-gradient-to-r from-purple-500 to-pink-500"
+                  size="sm"
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-8 sm:h-9 text-[10px] sm:text-xs"
                 >
-                  {generatingAI ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
-                  Generate AI Metadata ({selectedVideoIds.size} selected)
+                  {generatingAI ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" /> : <Wand2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />}
+                  Generate ({selectedVideoIds.size})
                 </Button>
               </CardContent>
             </Card>
@@ -1668,22 +1678,22 @@ export default function NewDashboard() {
 
           {/* History Tab */}
           <TabsContent value="history">
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
               <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-green-600">Uploaded</CardTitle>
+                <CardHeader className="p-3 sm:p-4">
+                  <CardTitle className="text-green-600 text-sm sm:text-base">Uploaded</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 sm:p-4">
                   {uploadedVideos.length === 0 ? (
-                    <p className="text-center text-gray-500 py-4">No uploaded videos yet</p>
+                    <p className="text-center text-gray-500 py-3 sm:py-4 text-xs sm:text-sm">No uploaded videos yet</p>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {uploadedVideos.slice(0, 10).map((video) => (
-                        <div key={video.id} className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        <div key={video.id} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{video.title}</p>
-                            <p className="text-xs text-gray-500">{formatDate(video.createdAt)}</p>
+                            <p className="font-medium text-xs sm:text-sm truncate">{video.title}</p>
+                            <p className="text-[10px] sm:text-xs text-gray-500">{formatDate(video.createdAt)}</p>
                           </div>
                         </div>
                       ))}
@@ -1693,20 +1703,20 @@ export default function NewDashboard() {
               </Card>
 
               <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-red-600">Failed</CardTitle>
+                <CardHeader className="p-3 sm:p-4">
+                  <CardTitle className="text-red-600 text-sm sm:text-base">Failed</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 sm:p-4">
                   {failedVideos.length === 0 ? (
-                    <p className="text-center text-gray-500 py-4">No failed uploads</p>
+                    <p className="text-center text-gray-500 py-3 sm:py-4 text-xs sm:text-sm">No failed uploads</p>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {failedVideos.slice(0, 10).map((video) => (
-                        <div key={video.id} className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                          <XCircle className="h-5 w-5 text-red-500" />
+                        <div key={video.id} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{video.title}</p>
-                            <p className="text-xs text-gray-500">{video.error || 'Unknown error'}</p>
+                            <p className="font-medium text-xs sm:text-sm truncate">{video.title}</p>
+                            <p className="text-[10px] sm:text-xs text-gray-500 truncate">{video.error || 'Unknown error'}</p>
                           </div>
                         </div>
                       ))}

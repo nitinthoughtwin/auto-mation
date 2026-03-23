@@ -262,12 +262,12 @@ export default function LandingPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center items-stretch sm:items-center max-w-sm mx-auto sm:max-w-none px-1">
             <Link href="/signup" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-sm sm:text-base px-5 sm:px-6 py-3 sm:py-4 shadow-xl shadow-red-500/25">
+              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 !text-white text-sm sm:text-base px-5 sm:px-6 py-3 sm:py-4 shadow-xl shadow-red-500/25">
                 Start Free Trial <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             </Link>
             <Link href="/login" className="w-full sm:w-auto">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto border-gray-600 text-white hover:bg-white/10 hover:text-white text-sm sm:text-base px-5 sm:px-6 py-3 sm:py-4">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto border-gray-600 !text-white hover:bg-white/10 hover:!text-white text-sm sm:text-base px-5 sm:px-6 py-3 sm:py-4">
                 Watch Demo <Play className="ml-1.5 h-4 w-4" />
               </Button>
             </Link>
@@ -325,7 +325,7 @@ export default function LandingPage() {
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gray-700/60 flex items-center justify-center mb-2 sm:mb-3">
                   {feature.icon}
                 </div>
-                <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 text-white">{feature.title}</h3>
+                <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">{feature.title}</h3>
                 <p className="text-gray-400 text-[10px] sm:text-xs leading-relaxed">{feature.description}</p>
               </div>
             ))}
@@ -347,21 +347,21 @@ export default function LandingPage() {
               <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-lg sm:text-xl font-bold mx-auto mb-2 sm:mb-3 shadow-lg shadow-red-500/25">
                 1
               </div>
-              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 text-white">Connect</h3>
+              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">Connect</h3>
               <p className="text-gray-400 text-[10px] sm:text-xs">Link your YouTube channels and Google Drive in seconds.</p>
             </div>
             <div className="text-center">
               <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-lg sm:text-xl font-bold mx-auto mb-2 sm:mb-3 shadow-lg shadow-red-500/25">
                 2
               </div>
-              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 text-white">Upload</h3>
+              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">Upload</h3>
               <p className="text-gray-400 text-[10px] sm:text-xs">Add videos from your Drive or upload directly to the platform.</p>
             </div>
             <div className="text-center">
               <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-lg sm:text-xl font-bold mx-auto mb-2 sm:mb-3 shadow-lg shadow-red-500/25">
                 3
               </div>
-              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 text-white">Schedule</h3>
+              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">Schedule</h3>
               <p className="text-gray-400 text-[10px] sm:text-xs">Set your schedule and let GPMart Studio handle the rest.</p>
             </div>
           </div>
@@ -393,10 +393,10 @@ export default function LandingPage() {
                     Most Popular
                   </div>
                 )}
-                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white">{plan.name}</h3>
+                <h3 className="text-base sm:text-lg lg:text-xl font-bold !text-white">{plan.name}</h3>
                 <p className="text-gray-400 text-[10px] sm:text-xs mt-0.5">{plan.description}</p>
                 <div className="mt-3 mb-3 sm:mb-4">
-                  <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">{plan.price}</span>
+                  <span className="text-xl sm:text-2xl lg:text-3xl font-bold !text-white">{plan.price}</span>
                   <span className="text-gray-400 text-[10px] sm:text-xs"> /{plan.period}</span>
                 </div>
                 <ul className="space-y-1.5 sm:space-y-2 mb-4 sm:mb-5">
@@ -443,7 +443,7 @@ export default function LandingPage() {
                 </div>
                 <p className="text-gray-300 mb-2 sm:mb-3 text-[10px] sm:text-xs leading-relaxed">"{testimonial.content}"</p>
                 <div>
-                  <p className="font-semibold text-white text-xs sm:text-sm">{testimonial.name}</p>
+                  <p className="font-semibold !text-white text-xs sm:text-sm">{testimonial.name}</p>
                   <p className="text-gray-500 text-[10px] sm:text-xs">{testimonial.role}</p>
                 </div>
               </div>
@@ -456,7 +456,7 @@ export default function LandingPage() {
       <section className="py-8 sm:py-12 lg:py-16 px-2 sm:px-3">
         <div className="max-w-3xl mx-auto text-center">
           <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-lg sm:rounded-xl py-6 sm:py-10 lg:py-12 px-3 sm:px-6">
-            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-1.5 sm:mb-2 lg:mb-3 text-white">
+            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-1.5 sm:mb-2 lg:mb-3 !text-white">
               Ready to Save 10+ Hours Every Week?
             </h2>
             <p className="text-gray-400 mb-3 sm:mb-5 lg:mb-6 text-[10px] sm:text-xs lg:text-sm">
@@ -487,7 +487,7 @@ export default function LandingPage() {
               </p>
             </div>
             <div>
-              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm text-white">Product</h4>
+              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm !text-white">Product</h4>
               <ul className="space-y-1 text-gray-400 text-[10px] sm:text-xs">
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
@@ -495,14 +495,14 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm text-white">Legal</h4>
+              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm !text-white">Legal</h4>
               <ul className="space-y-1 text-gray-400 text-[10px] sm:text-xs">
                 <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm text-white">Support</h4>
+              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm !text-white">Support</h4>
               <ul className="space-y-1 text-gray-400 text-[10px] sm:text-xs">
                 <li><a href="mailto:support@gpmart.in" className="hover:text-white transition-colors">support@gpmart.in</a></li>
               </ul>
