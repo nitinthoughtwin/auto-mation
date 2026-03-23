@@ -26,7 +26,7 @@ function extractFolderId(url: string): string | null {
 // Fetch videos from a public Google Drive folder using API key
 async function fetchVideosFromDrive(folderId: string) {
   try {
-    const apiKey = process.env.GOOGLE_API_KEY;
+    const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
     
     if (!apiKey) {
       console.error('[Drive API] GOOGLE_API_KEY not set in environment');
