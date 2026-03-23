@@ -90,11 +90,13 @@ import {
   Bell,
   ChevronRight,
   Menu,
+  Grid,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
 import DriveVideoBrowser from '@/components/DriveVideoBrowser';
 import PublicDriveBrowser from '@/components/PublicDriveBrowser';
+import VideoLibraryBrowser from '@/components/VideoLibraryBrowser';
 import UsageDashboard from '@/components/UsageDashboard';
 import Link from 'next/link';
 
@@ -577,6 +579,7 @@ export default function NewDashboard() {
   // Drive video browser state
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
   const [showPublicDriveBrowser, setShowPublicDriveBrowser] = useState(false);
+  const [showVideoLibrary, setShowVideoLibrary] = useState(false);
 
   // AI Generation state
   const [generatingAI, setGeneratingAI] = useState(false);
@@ -1512,9 +1515,13 @@ export default function NewDashboard() {
                     {uploading ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" /> : <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />}
                     Upload Videos
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowVideoLibrary(true)} className="h-8 sm:h-9 text-[10px] sm:text-xs border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950">
+                    <Grid className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    Video Library
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setShowDriveBrowser(true)} className="h-8 sm:h-9 text-[10px] sm:text-xs">
                     <HardDrive className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    Import from Drive
+                    My Drive
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setShowPublicDriveBrowser(true)} className="h-8 sm:h-9 text-[10px] sm:text-xs">
                     <LinkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -1842,6 +1849,20 @@ export default function NewDashboard() {
         channelId={selectedChannel?.id || ''}
         onVideosAdded={() => {
           setShowPublicDriveBrowser(false);
+          if (selectedChannel) {
+            loadChannelDetails(selectedChannel.id);
+          }
+          loadChannels();
+        }}
+      />
+
+      {/* Video Library Browser Dialog */}
+      <VideoLibraryBrowser
+        open={showVideoLibrary}
+        onClose={() => setShowVideoLibrary(false)}
+        channelId={selectedChannel?.id || ''}
+        onVideosAdded={() => {
+          setShowVideoLibrary(false);
           if (selectedChannel) {
             loadChannelDetails(selectedChannel.id);
           }

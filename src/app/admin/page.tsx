@@ -11,7 +11,9 @@ import {
   DollarSign,
   Youtube,
   TrendingUp,
+  Activity,
   Loader2,
+  Video,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -40,9 +42,7 @@ interface Stats {
 }
 
 export default function AdminDashboard() {
-  const sessionData = useSession();
-  const session = sessionData?.data;
-  const status = sessionData?.status || 'loading';
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +51,7 @@ export default function AdminDashboard() {
     if (status === 'unauthenticated') {
       router.push('/login');
     } else if (status === 'authenticated') {
+      // Check if user is admin
       if (session?.user?.role !== 'admin') {
         router.push('/dashboard');
         return;
@@ -151,7 +152,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick Links */}
-        <div className="grid gap-4 md:grid-cols-2 mb-8">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <Link href="/admin/users">
             <Card className="hover:shadow-lg transition cursor-pointer">
               <CardHeader>
@@ -164,6 +165,18 @@ export default function AdminDashboard() {
             </Card>
           </Link>
 
+          <Link href="/admin/video-library">
+            <Card className="hover:shadow-lg transition cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="h-5 w-5" />
+                  Video Library
+                </CardTitle>
+                <CardDescription>Manage video categories & content</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
           <Link href="/admin/payments">
             <Card className="hover:shadow-lg transition cursor-pointer">
               <CardHeader>
@@ -172,6 +185,18 @@ export default function AdminDashboard() {
                   Payment History
                 </CardTitle>
                 <CardDescription>View all transactions</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/admin/plans">
+            <Card className="hover:shadow-lg transition cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Plan Management
+                </CardTitle>
+                <CardDescription>Manage subscription plans</CardDescription>
               </CardHeader>
             </Card>
           </Link>
