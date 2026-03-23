@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -17,6 +17,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -29,86 +30,72 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  FolderOpen,
   Video,
   Plus,
-  Edit,
   Trash2,
+  Edit,
+  RefreshCw,
   Loader2,
+  FolderOpen,
   ArrowLeft,
-  ChevronRight,
-  GripVertical,
-  Save,
+  CheckCircle,
+  XCircle,
   ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface Category {
+interface VideoCategory {
   id: string;
   name: string;
   description: string | null;
-  icon: string | null;
-  driveFolderUrl: string | null;
-  driveFolderId: string | null;
-  sortOrder: number;
+  driveUrl: string;
+  folderId: string | null;
   isActive: boolean;
-  _count?: { items: number };
-  items?: Item[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  videoCount?: number;
 }
 
-interface Item {
+interface LibraryVideo {
   id: string;
-  categoryId: string;
-  title: string;
-  description: string | null;
-  driveFileId: string | null;
-  driveFolderUrl: string | null;
-  thumbnailUrl: string | null;
-  fileSize: number | null;
-  duration: number | null;
-  mimeType: string | null;
-  sortOrder: number;
-  isActive: boolean;
+  driveFileId: string;
+  name: string;
+  mimeType: string;
+  size: number | null;
+  thumbnailLink: string | null;
+  webViewLink: string | null;
+  downloadUrl: string | null;
+  createdTime: string | null;
+  addedToQueue: boolean;
 }
 
-export default function VideoLibraryAdminPage() {
+export default function AdminVideoLibraryPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [categories, setCategories] = useState<VideoCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [items, setItems] = useState<Item[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<VideoCategory | null>(null);
+  const [videos, setVideos] = useState<LibraryVideo[]>([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
 
-  // Dialog states
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
-  const [itemDialogOpen, setItemDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [editingItem, setEditingItem] = useState<Item | null>(null);
-  const [deletingItem, setDeletingItem] = useState<Item | null>(null);
-
-  // Form states
-  const [categoryForm, setCategoryForm] = useState({
+  // Form state
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<VideoCategory | null>(null);
+  const [formData, setFormData] = useState({
     name: '',
     description: '',
-    icon: '📁',
-    driveFolderUrl: '',
+    driveUrl: '',
     sortOrder: 0,
-    isActive: true,
   });
-  const [itemForm, setItemForm] = useState({
-    categoryId: '',
-    title: '',
-    description: '',
-    driveFileId: '',
-    driveFolderUrl: '',
-    thumbnailUrl: '',
-    fileSize: null as number | null,
-    sortOrder: 0,
-    isActive: true,
-  });
-
   const [saving, setSaving] = useState(false);
+
+  // Delete state
+  const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Sync state
+  const [syncingCategoryId, setSyncingCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -124,197 +111,220 @@ export default function VideoLibraryAdminPage() {
 
   const loadCategories = async () => {
     try {
-      const res = await fetch('/api/admin/video-library/categories');
-      const data = await res.json();
-      if (data.categories) {
-        setCategories(data.categories);
+      const res = await fetch('/api/video-library/categories');
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data.categories || []);
       }
     } catch (error) {
-      toast.error('Failed to load categories');
+      console.error('Error loading categories:', error);
+      toast.error('Failed to Load Categories', {
+        description: 'Could not fetch video library categories.'
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const loadCategoryItems = async (categoryId: string) => {
+  const loadCategoryVideos = async (categoryId: string) => {
+    setLoadingVideos(true);
     try {
-      const res = await fetch(`/api/admin/video-library/categories/${categoryId}`);
-      const data = await res.json();
-      if (data.category) {
-        setSelectedCategory(data.category);
-        setItems(data.category.items || []);
+      const res = await fetch(`/api/video-library/categories/${categoryId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setVideos(data.category?.videos || []);
       }
     } catch (error) {
-      toast.error('Failed to load items');
+      console.error('Error loading videos:', error);
+      toast.error('Failed to Load Videos', {
+        description: 'Could not fetch videos for this category.'
+      });
+    } finally {
+      setLoadingVideos(false);
     }
   };
 
-  // Category CRUD
-  const openCategoryDialog = (category?: Category) => {
-    if (category) {
-      setEditingCategory(category);
-      setCategoryForm({
-        name: category.name,
-        description: category.description || '',
-        icon: category.icon || '📁',
-        driveFolderUrl: category.driveFolderUrl || '',
-        sortOrder: category.sortOrder,
-        isActive: category.isActive,
-      });
-    } else {
-      setEditingCategory(null);
-      setCategoryForm({
-        name: '',
-        description: '',
-        icon: '📁',
-        driveFolderUrl: '',
-        sortOrder: categories.length,
-        isActive: true,
-      });
-    }
-    setCategoryDialogOpen(true);
+  const handleOpenCategory = (category: VideoCategory) => {
+    setSelectedCategory(category);
+    loadCategoryVideos(category.id);
   };
 
-  const saveCategory = async () => {
-    if (!categoryForm.name) {
-      toast.error('Category name is required');
+  const handleBackToList = () => {
+    setSelectedCategory(null);
+    setVideos([]);
+  };
+
+  const openAddDialog = () => {
+    setEditingCategory(null);
+    setFormData({ name: '', description: '', driveUrl: '', sortOrder: 0 });
+    setShowAddDialog(true);
+  };
+
+  const openEditDialog = (category: VideoCategory) => {
+    setEditingCategory(category);
+    setFormData({
+      name: category.name,
+      description: category.description || '',
+      driveUrl: category.driveUrl,
+      sortOrder: category.sortOrder,
+    });
+    setShowAddDialog(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!formData.name || !formData.driveUrl) {
+      toast.error('Missing Fields', {
+        description: 'Name and Drive URL are required.'
+      });
       return;
     }
 
     setSaving(true);
+
     try {
-      const url = editingCategory
-        ? `/api/admin/video-library/categories/${editingCategory.id}`
-        : '/api/admin/video-library/categories';
-      const method = editingCategory ? 'PUT' : 'POST';
+      if (editingCategory) {
+        // Update existing category
+        const res = await fetch(`/api/video-library/categories/${editingCategory.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(categoryForm),
-      });
+        const data = await res.json();
 
-      const data = await res.json();
-      if (data.success) {
-        toast.success(editingCategory ? 'Category updated' : 'Category created');
-        setCategoryDialogOpen(false);
-        loadCategories();
+        if (res.ok) {
+          toast.success('Category Updated', {
+            description: `${formData.name} has been updated. ${data.videosFetched ? `Fetched ${data.videosFetched} videos.` : ''}`
+          });
+          loadCategories();
+          setShowAddDialog(false);
+        } else {
+          throw new Error(data.error || 'Failed to update category');
+        }
       } else {
-        throw new Error(data.error);
+        // Create new category
+        const res = await fetch('/api/video-library/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          toast.success('Category Created', {
+            description: `${formData.name} created with ${data.videosFetched || 0} videos fetched.`
+          });
+          loadCategories();
+          setShowAddDialog(false);
+        } else {
+          throw new Error(data.error || 'Failed to create category');
+        }
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save category');
+      toast.error('Save Failed', {
+        description: error.message || 'Could not save category.'
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  const deleteCategory = async (categoryId: string) => {
+  const handleDeleteCategory = async () => {
+    if (!deleteCategoryId) return;
+
+    setDeleting(true);
+
     try {
-      const res = await fetch(`/api/admin/video-library/categories/${categoryId}`, {
+      const res = await fetch(`/api/video-library/categories/${deleteCategoryId}`, {
         method: 'DELETE',
       });
+
+      if (res.ok) {
+        toast.success('Category Deleted', {
+          description: 'The category and all its videos have been removed.'
+        });
+        setCategories(categories.filter(c => c.id !== deleteCategoryId));
+        if (selectedCategory?.id === deleteCategoryId) {
+          setSelectedCategory(null);
+          setVideos([]);
+        }
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete');
+      }
+    } catch (error: any) {
+      toast.error('Delete Failed', {
+        description: error.message
+      });
+    } finally {
+      setDeleting(false);
+      setDeleteCategoryId(null);
+    }
+  };
+
+  const handleSyncVideos = async (categoryId: string) => {
+    setSyncingCategoryId(categoryId);
+
+    try {
+      const res = await fetch(`/api/video-library/categories/${categoryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sync: true }),
+      });
+
       const data = await res.json();
-      if (data.success) {
-        toast.success('Category deleted');
+
+      if (res.ok) {
+        toast.success('Videos Synced', {
+          description: `Found ${data.newVideosFetched} new videos. Total: ${data.totalVideos}`
+        });
+        if (selectedCategory?.id === categoryId) {
+          loadCategoryVideos(categoryId);
+        }
         loadCategories();
       } else {
-        throw new Error(data.error);
+        throw new Error(data.error || 'Sync failed');
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete category');
-    }
-  };
-
-  // Item CRUD
-  const openItemDialog = (item?: Item) => {
-    if (item) {
-      setEditingItem(item);
-      setItemForm({
-        categoryId: item.categoryId,
-        title: item.title,
-        description: item.description || '',
-        driveFileId: item.driveFileId || '',
-        driveFolderUrl: item.driveFolderUrl || '',
-        thumbnailUrl: item.thumbnailUrl || '',
-        fileSize: item.fileSize,
-        sortOrder: item.sortOrder,
-        isActive: item.isActive,
+      toast.error('Sync Failed', {
+        description: error.message
       });
-    } else {
-      setEditingItem(null);
-      setItemForm({
-        categoryId: selectedCategory?.id || '',
-        title: '',
-        description: '',
-        driveFileId: '',
-        driveFolderUrl: '',
-        thumbnailUrl: '',
-        fileSize: null,
-        sortOrder: items.length,
-        isActive: true,
-      });
-    }
-    setItemDialogOpen(true);
-  };
-
-  const saveItem = async () => {
-    if (!itemForm.title || !itemForm.categoryId) {
-      toast.error('Title and category are required');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const url = editingItem
-        ? `/api/admin/video-library/items/${editingItem.id}`
-        : '/api/admin/video-library/items';
-      const method = editingItem ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(itemForm),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        toast.success(editingItem ? 'Item updated' : 'Item created');
-        setItemDialogOpen(false);
-        if (selectedCategory) {
-          loadCategoryItems(selectedCategory.id);
-        }
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save item');
     } finally {
-      setSaving(false);
+      setSyncingCategoryId(null);
     }
   };
 
-  const deleteItem = async () => {
-    if (!deletingItem) return;
-
+  const handleToggleActive = async (category: VideoCategory) => {
     try {
-      const res = await fetch(`/api/admin/video-library/items/${deletingItem.id}`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/video-library/categories/${category.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !category.isActive }),
       });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('Item deleted');
-        setDeleteDialogOpen(false);
-        setDeletingItem(null);
-        if (selectedCategory) {
-          loadCategoryItems(selectedCategory.id);
-        }
+
+      if (res.ok) {
+        toast.success(category.isActive ? 'Category Deactivated' : 'Category Activated', {
+          description: `${category.name} is now ${category.isActive ? 'hidden' : 'visible'} to users.`
+        });
+        loadCategories();
       } else {
-        throw new Error(data.error);
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update');
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete item');
+      toast.error('Update Failed', {
+        description: error.message
+      });
     }
+  };
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return 'Unknown';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   };
 
   if (status === 'loading' || loading) {
@@ -325,359 +335,357 @@ export default function VideoLibraryAdminPage() {
     );
   }
 
+  // Video List View
+  if (selectedCategory) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <Button variant="outline" onClick={handleBackToList}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold">{selectedCategory.name}</h1>
+                <p className="text-muted-foreground">
+                  {videos.length} videos • {selectedCategory.description || 'No description'}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => handleSyncVideos(selectedCategory.id)}
+              disabled={syncingCategoryId === selectedCategory.id}
+            >
+              {syncingCategoryId === selectedCategory.id ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Sync Videos
+            </Button>
+          </div>
+
+          {/* Drive URL */}
+          <Card className="mb-6">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="h-5 w-5 text-yellow-500" />
+                <span className="text-sm text-muted-foreground">Source:</span>
+                <a
+                  href={selectedCategory.driveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline flex items-center gap-1"
+                >
+                  {selectedCategory.driveUrl}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Videos Grid */}
+          {loadingVideos ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : videos.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Video className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">No videos found in this category.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Make sure the Google Drive folder is publicly accessible.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {videos.map((video) => (
+                <Card key={video.id} className="overflow-hidden">
+                  <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative">
+                    {video.thumbnailLink ? (
+                      <img
+                        src={video.thumbnailLink}
+                        alt={video.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Video className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    {video.addedToQueue && (
+                      <div className="absolute top-2 right-2">
+                        <Badge className="bg-green-500 text-white">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Added
+                        </Badge>
+                      </div>
+                    )}
+                    <Badge
+                      variant="secondary"
+                      className="absolute bottom-2 right-2 text-xs bg-black/60 text-white"
+                    >
+                      {formatFileSize(video.size)}
+                    </Badge>
+                  </div>
+                  <CardContent className="p-3">
+                    <p className="text-sm font-medium truncate" title={video.name}>
+                      {video.name.replace(/\.[^/.]+$/, '')}
+                    </p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-muted-foreground">
+                        {video.createdTime ? new Date(video.createdTime).toLocaleDateString() : 'Unknown date'}
+                      </span>
+                      {video.webViewLink && (
+                        <a
+                          href={video.webViewLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          View
+                        </a>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Categories List View
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 mb-6">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Button variant="ghost" size="sm" onClick={() => selectedCategory ? setSelectedCategory(null) : router.push('/admin')}>
-              <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">{selectedCategory ? 'Categories' : 'Admin'}</span>
-              <span className="sm:hidden">Back</span>
-            </Button>
-            <div>
-              <h1 className="text-lg sm:text-2xl font-bold">
-                {selectedCategory ? selectedCategory.name : 'Video Library'}
-              </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                {selectedCategory ? 'Manage videos in this category' : 'Manage video categories and content'}
-              </p>
-            </div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">Video Library</h1>
+            <p className="text-muted-foreground">Manage video categories from Google Drive</p>
           </div>
-          <Button 
-            onClick={() => selectedCategory ? openItemDialog() : openCategoryDialog()}
-            className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 h-8 sm:h-10 text-xs sm:text-sm"
-          >
-            <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-            {selectedCategory ? 'Add Video' : 'Add Category'}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => router.push('/admin')}>
+              Back to Admin
+            </Button>
+            <Button onClick={openAddDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Category
+            </Button>
+          </div>
         </div>
 
-        {/* Categories List */}
-        {!selectedCategory && (
-          <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Categories Grid */}
+        {categories.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <FolderOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-lg font-medium">No categories yet</p>
+              <p className="text-muted-foreground mb-4">
+                Create a category and add a Google Drive folder URL to automatically fetch videos.
+              </p>
+              <Button onClick={openAddDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add First Category
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {categories.map((category) => (
-              <Card key={category.id} className="hover:shadow-lg transition cursor-pointer group">
-                <CardHeader className="p-3 sm:p-4">
-                  <div className="flex items-start justify-between">
-                    <div 
-                      className="flex items-center gap-2 sm:gap-3 flex-1"
-                      onClick={() => loadCategoryItems(category.id)}
-                    >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-lg sm:text-xl">
-                        {category.icon || '📁'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-sm sm:text-base truncate">{category.name}</CardTitle>
-                        <CardDescription className="text-[10px] sm:text-xs">
-                          {category._count?.items || 0} videos
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openCategoryDialog(category);
-                        }}
-                      >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-red-500 hover:text-red-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm('Delete this category and all its videos?')) {
-                            deleteCategory(category.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                    </div>
+              <Card
+                key={category.id}
+                className={`cursor-pointer transition-all hover:shadow-lg ${
+                  !category.isActive ? 'opacity-60' : ''
+                }`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FolderOpen className="h-5 w-5 text-yellow-500" />
+                      {category.name}
+                    </CardTitle>
+                    <Badge variant={category.isActive ? 'default' : 'secondary'}>
+                      {category.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
                   </div>
+                  <CardDescription className="line-clamp-2">
+                    {category.description || 'No description'}
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="p-3 sm:p-4 pt-0" onClick={() => loadCategoryItems(category.id)}>
-                  {category.description && (
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2 line-clamp-2">{category.description}</p>
-                  )}
-                  <div className="flex items-center justify-between flex-wrap gap-1">
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant={category.isActive ? 'default' : 'secondary'} className={`text-[9px] sm:text-[10px] ${category.isActive ? 'bg-green-500' : ''}`}>
-                        {category.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                      {category.driveFolderUrl && (
-                        <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-300 border-blue-200 dark:border-blue-700">
-                          <ExternalLink className="h-2.5 w-2.5 mr-0.5" />
-                          Drive Folder
-                        </Badge>
-                      )}
+                <CardContent>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Video className="h-4 w-4" />
+                      {category.videoCount || 0} videos
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
-                </CardContent>
-              </Card>
-            ))}
 
-            {categories.length === 0 && (
-              <Card className="md:col-span-2 lg:col-span-3 border-dashed">
-                <CardContent className="p-6 sm:p-8 text-center">
-                  <FolderOpen className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                  <h3 className="font-medium mb-1 sm:mb-2 text-sm sm:text-base">No categories yet</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Create your first category to organize videos</p>
-                  <Button onClick={() => openCategoryDialog()} className="h-8 sm:h-10 text-xs sm:text-sm">
-                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    Add Category
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* Items List */}
-        {selectedCategory && (
-          <div className="space-y-3 sm:space-y-4">
-            {items.map((item) => (
-              <Card key={item.id} className="hover:shadow-lg transition">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    {/* Thumbnail */}
-                    <div className="w-16 h-10 sm:w-24 sm:h-16 rounded-md sm:rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {item.thumbnailUrl ? (
-                        <img src={item.thumbnailUrl} alt={item.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <Video className="h-5 w-5 sm:h-8 sm:w-8 text-muted-foreground" />
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-sm sm:text-base truncate">{item.title}</h3>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                        {item.description || 'No description'}
-                      </p>
-                      <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
-                        <Badge variant={item.isActive ? 'default' : 'secondary'} className={`text-[8px] sm:text-[10px] ${item.isActive ? 'bg-green-500' : ''}`}>
-                          {item.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                        {item.driveFileId && (
-                          <Badge variant="outline" className="text-[8px] sm:text-[10px]">Drive</Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 sm:gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                        onClick={() => openItemDialog(item)}
-                      >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
+                  {/* Actions */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-red-500 hover:text-red-600"
-                        onClick={() => {
-                          setDeletingItem(item);
-                          setDeleteDialogOpen(true);
-                        }}
+                        onClick={() => handleOpenCategory(category)}
                       >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        View Videos
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleSyncVideos(category.id)}
+                        disabled={syncingCategoryId === category.id}
+                      >
+                        {syncingCategoryId === category.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(category)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleToggleActive(category)}
+                      >
+                        {category.isActive ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500 hover:text-red-600"
+                        onClick={() => setDeleteCategoryId(category.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
-
-            {items.length === 0 && (
-              <Card className="border-dashed">
-                <CardContent className="p-6 sm:p-8 text-center">
-                  <Video className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                  <h3 className="font-medium mb-1 sm:mb-2 text-sm sm:text-base">No videos in this category</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Add videos to make them available to users</p>
-                  <Button onClick={() => openItemDialog()} className="h-8 sm:h-10 text-xs sm:text-sm">
-                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    Add Video
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
 
-        {/* Category Dialog */}
-        <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
-          <DialogContent className="max-w-md">
+        {/* Add/Edit Dialog */}
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingCategory ? 'Edit Category' : 'New Category'}</DialogTitle>
+              <DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
               <DialogDescription>
-                {editingCategory ? 'Update category details' : 'Create a new video category'}
+                {editingCategory
+                  ? 'Update the category details. Changing the Drive URL will re-fetch all videos.'
+                  : 'Add a Google Drive folder URL. Videos will be automatically fetched.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3 sm:space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Icon</Label>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Category Name *</Label>
                 <Input
-                  value={categoryForm.icon}
-                  onChange={(e) => setCategoryForm({ ...categoryForm, icon: e.target.value })}
-                  placeholder="📁"
-                  className="h-8 sm:h-10 text-sm"
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Motivation Videos, Tech Tutorials"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Name *</Label>
-                <Input
-                  value={categoryForm.name}
-                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                  placeholder="Category name"
-                  className="h-8 sm:h-10 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Description</Label>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
                 <Textarea
-                  value={categoryForm.description}
-                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                  placeholder="Brief description"
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Brief description of this category"
                   rows={2}
-                  className="text-sm"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Google Drive Folder URL</Label>
+              <div className="space-y-2">
+                <Label htmlFor="driveUrl">Google Drive Folder URL *</Label>
                 <Input
-                  value={categoryForm.driveFolderUrl}
-                  onChange={(e) => setCategoryForm({ ...categoryForm, driveFolderUrl: e.target.value })}
+                  id="driveUrl"
+                  value={formData.driveUrl}
+                  onChange={(e) => setFormData({ ...formData, driveUrl: e.target.value })}
                   placeholder="https://drive.google.com/drive/folders/..."
-                  className="h-8 sm:h-10 text-xs sm:text-sm"
                 />
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground">
-                  Add a public Google Drive folder URL to auto-populate videos
+                <p className="text-xs text-muted-foreground">
+                  Make sure the folder is shared publicly (Anyone with the link can view)
                 </p>
               </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-xs sm:text-sm">Active</Label>
-                <Switch
-                  checked={categoryForm.isActive}
-                  onCheckedChange={(checked) => setCategoryForm({ ...categoryForm, isActive: checked })}
+              <div className="space-y-2">
+                <Label htmlFor="sortOrder">Sort Order</Label>
+                <Input
+                  id="sortOrder"
+                  type="number"
+                  value={formData.sortOrder}
+                  onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
+                  placeholder="0"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Lower numbers appear first
+                </p>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCategoryDialogOpen(false)} className="h-8 sm:h-10 text-xs sm:text-sm">
+              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={saveCategory} disabled={saving} className="h-8 sm:h-10 text-xs sm:text-sm">
-                {saving ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin mr-1 sm:mr-2" /> : null}
-                Save
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Item Dialog */}
-        <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingItem ? 'Edit Video' : 'Add Video'}</DialogTitle>
-              <DialogDescription>
-                {editingItem ? 'Update video details' : 'Add a new video to the library'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 sm:space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Title *</Label>
-                <Input
-                  value={itemForm.title}
-                  onChange={(e) => setItemForm({ ...itemForm, title: e.target.value })}
-                  placeholder="Video title"
-                  className="h-8 sm:h-10 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Description</Label>
-                <Textarea
-                  value={itemForm.description}
-                  onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
-                  placeholder="Video description"
-                  rows={2}
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Google Drive File ID</Label>
-                <Input
-                  value={itemForm.driveFileId}
-                  onChange={(e) => setItemForm({ ...itemForm, driveFileId: e.target.value })}
-                  placeholder="e.g., 1abc123xyz..."
-                  className="h-8 sm:h-10 text-sm font-mono text-xs"
-                />
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground">
-                  The file ID from Google Drive URL
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Or Google Drive Folder URL</Label>
-                <Input
-                  value={itemForm.driveFolderUrl}
-                  onChange={(e) => setItemForm({ ...itemForm, driveFolderUrl: e.target.value })}
-                  placeholder="https://drive.google.com/drive/folders/..."
-                  className="h-8 sm:h-10 text-sm text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm">Thumbnail URL</Label>
-                <Input
-                  value={itemForm.thumbnailUrl}
-                  onChange={(e) => setItemForm({ ...itemForm, thumbnailUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="h-8 sm:h-10 text-sm text-xs"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-xs sm:text-sm">Active</Label>
-                <Switch
-                  checked={itemForm.isActive}
-                  onCheckedChange={(checked) => setItemForm({ ...itemForm, isActive: checked })}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setItemDialogOpen(false)} className="h-8 sm:h-10 text-xs sm:text-sm">
-                Cancel
-              </Button>
-              <Button onClick={saveItem} disabled={saving} className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 h-8 sm:h-10 text-xs sm:text-sm">
-                {saving ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin mr-1 sm:mr-2" /> : null}
-                Save Video
+              <Button onClick={handleSaveCategory} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editingCategory ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  editingCategory ? 'Update Category' : 'Create Category'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Delete Confirmation */}
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialog open={!!deleteCategoryId} onOpenChange={() => setDeleteCategoryId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Video?</AlertDialogTitle>
+              <AlertDialogTitle>Delete Category</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete "{deletingItem?.title}". This action cannot be undone.
+                This will permanently delete this category and all {categories.find(c => c.id === deleteCategoryId)?.videoCount || 0} videos.
+                This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={deleteItem} className="bg-red-500 hover:bg-red-600">
-                Delete
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteCategory}
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

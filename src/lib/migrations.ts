@@ -66,6 +66,53 @@ export async function runMigrations() {
       console.log('[Migration] ✅ Created DriveVideo table');
     }
 
+    // Check video_categories table exists
+    try {
+      await db.$queryRaw`SELECT 1 FROM video_categories LIMIT 1`;
+    } catch {
+      console.log('[Migration] Creating video_categories table...');
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS video_categories (
+          id TEXT PRIMARY KEY,
+          name TEXT UNIQUE,
+          description TEXT,
+          driveUrl TEXT NOT NULL,
+          folderId TEXT,
+          isActive BOOLEAN DEFAULT 1,
+          sortOrder INTEGER DEFAULT 0,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('[Migration] ✅ Created video_categories table');
+    }
+
+    // Check library_videos table exists
+    try {
+      await db.$queryRaw`SELECT 1 FROM library_videos LIMIT 1`;
+    } catch {
+      console.log('[Migration] Creating library_videos table...');
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS library_videos (
+          id TEXT PRIMARY KEY,
+          categoryId TEXT NOT NULL,
+          driveFileId TEXT UNIQUE,
+          name TEXT NOT NULL,
+          mimeType TEXT NOT NULL,
+          size INTEGER,
+          thumbnailLink TEXT,
+          webViewLink TEXT,
+          downloadUrl TEXT,
+          createdTime DATETIME,
+          addedToQueue BOOLEAN DEFAULT 0,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (categoryId) REFERENCES video_categories(id) ON DELETE CASCADE
+        )
+      `);
+      console.log('[Migration] ✅ Created library_videos table');
+    }
+
     console.log('[Migration] Database schema check complete');
   } catch (error) {
     console.error('[Migration] Error:', error);

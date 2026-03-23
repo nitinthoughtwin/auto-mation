@@ -194,35 +194,38 @@ model Usage {
   subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 }
 
-// Video Library - Admin managed video categories and links
-model VideoLibraryCategory {
-  id              String             @id @default(cuid())
-  name            String
-  description     String?
-  icon            String?            // emoji or icon name
-  driveFolderUrl  String?            // Google Drive folder URL - videos fetched dynamically
-  driveFolderId   String?            // Extracted folder ID for API calls
-  sortOrder       Int                @default(0)
-  isActive        Boolean            @default(true)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  items           VideoLibraryItem[]
+// Video Library Category - Admin creates categories with drive URLs
+model VideoCategory {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?
+  driveUrl    String        // Google Drive folder URL
+  folderId    String?       // Extracted folder ID from URL
+  isActive    Boolean       @default(true)
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  videos      LibraryVideo[]
+
+  @@map("video_categories")
 }
 
-model VideoLibraryItem {
-  id           String               @id @default(cuid())
-  categoryId   String
-  title        String
-  description  String?
-  driveFileId  String?              // Google Drive file ID
-  driveFolderUrl String?            // Full folder URL if applicable
-  thumbnailUrl String?
-  fileSize     Int?                 // in bytes
-  duration     Int?                 // in seconds
-  mimeType     String?
-  sortOrder    Int                  @default(0)
-  isActive     Boolean              @default(true)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  category     VideoLibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+// Videos fetched from Google Drive folders
+model LibraryVideo {
+  id             String         @id @default(cuid())
+  categoryId     String
+  driveFileId    String         @unique
+  name           String
+  mimeType       String
+  size           Int?
+  thumbnailLink  String?
+  webViewLink    String?
+  downloadUrl    String?
+  createdTime    DateTime?
+  addedToQueue   Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  category       VideoCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("library_videos")
 }

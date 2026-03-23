@@ -13,7 +13,6 @@ import {
   TrendingUp,
   Activity,
   Loader2,
-  Video,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -152,7 +151,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick Links */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div className="grid gap-4 md:grid-cols-4 mb-8">
           <Link href="/admin/users">
             <Card className="hover:shadow-lg transition cursor-pointer">
               <CardHeader>
@@ -169,22 +168,10 @@ export default function AdminDashboard() {
             <Card className="hover:shadow-lg transition cursor-pointer">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Video className="h-5 w-5" />
+                  <Youtube className="h-5 w-5" />
                   Video Library
                 </CardTitle>
-                <CardDescription>Manage video categories & content</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-
-          <Link href="/admin/payments">
-            <Card className="hover:shadow-lg transition cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Payment History
-                </CardTitle>
-                <CardDescription>View all transactions</CardDescription>
+                <CardDescription>Manage video categories</CardDescription>
               </CardHeader>
             </Card>
           </Link>
@@ -197,6 +184,18 @@ export default function AdminDashboard() {
                   Plan Management
                 </CardTitle>
                 <CardDescription>Manage subscription plans</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/admin/payments">
+            <Card className="hover:shadow-lg transition cursor-pointer">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Payment History
+                </CardTitle>
+                <CardDescription>View all transactions</CardDescription>
               </CardHeader>
             </Card>
           </Link>
