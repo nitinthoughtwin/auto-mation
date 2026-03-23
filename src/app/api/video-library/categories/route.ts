@@ -2,34 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { randomUUID } from 'crypto';
 
 // Helper to extract folder ID from Google Drive URL
 function extractFolderId(url: string): string | null {
-  // Handle various Google Drive URL formats:
-  // https://drive.google.com/drive/folders/FOLDER_ID
-  // https://drive.google.com/drive/folders/FOLDER_ID?usp=sharing
-  // https://drive.google.com/open?id=FOLDER_ID
-  // https://drive.google.com/file/d/FILE_ID/view (for files)
-
   let match;
-
-  // Format: /drive/folders/FOLDER_ID
   match = url.match(/\/drive\/folders\/([a-zA-Z0-9_-]+)/);
   if (match) return match[1];
-
-  // Format: /folders/FOLDER_ID
   match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
   if (match) return match[1];
-
-  // Format: open?id=FOLDER_ID
   match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (match) return match[1];
-
-  // If it's just a folder ID
   if (/^[a-zA-Z0-9_-]{20,}$/.test(url)) {
     return url;
   }
-
   return null;
 }
 
@@ -42,20 +28,37 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const categories = await db.videoCategory.findMany({
-      include: {
-        _count: {
-          select: { videos: true }
-        }
-      },
-      orderBy: { sortOrder: 'asc' }
-    });
+    // Use raw query
+    const categories = await db.$queryRaw<Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      driveUrl: string;
+      folderId: string | null;
+      isActive: number;
+      sortOrder: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>>`
+      SELECT * FROM video_categories ORDER BY sortOrder ASC
+    `;
+
+    // Get video counts for each category
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (cat) => {
+        const countResult = await db.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*) as count FROM library_videos WHERE categoryId = ${cat.id}
+        `;
+        return {
+          ...cat,
+          isActive: cat.isActive === 1,
+          videoCount: Number(countResult[0]?.count || 0)
+        };
+      })
+    );
 
     return NextResponse.json({
-      categories: categories.map(cat => ({
-        ...cat,
-        videoCount: cat._count.videos
-      }))
+      categories: categoriesWithCount
     });
   } catch (error: any) {
     console.error('[Video Categories] Error:', error);
@@ -73,11 +76,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is admin
-    const user = await db.user.findUnique({
-      where: { id: session.user.id }
-    });
+    const userResult = await db.$queryRaw<Array<{ role: string }>>`
+      SELECT role FROM User WHERE id = ${session.user.id}
+    `;
 
-    if (user?.role !== 'admin') {
+    if (!userResult[0] || userResult[0].role !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -97,16 +100,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Create category
-    const category = await db.videoCategory.create({
-      data: {
-        name,
-        description,
-        driveUrl,
-        folderId,
-        sortOrder: sortOrder || 0
-      }
-    });
+    // Create category with raw query
+    const categoryId = randomUUID();
+    const now = new Date();
+    
+    await db.$executeRaw`
+      INSERT INTO video_categories (id, name, description, driveUrl, folderId, isActive, sortOrder, createdAt, updatedAt)
+      VALUES (${categoryId}, ${name}, ${description || null}, ${driveUrl}, ${folderId}, 1, ${sortOrder || 0}, ${now.toISOString()}, ${now.toISOString()})
+    `;
 
     // Fetch videos from the drive folder
     const result = await fetchVideosFromDrive(folderId);
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
     // Check for errors
     if (result.error) {
       // Delete the category if we can't fetch videos
-      await db.videoCategory.delete({ where: { id: category.id } });
+      await db.$executeRaw`DELETE FROM video_categories WHERE id = ${categoryId}`;
       
       const errorMessages: Record<string, string> = {
         'GOOGLE_API_KEY_NOT_SET': 'Google API Key not configured. Please add GOOGLE_API_KEY to your .env file. Get one from https://console.cloud.google.com/apis/credentials',
@@ -133,25 +134,18 @@ export async function POST(request: NextRequest) {
 
     // Save videos to database
     if (videos.length > 0) {
-      await db.libraryVideo.createMany({
-        data: videos.map(v => ({
-          categoryId: category.id,
-          driveFileId: v.id,
-          name: v.name,
-          mimeType: v.mimeType,
-          size: v.size,
-          thumbnailLink: v.thumbnailLink,
-          webViewLink: v.webViewLink,
-          downloadUrl: v.downloadUrl,
-          createdTime: v.createdTime ? new Date(v.createdTime) : null
-        })),
-        skipDuplicates: true
-      });
+      for (const v of videos) {
+        const videoId = randomUUID();
+        await db.$executeRaw`
+          INSERT OR IGNORE INTO library_videos (id, categoryId, driveFileId, name, mimeType, size, thumbnailLink, webViewLink, downloadUrl, createdTime, addedToQueue, createdAt, updatedAt)
+          VALUES (${videoId}, ${categoryId}, ${v.id}, ${v.name}, ${v.mimeType}, ${v.size || null}, ${v.thumbnailLink || null}, ${v.webViewLink || null}, ${v.downloadUrl || null}, ${v.createdTime ? new Date(v.createdTime).toISOString() : null}, 0, ${now.toISOString()}, ${now.toISOString()})
+        `;
+      }
     }
 
     return NextResponse.json({
       success: true,
-      category,
+      category: { id: categoryId, name, description, driveUrl, folderId, isActive: true, sortOrder: sortOrder || 0 },
       videosFetched: videos.length
     });
   } catch (error: any) {
@@ -167,11 +161,9 @@ async function fetchVideosFromDrive(folderId: string) {
     
     if (!apiKey) {
       console.error('[Drive API] GOOGLE_API_KEY not set in environment');
-      // Return an error object instead of empty array
       return { videos: [], error: 'GOOGLE_API_KEY_NOT_SET' };
     }
 
-    // Query for video files in the folder
     const videosUrl = new URL('https://www.googleapis.com/drive/v3/files');
     videosUrl.searchParams.set('q', `'${folderId}' in parents and trashed = false and mimeType contains 'video/'`);
     videosUrl.searchParams.set('fields', 'files(id, name, mimeType, size, thumbnailLink, webViewLink, createdTime)');
@@ -187,7 +179,6 @@ async function fetchVideosFromDrive(folderId: string) {
       const errorData = await response.json();
       console.error('[Drive API] Error response:', errorData);
       
-      // Check for specific error types
       if (response.status === 403) {
         return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
       }
@@ -200,7 +191,6 @@ async function fetchVideosFromDrive(folderId: string) {
     const data = await response.json();
     console.log('[Drive API] Found', data.files?.length || 0, 'files');
 
-    // Format videos
     const videos = (data.files || []).map((file: any) => ({
       id: file.id,
       name: file.name,
