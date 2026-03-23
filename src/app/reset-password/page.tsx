@@ -33,6 +33,7 @@ function ResetPasswordContent() {
       return;
     }
     
+    // Token presence check - actual validation happens on submit
     setValidToken(true);
     setVerifying(false);
   }, [token, email]);
