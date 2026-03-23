@@ -22,6 +22,7 @@ import {
   Play,
   Grid,
   List,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,17 +31,34 @@ interface Category {
   name: string;
   description: string | null;
   icon: string | null;
+  driveFolderUrl?: string | null;
+  driveFolderId?: string | null;
   items: Item[];
 }
 
 interface Item {
   id: string;
   title: string;
-  description: string | null;
-  driveFileId: string | null;
-  driveFolderUrl: string | null;
-  thumbnailUrl: string | null;
-  fileSize: number | null;
+  description?: string | null;
+  driveFileId?: string | null;
+  driveFolderUrl?: string | null;
+  thumbnailUrl?: string | null;
+  fileSize?: number | null;
+  mimeType?: string | null;
+  webViewLink?: string | null;
+  createdTime?: string;
+}
+
+interface DriveVideo {
+  id: string;
+  title: string;
+  driveFileId: string;
+  driveFolderUrl?: string;
+  thumbnailUrl?: string;
+  fileSize?: number | null;
+  mimeType?: string;
+  webViewLink?: string;
+  createdTime?: string;
 }
 
 interface VideoLibraryBrowserProps {
@@ -58,16 +76,20 @@ export default function VideoLibraryBrowser({
 }: VideoLibraryBrowserProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [dynamicVideos, setDynamicVideos] = useState<DriveVideo[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [loadingVideos, setLoadingVideos] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [previewItem, setPreviewItem] = useState<Item | null>(null);
+  const [previewItem, setPreviewItem] = useState<Item | DriveVideo | null>(null);
+  const [source, setSource] = useState<'static' | 'drive'>('static');
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       loadCategories();
       setSelectedCategory(null);
+      setDynamicVideos([]);
       setSelectedItems(new Set());
     }
   }, [open]);
@@ -87,6 +109,53 @@ export default function VideoLibraryBrowser({
     }
   };
 
+  const loadCategoryVideos = async (category: Category) => {
+    setSelectedCategory(category);
+    setLoadingVideos(true);
+    setDynamicVideos([]);
+    setSelectedItems(new Set());
+    
+    try {
+      // Fetch videos from the category API (handles both static and drive)
+      const res = await fetch(`/api/video-library/category/${category.id}/videos`);
+      const data = await res.json();
+      
+      if (data.videos) {
+        // Transform to consistent format
+        const videos = data.videos.map((v: any) => ({
+          id: v.id,
+          title: v.title || v.name,
+          driveFileId: v.driveFileId,
+          driveFolderUrl: v.driveFolderUrl || category.driveFolderUrl,
+          thumbnailUrl: v.thumbnailUrl,
+          fileSize: v.fileSize || v.size,
+          mimeType: v.mimeType,
+          webViewLink: v.webViewLink,
+          createdTime: v.createdTime,
+        }));
+        setDynamicVideos(videos);
+        setSource(data.source || 'static');
+      }
+    } catch (error) {
+      console.error('Error loading videos:', error);
+      // Fall back to static items from category
+      if (category.items) {
+        setDynamicVideos(category.items.map(item => ({
+          id: item.id,
+          title: item.title,
+          driveFileId: item.driveFileId || undefined,
+          driveFolderUrl: item.driveFolderUrl || category.driveFolderUrl || undefined,
+          thumbnailUrl: item.thumbnailUrl || undefined,
+          fileSize: item.fileSize || undefined,
+          mimeType: item.mimeType || undefined,
+        })));
+      }
+      setSource('static');
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
   const toggleItem = (itemId: string) => {
     const newSelected = new Set(selectedItems);
     if (newSelected.has(itemId)) {
@@ -97,9 +166,8 @@ export default function VideoLibraryBrowser({
     setSelectedItems(newSelected);
   };
 
-  const selectAllInCategory = () => {
-    if (!selectedCategory) return;
-    const allIds = selectedCategory.items.map(item => item.id);
+  const selectAll = () => {
+    const allIds = dynamicVideos.map(v => v.id);
     setSelectedItems(new Set(allIds));
   };
 
@@ -117,8 +185,8 @@ export default function VideoLibraryBrowser({
     const loadingToast = toast.loading(`Adding ${selectedItems.size} video(s)...`);
 
     try {
-      // Get selected items from current category
-      const itemsToAdd = selectedCategory?.items.filter(item => selectedItems.has(item.id)) || [];
+      // Get selected videos
+      const videosToAdd = dynamicVideos.filter(v => selectedItems.has(v.id));
 
       // Map videos to queue
       const response = await fetch('/api/drive/map', {
@@ -126,14 +194,14 @@ export default function VideoLibraryBrowser({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId,
-          videos: itemsToAdd.map(item => ({
-            id: item.driveFileId || item.id,
-            name: item.title,
-            url: item.driveFolderUrl || `https://drive.google.com/file/d/${item.driveFileId}`,
-            size: item.fileSize,
-            mimeType: 'video/mp4',
-            thumbnail: item.thumbnailUrl,
-            title: item.title,
+          videos: videosToAdd.map(v => ({
+            id: v.driveFileId || v.id,
+            name: v.title,
+            url: v.webViewLink || v.driveFolderUrl || `https://drive.google.com/file/d/${v.driveFileId}`,
+            size: v.fileSize,
+            mimeType: v.mimeType || 'video/mp4',
+            thumbnail: v.thumbnailUrl,
+            title: v.title,
           })),
         }),
       });
@@ -167,6 +235,14 @@ export default function VideoLibraryBrowser({
     return `https://drive.google.com/file/d/${driveFileId}/preview`;
   };
 
+  const getThumbnailUrl = (video: DriveVideo) => {
+    if (video.thumbnailUrl) return video.thumbnailUrl;
+    if (video.driveFileId) {
+      return `https://lh3.googleusercontent.com/d/${video.driveFileId}=w200-h120-c`;
+    }
+    return null;
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
@@ -189,6 +265,7 @@ export default function VideoLibraryBrowser({
                 size="sm"
                 onClick={() => {
                   setSelectedCategory(null);
+                  setDynamicVideos([]);
                   setSelectedItems(new Set());
                 }}
                 className="h-7 sm:h-8 text-xs sm:text-sm"
@@ -200,6 +277,12 @@ export default function VideoLibraryBrowser({
                 <span className="text-lg sm:text-xl mr-1.5">{selectedCategory.icon}</span>
                 {selectedCategory.name}
               </div>
+              {source === 'drive' && (
+                <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-green-50 text-green-700 border-green-200">
+                  <ExternalLink className="h-2.5 w-2.5 mr-1" />
+                  Live from Drive
+                </Badge>
+              )}
               <div className="ml-auto flex items-center gap-2">
                 {selectedItems.size > 0 && (
                   <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-[10px] sm:text-xs">
@@ -209,7 +292,8 @@ export default function VideoLibraryBrowser({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={selectedItems.size > 0 ? deselectAll : selectAllInCategory}
+                  onClick={selectedItems.size > 0 ? deselectAll : selectAll}
+                  disabled={loadingVideos}
                   className="h-7 sm:h-8 text-[10px] sm:text-xs"
                 >
                   {selectedItems.size > 0 ? 'Deselect All' : 'Select All'}
@@ -225,76 +309,87 @@ export default function VideoLibraryBrowser({
                 <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground" />
               </div>
             ) : selectedCategory ? (
-              // Items in category
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 p-2">
-                {selectedCategory.items.map((item) => (
-                  <Card
-                    key={item.id}
-                    className={`cursor-pointer transition-all hover:shadow-md group ${
-                      selectedItems.has(item.id)
-                        ? 'ring-2 ring-purple-500 bg-purple-50 dark:bg-purple-950'
-                        : ''
-                    }`}
-                  >
-                    <div className="relative aspect-video bg-muted">
-                      {item.thumbnailUrl ? (
-                        <img
-                          src={item.thumbnailUrl}
-                          alt={item.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                          <Video className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
-                        </div>
-                      )}
-
-                      {/* Play Button Overlay */}
-                      {item.driveFileId && (
-                        <button
-                          className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewItem(item);
-                          }}
-                        >
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                            <Play className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 ml-0.5" />
+              // Videos in category
+              loadingVideos ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 p-2">
+                  {dynamicVideos.map((video) => (
+                    <Card
+                      key={video.id}
+                      className={`cursor-pointer transition-all hover:shadow-md group ${
+                        selectedItems.has(video.id)
+                          ? 'ring-2 ring-purple-500 bg-purple-50 dark:bg-purple-950'
+                          : ''
+                      }`}
+                    >
+                      <div className="relative aspect-video bg-muted">
+                        {getThumbnailUrl(video) ? (
+                          <img
+                            src={getThumbnailUrl(video)!}
+                            alt={video.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                            <Video className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
                           </div>
-                        </button>
-                      )}
+                        )}
 
-                      {/* Selection Check */}
-                      {selectedItems.has(item.id) && (
-                        <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2">
-                          <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-purple-500 bg-white rounded-full" />
-                        </div>
-                      )}
+                        {/* Play Button Overlay */}
+                        {video.driveFileId && (
+                          <button
+                            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewItem(video);
+                            }}
+                          >
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                              <Play className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 ml-0.5" />
+                            </div>
+                          </button>
+                        )}
 
-                      {item.fileSize && (
-                        <Badge
-                          variant="secondary"
-                          className="absolute bottom-1.5 sm:bottom-2 right-1.5 sm:right-2 text-[8px] sm:text-[10px] bg-black/60 text-white"
-                        >
-                          {formatSize(item.fileSize)}
-                        </Badge>
+                        {/* Selection Check */}
+                        {selectedItems.has(video.id) && (
+                          <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2">
+                            <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-purple-500 bg-white rounded-full" />
+                          </div>
+                        )}
+
+                        {video.fileSize && (
+                          <Badge
+                            variant="secondary"
+                            className="absolute bottom-1.5 sm:bottom-2 right-1.5 sm:right-2 text-[8px] sm:text-[10px] bg-black/60 text-white"
+                          >
+                            {formatSize(video.fileSize)}
+                          </Badge>
+                        )}
+                      </div>
+                      <CardContent className="p-1.5 sm:p-2" onClick={() => toggleItem(video.id)}>
+                        <p className="text-[10px] sm:text-xs truncate font-medium" title={video.title}>
+                          {video.title}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {dynamicVideos.length === 0 && (
+                    <div className="col-span-full text-center py-12 text-muted-foreground">
+                      <Video className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 opacity-50" />
+                      <p className="text-xs sm:text-sm">No videos found in this category</p>
+                      {selectedCategory.driveFolderUrl && (
+                        <p className="text-[10px] sm:text-xs mt-1">
+                          Make sure the folder is shared publicly
+                        </p>
                       )}
                     </div>
-                    <CardContent className="p-1.5 sm:p-2" onClick={() => toggleItem(item.id)}>
-                      <p className="text-[10px] sm:text-xs truncate font-medium" title={item.title}>
-                        {item.title}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {selectedCategory.items.length === 0 && (
-                  <div className="col-span-full text-center py-12 text-muted-foreground">
-                    <Video className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 opacity-50" />
-                    <p className="text-xs sm:text-sm">No videos in this category</p>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )
             ) : (
               // Categories list
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 p-2">
@@ -302,7 +397,7 @@ export default function VideoLibraryBrowser({
                   <Card
                     key={category.id}
                     className="cursor-pointer hover:shadow-md transition group"
-                    onClick={() => setSelectedCategory(category)}
+                    onClick={() => loadCategoryVideos(category)}
                   >
                     <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center gap-2 sm:gap-3">
@@ -312,7 +407,14 @@ export default function VideoLibraryBrowser({
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-xs sm:text-sm truncate">{category.name}</p>
                           <p className="text-[9px] sm:text-[10px] text-muted-foreground">
-                            {category.items.length} videos
+                            {category.driveFolderUrl ? (
+                              <span className="flex items-center gap-1">
+                                <ExternalLink className="h-2.5 w-2.5" />
+                                Drive folder
+                              </span>
+                            ) : (
+                              `${category.items?.length || 0} videos`
+                            )}
                           </p>
                         </div>
                         <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />

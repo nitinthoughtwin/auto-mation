@@ -39,6 +39,7 @@ import {
   ChevronRight,
   GripVertical,
   Save,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -47,6 +48,8 @@ interface Category {
   name: string;
   description: string | null;
   icon: string | null;
+  driveFolderUrl: string | null;
+  driveFolderId: string | null;
   sortOrder: number;
   isActive: boolean;
   _count?: { items: number };
@@ -89,6 +92,7 @@ export default function VideoLibraryAdminPage() {
     name: '',
     description: '',
     icon: '📁',
+    driveFolderUrl: '',
     sortOrder: 0,
     isActive: true,
   });
@@ -153,6 +157,7 @@ export default function VideoLibraryAdminPage() {
         name: category.name,
         description: category.description || '',
         icon: category.icon || '📁',
+        driveFolderUrl: category.driveFolderUrl || '',
         sortOrder: category.sortOrder,
         isActive: category.isActive,
       });
@@ -162,6 +167,7 @@ export default function VideoLibraryAdminPage() {
         name: '',
         description: '',
         icon: '📁',
+        driveFolderUrl: '',
         sortOrder: categories.length,
         isActive: true,
       });
@@ -401,10 +407,18 @@ export default function VideoLibraryAdminPage() {
                   {category.description && (
                     <p className="text-[10px] sm:text-xs text-muted-foreground mb-2 line-clamp-2">{category.description}</p>
                   )}
-                  <div className="flex items-center justify-between">
-                    <Badge variant={category.isActive ? 'default' : 'secondary'} className={`text-[9px] sm:text-[10px] ${category.isActive ? 'bg-green-500' : ''}`}>
-                      {category.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={category.isActive ? 'default' : 'secondary'} className={`text-[9px] sm:text-[10px] ${category.isActive ? 'bg-green-500' : ''}`}>
+                        {category.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                      {category.driveFolderUrl && (
+                        <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-300 border-blue-200 dark:border-blue-700">
+                          <ExternalLink className="h-2.5 w-2.5 mr-0.5" />
+                          Drive Folder
+                        </Badge>
+                      )}
+                    </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardContent>
@@ -539,6 +553,18 @@ export default function VideoLibraryAdminPage() {
                   rows={2}
                   className="text-sm"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs sm:text-sm">Google Drive Folder URL</Label>
+                <Input
+                  value={categoryForm.driveFolderUrl}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, driveFolderUrl: e.target.value })}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className="h-8 sm:h-10 text-xs sm:text-sm"
+                />
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground">
+                  Add a public Google Drive folder URL to auto-populate videos
+                </p>
               </div>
               <div className="flex items-center justify-between">
                 <Label className="text-xs sm:text-sm">Active</Label>

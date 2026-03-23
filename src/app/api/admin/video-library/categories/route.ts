@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db';
+import prisma from '@/lib/prisma';
 
 // GET - List all categories
 export async function GET() {
@@ -12,7 +12,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
 
@@ -20,7 +20,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const categories = await db.videoLibraryCategory.findMany({
+    const categories = await prisma.videoLibraryCategory.findMany({
       include: {
         _count: {
           select: { items: true },
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
 
@@ -54,18 +54,31 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
-    const { name, description, icon, sortOrder } = data;
+    const { name, description, icon, driveFolderUrl, sortOrder, isActive } = data;
 
     if (!name) {
       return NextResponse.json({ error: 'Category name is required' }, { status: 400 });
     }
 
-    const category = await db.videoLibraryCategory.create({
+    // Extract folder ID from URL if provided
+    let driveFolderId: string | null = null;
+    if (driveFolderUrl) {
+      // Extract folder ID from various Google Drive URL formats
+      const match1 = driveFolderUrl.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+      const match2 = driveFolderUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      const match3 = driveFolderUrl.match(/\/drive\/u\/\d+\/folders\/([a-zA-Z0-9_-]+)/);
+      driveFolderId = match1?.[1] || match2?.[1] || match3?.[1] || null;
+    }
+
+    const category = await prisma.videoLibraryCategory.create({
       data: {
         name,
         description,
         icon,
+        driveFolderUrl,
+        driveFolderId,
         sortOrder: sortOrder || 0,
+        isActive: isActive ?? true,
       },
     });
 

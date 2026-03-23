@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { db } from '@/lib/db';
+import prisma from '@/lib/prisma';
 
 // GET - Get single category
 export async function GET(
@@ -15,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
 
@@ -24,7 +24,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const category = await db.videoLibraryCategory.findUnique({
+    const category = await prisma.videoLibraryCategory.findUnique({
       where: { id },
       include: {
         items: {
@@ -56,7 +56,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
 
@@ -66,14 +66,26 @@ export async function PUT(
 
     const { id } = await params;
     const data = await request.json();
-    const { name, description, icon, sortOrder, isActive } = data;
+    const { name, description, icon, driveFolderUrl, sortOrder, isActive } = data;
 
-    const category = await db.videoLibraryCategory.update({
+    // Extract folder ID from URL if provided
+    let driveFolderId: string | null = null;
+    if (driveFolderUrl) {
+      // Extract folder ID from various Google Drive URL formats
+      const match1 = driveFolderUrl.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+      const match2 = driveFolderUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      const match3 = driveFolderUrl.match(/\/drive\/u\/\d+\/folders\/([a-zA-Z0-9_-]+)/);
+      driveFolderId = match1?.[1] || match2?.[1] || match3?.[1] || null;
+    }
+
+    const category = await prisma.videoLibraryCategory.update({
       where: { id },
       data: {
         name,
         description,
         icon,
+        driveFolderUrl,
+        driveFolderId,
         sortOrder,
         isActive,
       },
@@ -98,7 +110,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
 
@@ -109,12 +121,12 @@ export async function DELETE(
     const { id } = await params;
 
     // Delete all items in this category first
-    await db.videoLibraryItem.deleteMany({
+    await prisma.videoLibraryItem.deleteMany({
       where: { categoryId: id },
     });
 
     // Delete the category
-    await db.videoLibraryCategory.delete({
+    await prisma.videoLibraryCategory.delete({
       where: { id },
     });
 
