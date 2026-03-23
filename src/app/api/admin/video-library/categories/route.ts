@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { db } from '@/lib/db';
 
 // GET - List all categories
 export async function GET() {
@@ -12,7 +12,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { email: session.user.email },
     });
 
@@ -20,7 +20,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const categories = await prisma.videoLibraryCategory.findMany({
+    const categories = await db.videoLibraryCategory.findMany({
       include: {
         _count: {
           select: { items: true },
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { email: session.user.email },
     });
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       driveFolderId = match1?.[1] || match2?.[1] || match3?.[1] || null;
     }
 
-    const category = await prisma.videoLibraryCategory.create({
+    const category = await db.videoLibraryCategory.create({
       data: {
         name,
         description,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { db } from '@/lib/db';
 
 // Helper to extract folder ID from Google Drive URL
 function extractFolderId(url: string): string | null {
@@ -26,7 +26,7 @@ export async function GET(
     const { id } = await params;
 
     // Get the category
-    const category = await prisma.videoLibraryCategory.findUnique({
+    const category = await db.videoLibraryCategory.findUnique({
       where: { id },
     });
 
@@ -41,7 +41,7 @@ export async function GET(
     // Check if category has a drive folder
     if (!category.driveFolderUrl && !category.driveFolderId) {
       // Return static items if no drive folder
-      const items = await prisma.videoLibraryItem.findMany({
+      const items = await db.videoLibraryItem.findMany({
         where: { 
           categoryId: id,
           isActive: true 
@@ -70,7 +70,7 @@ export async function GET(
 
       if (!response.ok) {
         // If API fails, try to return static items as fallback
-        const items = await prisma.videoLibraryItem.findMany({
+        const items = await db.videoLibraryItem.findMany({
           where: { 
             categoryId: id,
             isActive: true 
@@ -105,7 +105,7 @@ export async function GET(
       console.error('Error fetching from Drive:', driveError);
       
       // Fallback to static items
-      const items = await prisma.videoLibraryItem.findMany({
+      const items = await db.videoLibraryItem.findMany({
         where: { 
           categoryId: id,
           isActive: true 
