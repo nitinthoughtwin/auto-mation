@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Youtube,
   Play,
@@ -125,7 +124,7 @@ const testimonials = [
 ];
 
 export default function LandingPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -285,19 +284,22 @@ export default function LandingPage() {
       <section className="py-6 sm:py-8 lg:py-12 border-y border-gray-800">
         <div className="max-w-7xl mx-auto px-3 sm:px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 text-center">
-            {[
-              { value: '10K+', label: 'Videos Uploaded' },
-              { value: '500+', label: 'Active Users' },
-              { value: '99.9%', label: 'Uptime' },
-              { value: '24/7', label: 'Support' },
-            ].map((stat, index) => (
-              <div key={index} className="p-2 sm:p-4">
-                <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
-                  {stat.value}
-                </div>
-                <div className="text-gray-400 text-xs sm:text-sm mt-1">{stat.label}</div>
-              </div>
-            ))}
+            <div className="p-2 sm:p-4">
+              <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">10K+</div>
+              <div className="text-gray-400 text-xs sm:text-sm mt-1">Videos Uploaded</div>
+            </div>
+            <div className="p-2 sm:p-4">
+              <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">500+</div>
+              <div className="text-gray-400 text-xs sm:text-sm mt-1">Active Users</div>
+            </div>
+            <div className="p-2 sm:p-4">
+              <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">99.9%</div>
+              <div className="text-gray-400 text-xs sm:text-sm mt-1">Uptime</div>
+            </div>
+            <div className="p-2 sm:p-4">
+              <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">24/7</div>
+              <div className="text-gray-400 text-xs sm:text-sm mt-1">Support</div>
+            </div>
           </div>
         </div>
       </section>
@@ -316,18 +318,16 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {features.map((feature, index) => (
-              <Card 
+              <div 
                 key={index} 
-                className="bg-gray-800/30 border-gray-700/50 hover:border-red-500/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-red-500/5"
+                className="bg-gray-800/50 border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-red-500/5 rounded-xl p-4 sm:p-6"
               >
-                <CardContent className="pt-4 sm:pt-6">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gray-800 flex items-center justify-center mb-3 sm:mb-4">
-                    {feature.icon}
-                  </div>
-                  <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">{feature.title}</h3>
-                  <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">{feature.description}</p>
-                </CardContent>
-              </Card>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gray-700 flex items-center justify-center mb-3 sm:mb-4">
+                  {feature.icon}
+                </div>
+                <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">{feature.title}</h3>
+                <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">{feature.description}</p>
+              </div>
             ))}
           </div>
         </div>
@@ -343,19 +343,27 @@ export default function LandingPage() {
           </div>
           
           <div className="grid md:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
-            {[
-              { step: '1', title: 'Connect', desc: 'Link your YouTube channels and Google Drive in seconds.' },
-              { step: '2', title: 'Upload', desc: 'Add videos from your Drive or upload directly to the platform.' },
-              { step: '3', title: 'Schedule', desc: 'Set your schedule and let GPMart Studio handle the rest.' },
-            ].map((item, index) => (
-              <div key={index} className="text-center">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-3 sm:mb-4 shadow-lg shadow-red-500/25">
-                  {item.step}
-                </div>
-                <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">{item.title}</h3>
-                <p className="text-gray-400 text-xs sm:text-sm">{item.desc}</p>
+            <div className="text-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-3 sm:mb-4 shadow-lg shadow-red-500/25">
+                1
               </div>
-            ))}
+              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">Connect</h3>
+              <p className="text-gray-400 text-xs sm:text-sm">Link your YouTube channels and Google Drive in seconds.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-3 sm:mb-4 shadow-lg shadow-red-500/25">
+                2
+              </div>
+              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">Upload</h3>
+              <p className="text-gray-400 text-xs sm:text-sm">Add videos from your Drive or upload directly to the platform.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-3 sm:mb-4 shadow-lg shadow-red-500/25">
+                3
+              </div>
+              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">Schedule</h3>
+              <p className="text-gray-400 text-xs sm:text-sm">Set your schedule and let GPMart Studio handle the rest.</p>
+            </div>
           </div>
         </div>
       </section>
@@ -374,10 +382,10 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 max-w-5xl mx-auto">
             {pricingPlans.map((plan, index) => (
-              <Card 
+              <div 
                 key={index} 
-                className={`relative bg-gray-800/30 border-gray-700/50 ${
-                  plan.popular ? 'border-red-500/50 md:scale-105 shadow-xl shadow-red-500/10' : ''
+                className={`relative bg-gray-800/50 border rounded-xl p-6 sm:p-8 ${
+                  plan.popular ? 'border-red-500/50 md:scale-105 shadow-xl shadow-red-500/10' : 'border-gray-700/50'
                 }`}
               >
                 {plan.popular && (
@@ -385,34 +393,32 @@ export default function LandingPage() {
                     Most Popular
                   </div>
                 )}
-                <CardContent className="pt-6 sm:pt-8">
-                  <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">{plan.name}</h3>
-                  <p className="text-gray-400 text-xs sm:text-sm mt-1">{plan.description}</p>
-                  <div className="mt-4 mb-4 sm:mb-6">
-                    <span className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{plan.price}</span>
-                    <span className="text-gray-400 text-sm"> /{plan.period}</span>
-                  </div>
-                  <ul className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
-                    {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2 text-gray-300 text-xs sm:text-sm">
-                        <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link href="/signup">
-                    <Button 
-                      className={`w-full text-sm ${
-                        plan.popular 
-                          ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-lg shadow-red-500/25' 
-                          : 'bg-gray-700 hover:bg-gray-600'
-                      }`}
-                    >
-                      Get Started
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
+                <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">{plan.name}</h3>
+                <p className="text-gray-400 text-xs sm:text-sm mt-1">{plan.description}</p>
+                <div className="mt-4 mb-4 sm:mb-6">
+                  <span className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{plan.price}</span>
+                  <span className="text-gray-400 text-sm"> /{plan.period}</span>
+                </div>
+                <ul className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
+                  {plan.features.map((feature, i) => (
+                    <li key={i} className="flex items-center gap-2 text-gray-300 text-xs sm:text-sm">
+                      <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/signup">
+                  <Button 
+                    className={`w-full text-sm ${
+                      plan.popular 
+                        ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-lg shadow-red-500/25' 
+                        : 'bg-gray-700 hover:bg-gray-600'
+                    }`}
+                  >
+                    Get Started
+                  </Button>
+                </Link>
+              </div>
             ))}
           </div>
         </div>
@@ -429,20 +435,18 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {testimonials.map((testimonial, index) => (
-              <Card key={index} className="bg-gray-800/30 border-gray-700/50">
-                <CardContent className="pt-4 sm:pt-6">
-                  <div className="flex gap-1 mb-3 sm:mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500 fill-yellow-500" />
-                    ))}
-                  </div>
-                  <p className="text-gray-300 mb-3 sm:mb-4 text-xs sm:text-sm leading-relaxed">"{testimonial.content}"</p>
-                  <div>
-                    <p className="font-semibold text-white text-sm sm:text-base">{testimonial.name}</p>
-                    <p className="text-gray-500 text-xs sm:text-sm">{testimonial.role}</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div key={index} className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 sm:p-6">
+                <div className="flex gap-1 mb-3 sm:mb-4">
+                  {[...Array(testimonial.rating)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500 fill-yellow-500" />
+                  ))}
+                </div>
+                <p className="text-gray-300 mb-3 sm:mb-4 text-xs sm:text-sm leading-relaxed">"{testimonial.content}"</p>
+                <div>
+                  <p className="font-semibold text-white text-sm sm:text-base">{testimonial.name}</p>
+                  <p className="text-gray-500 text-xs sm:text-sm">{testimonial.role}</p>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -451,21 +455,19 @@ export default function LandingPage() {
       {/* CTA Section */}
       <section className="py-12 sm:py-16 lg:py-20 px-3 sm:px-4">
         <div className="max-w-4xl mx-auto text-center">
-          <Card className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border-red-500/20">
-            <CardContent className="py-8 sm:py-12 lg:py-16">
-              <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 lg:mb-4 text-white">
-                Ready to Save 10+ Hours Every Week?
-              </h2>
-              <p className="text-gray-400 mb-4 sm:mb-6 lg:mb-8 text-xs sm:text-sm lg:text-base">
-                Join 500+ creators who are automating their YouTube workflow with GPMart Studio.
-              </p>
-              <Link href="/signup">
-                <Button size="lg" className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 shadow-xl shadow-red-500/25">
-                  Start Free Trial <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl py-8 sm:py-12 lg:py-16 px-4 sm:px-8">
+            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 lg:mb-4 text-white">
+              Ready to Save 10+ Hours Every Week?
+            </h2>
+            <p className="text-gray-400 mb-4 sm:mb-6 lg:mb-8 text-xs sm:text-sm lg:text-base">
+              Join 500+ creators who are automating their YouTube workflow with GPMart Studio.
+            </p>
+            <Link href="/signup">
+              <Button size="lg" className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 shadow-xl shadow-red-500/25">
+                Start Free Trial <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 

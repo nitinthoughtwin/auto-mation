@@ -128,15 +128,23 @@
     overflow-x: hidden;
   }
   
-  /* Ensure proper touch targets (44px minimum) */
+  /* Ensure proper touch targets - but NOT for switches */
   @media (max-width: 640px) {
-    button,
-    [role="button"],
+    button:not([data-state]),
+    [role="button"]:not([data-state]),
     input[type="checkbox"],
     input[type="radio"],
-    .switch,
-    [data-radix-collection-item] {
+    [data-radix-collection-item]:not([data-state]) {
       min-height: 44px;
+    }
+    
+    /* Switch/toggle should be smaller */
+    button[data-state],
+    [role="switch"],
+    .switch,
+    [data-radix-switch-thumb] {
+      min-height: auto !important;
+      min-width: auto !important;
     }
     
     /* Make dialog content scrollable on mobile */
