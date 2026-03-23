@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Settings,
   Bell,
   Moon,
   Globe,
@@ -18,6 +18,10 @@ import {
   ArrowLeft,
   Save,
   Trash2,
+  Eye,
+  EyeOff,
+  Lock,
+  Key,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -32,7 +36,9 @@ interface UserSettings {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { status } = useSession();
+  const sessionData = useSession();
+  const session = sessionData?.data;
+  const status = sessionData?.status || 'loading';
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<UserSettings>({
@@ -42,6 +48,14 @@ export default function SettingsPage() {
     language: 'en',
     timezone: 'Asia/Kolkata',
   });
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -56,7 +70,6 @@ export default function SettingsPage() {
 
   const loadSettings = async () => {
     try {
-      // Load settings from localStorage (could be moved to API later)
       const saved = localStorage.getItem('userSettings');
       if (saved) {
         setSettings(JSON.parse(saved));
@@ -71,10 +84,8 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      // Save to localStorage
       localStorage.setItem('userSettings', JSON.stringify(settings));
       
-      // Apply dark mode
       if (settings.darkMode) {
         document.documentElement.classList.add('dark');
       } else {
@@ -89,9 +100,60 @@ export default function SettingsPage() {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('All fields are required');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const res = await fetch('/api/user/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success('Password changed successfully');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPasswordError(data.error || 'Failed to change password');
+      }
+    } catch (error) {
+      setPasswordError('Something went wrong. Please try again.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     toast.error('Account deletion is not available in this version');
   };
+
+  // Check if user has password (Google users might not)
+  const hasPassword = session?.user ? true : false;
 
   if (loading || status === 'loading') {
     return (
@@ -105,7 +167,7 @@ export default function SettingsPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => router.push('/')}>
+        <Button variant="ghost" onClick={() => router.push('/dashboard')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Dashboard
         </Button>
@@ -235,7 +297,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Security */}
+      {/* Security - Change Password */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -243,13 +305,94 @@ export default function SettingsPage() {
             Security
           </CardTitle>
           <CardDescription>
-            Manage your account security settings
+            Change your password to keep your account secure
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Button variant="outline" onClick={() => router.push('/profile')}>
-            Change Password
-          </Button>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            {passwordError && (
+              <Alert variant="destructive">
+                <AlertDescription>{passwordError}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="current-password">Current Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="current-password"
+                    type={showPasswords ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="new-password"
+                    type={showPasswords ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pl-10 pr-10"
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords(!showPasswords)}
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm New Password</Label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="confirm-password"
+                    type={showPasswords ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pl-10"
+                    minLength={6}
+                  />
+                </div>
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  type="submit" 
+                  disabled={passwordLoading}
+                  className="w-full sm:w-auto"
+                >
+                  {passwordLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Changing...
+                    </>
+                  ) : (
+                    'Change Password'
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Password must be at least 6 characters long
+            </p>
+          </form>
         </CardContent>
       </Card>
 
