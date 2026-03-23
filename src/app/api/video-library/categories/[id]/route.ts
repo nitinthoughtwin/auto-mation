@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { randomUUID } from 'crypto';
 
 // Helper to extract folder ID from Google Drive URL
 function extractFolderId(url: string): string | null {
@@ -21,6 +20,8 @@ function extractFolderId(url: string): string | null {
 async function fetchVideosFromDrive(folderId: string) {
   try {
     const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
+    if (!apiKey) return { videos: [], error: 'GOOGLE_API_KEY_NOT_SET' };
+
     const videosUrl = new URL('https://www.googleapis.com/drive/v3/files');
     videosUrl.searchParams.set('q', `'${folderId}' in parents and trashed = false and mimeType contains 'video/'`);
     videosUrl.searchParams.set('fields', 'files(id, name, mimeType, size, thumbnailLink, webViewLink, createdTime)');
@@ -66,43 +67,20 @@ export async function GET(
 
     const { id } = await params;
 
-    const categories = await db.$queryRaw<Array<{
-      id: string;
-      name: string;
-      description: string | null;
-      driveUrl: string;
-      folderId: string | null;
-      isActive: number;
-      sortOrder: number;
-    }>>`SELECT * FROM video_categories WHERE id = ${id}`;
+    const category = await db.videoCategory.findUnique({
+      where: { id },
+      include: {
+        videos: {
+          orderBy: { createdTime: 'desc' }
+        }
+      }
+    });
 
-    if (!categories || categories.length === 0) {
+    if (!category) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
-    const category = categories[0];
-
-    const videos = await db.$queryRaw<Array<{
-      id: string;
-      categoryId: string;
-      driveFileId: string;
-      name: string;
-      mimeType: string;
-      size: number | null;
-      thumbnailLink: string | null;
-      webViewLink: string | null;
-      downloadUrl: string | null;
-      createdTime: string | null;
-      addedToQueue: number;
-    }>>`SELECT * FROM library_videos WHERE categoryId = ${id} ORDER BY createdTime DESC`;
-
-    return NextResponse.json({
-      category: {
-        ...category,
-        isActive: category.isActive === 1,
-        videos: videos.map(v => ({ ...v, addedToQueue: v.addedToQueue === 1 }))
-      }
-    });
+    return NextResponse.json({ category });
   } catch (error: any) {
     console.error('[Video Category] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -120,10 +98,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userResult = await db.$queryRaw<Array<{ role: string }>>`
-      SELECT role FROM User WHERE id = ${session.user.id}
-    `;
-    if (!userResult[0] || userResult[0].role !== 'admin') {
+    const user = await db.user.findUnique({
+      where: { id: session.user.id }
+    });
+
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -132,18 +111,13 @@ export async function PUT(
     const { name, description, driveUrl, isActive, sortOrder, sync } = body;
 
     // Check if category exists
-    const existing = await db.$queryRaw<Array<{
-      id: string;
-      driveUrl: string;
-      folderId: string | null;
-    }>>`SELECT id, driveUrl, folderId FROM video_categories WHERE id = ${id}`;
+    const existingCategory = await db.videoCategory.findUnique({
+      where: { id }
+    });
 
-    if (!existing || existing.length === 0) {
+    if (!existingCategory) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
-
-    const existingCategory = existing[0];
-    const now = new Date().toISOString();
 
     // If driveUrl changed, extract new folderId and sync videos
     if (driveUrl && driveUrl !== existingCategory.driveUrl) {
@@ -152,8 +126,11 @@ export async function PUT(
         return NextResponse.json({ error: 'Invalid Google Drive URL' }, { status: 400 });
       }
 
-      await db.$executeRaw`DELETE FROM library_videos WHERE categoryId = ${id}`;
-      
+      // Delete existing videos
+      await db.libraryVideo.deleteMany({
+        where: { categoryId: id }
+      });
+
       const result = await fetchVideosFromDrive(folderId);
       if (result.error) {
         const errorMessages: Record<string, string> = {
@@ -167,17 +144,30 @@ export async function PUT(
       }
 
       const videos = result.videos;
-      for (const v of videos) {
-        const videoId = randomUUID();
-        await db.$executeRaw`
-          INSERT OR IGNORE INTO library_videos (id, categoryId, driveFileId, name, mimeType, size, thumbnailLink, webViewLink, downloadUrl, createdTime, addedToQueue, createdAt, updatedAt)
-          VALUES (${videoId}, ${id}, ${v.id}, ${v.name}, ${v.mimeType}, ${v.size || null}, ${v.thumbnailLink || null}, ${v.webViewLink || null}, ${v.downloadUrl || null}, ${v.createdTime ? new Date(v.createdTime).toISOString() : null}, 0, ${now}, ${now})
-        `;
+
+      // Save new videos
+      if (videos.length > 0) {
+        await db.libraryVideo.createMany({
+          data: videos.map(v => ({
+            categoryId: id,
+            driveFileId: v.id,
+            name: v.name,
+            mimeType: v.mimeType,
+            size: v.size,
+            thumbnailLink: v.thumbnailLink,
+            webViewLink: v.webViewLink,
+            downloadUrl: v.downloadUrl,
+            createdTime: v.createdTime ? new Date(v.createdTime) : null
+          })),
+          skipDuplicates: true
+        });
       }
 
-      await db.$executeRaw`
-        UPDATE video_categories SET driveUrl = ${driveUrl}, folderId = ${folderId}, updatedAt = ${now} WHERE id = ${id}
-      `;
+      // Update category
+      await db.videoCategory.update({
+        where: { id },
+        data: { driveUrl, folderId }
+      });
 
       return NextResponse.json({ success: true, videosFetched: videos.length });
     }
@@ -190,44 +180,54 @@ export async function PUT(
       }
 
       const videos = result.videos;
-      const existingVideos = await db.$queryRaw<Array<{ driveFileId: string }>>`
-        SELECT driveFileId FROM library_videos WHERE categoryId = ${id}
-      `;
+
+      // Get existing video IDs
+      const existingVideos = await db.libraryVideo.findMany({
+        where: { categoryId: id },
+        select: { driveFileId: true }
+      });
       const existingIds = new Set(existingVideos.map(v => v.driveFileId));
+
+      // Add only new videos
       const newVideos = videos.filter(v => !existingIds.has(v.id));
 
-      for (const v of newVideos) {
-        const videoId = randomUUID();
-        await db.$executeRaw`
-          INSERT OR IGNORE INTO library_videos (id, categoryId, driveFileId, name, mimeType, size, thumbnailLink, webViewLink, downloadUrl, createdTime, addedToQueue, createdAt, updatedAt)
-          VALUES (${videoId}, ${id}, ${v.id}, ${v.name}, ${v.mimeType}, ${v.size || null}, ${v.thumbnailLink || null}, ${v.webViewLink || null}, ${v.downloadUrl || null}, ${v.createdTime ? new Date(v.createdTime).toISOString() : null}, 0, ${now}, ${now})
-        `;
+      if (newVideos.length > 0) {
+        await db.libraryVideo.createMany({
+          data: newVideos.map(v => ({
+            categoryId: id,
+            driveFileId: v.id,
+            name: v.name,
+            mimeType: v.mimeType,
+            size: v.size,
+            thumbnailLink: v.thumbnailLink,
+            webViewLink: v.webViewLink,
+            downloadUrl: v.downloadUrl,
+            createdTime: v.createdTime ? new Date(v.createdTime) : null
+          })),
+          skipDuplicates: true
+        });
       }
 
-      return NextResponse.json({ success: true, newVideosFetched: newVideos.length, totalVideos: videos.length });
+      return NextResponse.json({
+        success: true,
+        newVideosFetched: newVideos.length,
+        totalVideos: videos.length
+      });
     }
 
     // Just update category fields
-    const updates: string[] = [];
-    const values: any[] = [];
-    
-    if (name !== undefined) { updates.push('name = ?'); values.push(name); }
-    if (description !== undefined) { updates.push('description = ?'); values.push(description); }
-    if (isActive !== undefined) { updates.push('isActive = ?'); values.push(isActive ? 1 : 0); }
-    if (sortOrder !== undefined) { updates.push('sortOrder = ?'); values.push(sortOrder); }
-    
-    if (updates.length > 0) {
-      updates.push('updatedAt = ?');
-      values.push(now);
-      values.push(id);
-      
-      await db.$executeRawUnsafe(
-        `UPDATE video_categories SET ${updates.join(', ')} WHERE id = ?`,
-        ...values
-      );
-    }
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
-    return NextResponse.json({ success: true });
+    const updatedCategory = await db.videoCategory.update({
+      where: { id },
+      data: updateData
+    });
+
+    return NextResponse.json({ success: true, category: updatedCategory });
   } catch (error: any) {
     console.error('[Video Category] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -245,17 +245,25 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userResult = await db.$queryRaw<Array<{ role: string }>>`
-      SELECT role FROM User WHERE id = ${session.user.id}
-    `;
-    if (!userResult[0] || userResult[0].role !== 'admin') {
+    const user = await db.user.findUnique({
+      where: { id: session.user.id }
+    });
+
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const { id } = await params;
 
-    await db.$executeRaw`DELETE FROM library_videos WHERE categoryId = ${id}`;
-    await db.$executeRaw`DELETE FROM video_categories WHERE id = ${id}`;
+    // Delete videos first (cascade should handle this but let's be explicit)
+    await db.libraryVideo.deleteMany({
+      where: { categoryId: id }
+    });
+
+    // Delete category
+    await db.videoCategory.delete({
+      where: { id }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

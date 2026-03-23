@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { randomUUID } from 'crypto';
 
 // Helper to extract folder ID from Google Drive URL
 function extractFolderId(url: string): string | null {
@@ -28,37 +27,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Use raw query
-    const categories = await db.$queryRaw<Array<{
-      id: string;
-      name: string;
-      description: string | null;
-      driveUrl: string;
-      folderId: string | null;
-      isActive: number;
-      sortOrder: number;
-      createdAt: Date;
-      updatedAt: Date;
-    }>>`
-      SELECT * FROM video_categories ORDER BY sortOrder ASC
-    `;
-
-    // Get video counts for each category
-    const categoriesWithCount = await Promise.all(
-      categories.map(async (cat) => {
-        const countResult = await db.$queryRaw<Array<{ count: bigint }>>`
-          SELECT COUNT(*) as count FROM library_videos WHERE categoryId = ${cat.id}
-        `;
-        return {
-          ...cat,
-          isActive: cat.isActive === 1,
-          videoCount: Number(countResult[0]?.count || 0)
-        };
-      })
-    );
+    const categories = await db.videoCategory.findMany({
+      include: {
+        _count: {
+          select: { videos: true }
+        }
+      },
+      orderBy: { sortOrder: 'asc' }
+    });
 
     return NextResponse.json({
-      categories: categoriesWithCount
+      categories: categories.map(cat => ({
+        ...cat,
+        videoCount: cat._count.videos
+      }))
     });
   } catch (error: any) {
     console.error('[Video Categories] Error:', error);
@@ -76,11 +58,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is admin
-    const userResult = await db.$queryRaw<Array<{ role: string }>>`
-      SELECT role FROM User WHERE id = ${session.user.id}
-    `;
+    const user = await db.user.findUnique({
+      where: { id: session.user.id }
+    });
 
-    if (!userResult[0] || userResult[0].role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -100,14 +82,16 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Create category with raw query
-    const categoryId = randomUUID();
-    const now = new Date();
-    
-    await db.$executeRaw`
-      INSERT INTO video_categories (id, name, description, driveUrl, folderId, isActive, sortOrder, createdAt, updatedAt)
-      VALUES (${categoryId}, ${name}, ${description || null}, ${driveUrl}, ${folderId}, 1, ${sortOrder || 0}, ${now.toISOString()}, ${now.toISOString()})
-    `;
+    // Create category
+    const category = await db.videoCategory.create({
+      data: {
+        name,
+        description,
+        driveUrl,
+        folderId,
+        sortOrder: sortOrder || 0
+      }
+    });
 
     // Fetch videos from the drive folder
     const result = await fetchVideosFromDrive(folderId);
@@ -115,7 +99,7 @@ export async function POST(request: NextRequest) {
     // Check for errors
     if (result.error) {
       // Delete the category if we can't fetch videos
-      await db.$executeRaw`DELETE FROM video_categories WHERE id = ${categoryId}`;
+      await db.videoCategory.delete({ where: { id: category.id } });
       
       const errorMessages: Record<string, string> = {
         'GOOGLE_API_KEY_NOT_SET': 'Google API Key not configured. Please add GOOGLE_API_KEY to your .env file. Get one from https://console.cloud.google.com/apis/credentials',
@@ -134,18 +118,25 @@ export async function POST(request: NextRequest) {
 
     // Save videos to database
     if (videos.length > 0) {
-      for (const v of videos) {
-        const videoId = randomUUID();
-        await db.$executeRaw`
-          INSERT OR IGNORE INTO library_videos (id, categoryId, driveFileId, name, mimeType, size, thumbnailLink, webViewLink, downloadUrl, createdTime, addedToQueue, createdAt, updatedAt)
-          VALUES (${videoId}, ${categoryId}, ${v.id}, ${v.name}, ${v.mimeType}, ${v.size || null}, ${v.thumbnailLink || null}, ${v.webViewLink || null}, ${v.downloadUrl || null}, ${v.createdTime ? new Date(v.createdTime).toISOString() : null}, 0, ${now.toISOString()}, ${now.toISOString()})
-        `;
-      }
+      await db.libraryVideo.createMany({
+        data: videos.map(v => ({
+          categoryId: category.id,
+          driveFileId: v.id,
+          name: v.name,
+          mimeType: v.mimeType,
+          size: v.size,
+          thumbnailLink: v.thumbnailLink,
+          webViewLink: v.webViewLink,
+          downloadUrl: v.downloadUrl,
+          createdTime: v.createdTime ? new Date(v.createdTime) : null
+        })),
+        skipDuplicates: true
+      });
     }
 
     return NextResponse.json({
       success: true,
-      category: { id: categoryId, name, description, driveUrl, folderId, isActive: true, sortOrder: sortOrder || 0 },
+      category,
       videosFetched: videos.length
     });
   } catch (error: any) {
