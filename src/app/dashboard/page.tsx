@@ -429,9 +429,9 @@ function ChannelCard({ channel, onManage, onDelete, onToggle, isToggling, isDele
                 <Youtube className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
               )}
             </div>
-            <div className="min-w-0">
-              <h3 className="font-semibold text-base sm:text-lg truncate">{channel.name}</h3>
-              <p className="text-xs sm:text-sm text-gray-500">{channel.queuedVideos || 0} videos in queue</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-sm sm:text-base truncate max-w-[140px] sm:max-w-[200px]">{channel.name}</h3>
+              <p className="text-[10px] sm:text-xs text-gray-500">{channel.queuedVideos || 0} videos in queue</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1779,7 +1779,7 @@ export default function NewDashboard() {
         </header>
         
         {/* Page Content */}
-        <main className="p-4 sm:p-6">
+        <main className="p-2 sm:p-4">
           {activeTab === 'dashboard' && renderDashboardTab()}
           {activeTab === 'channel' && renderChannelDetailTab()}
           {activeTab === 'channels' && (
