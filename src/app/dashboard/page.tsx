@@ -1842,24 +1842,32 @@ export default function NewDashboard() {
       </Dialog>
 
       {/* Public Drive Browser Dialog */}
-      <Dialog open={showPublicDriveBrowser} onOpenChange={setShowPublicDriveBrowser}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Import from Public Drive Link</DialogTitle>
-            <DialogDescription>Enter a public Google Drive folder link</DialogDescription>
-          </DialogHeader>
-          {selectedChannel && (
-            <PublicDriveBrowser
-              channelId={selectedChannel.id}
-              onImportComplete={() => {
-                setShowPublicDriveBrowser(false);
-                loadChannelDetails(selectedChannel.id);
-                loadChannels();
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <DriveVideoBrowser
+        open={showDriveBrowser}
+        onClose={() => setShowDriveBrowser(false)}
+        channelId={selectedChannel?.id || ''}
+        onVideosAdded={() => {
+          setShowDriveBrowser(false);
+          if (selectedChannel) {
+            loadChannelDetails(selectedChannel.id);
+          }
+          loadChannels();
+        }}
+      />
+
+      {/* Public Drive Browser Dialog */}
+      <PublicDriveBrowser
+        open={showPublicDriveBrowser}
+        onClose={() => setShowPublicDriveBrowser(false)}
+        channelId={selectedChannel?.id || ''}
+        onVideosAdded={() => {
+          setShowPublicDriveBrowser(false);
+          if (selectedChannel) {
+            loadChannelDetails(selectedChannel.id);
+          }
+          loadChannels();
+        }}
+      />
 
       {/* Video Preview Dialog */}
       <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
