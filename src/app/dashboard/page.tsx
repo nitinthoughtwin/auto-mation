@@ -418,8 +418,8 @@ function ChannelCard({ channel, onManage, onDelete, onToggle, isToggling, isDele
   return (
     <Card className="group hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900">
       <CardContent className="p-3 sm:p-4 lg:p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <div className="w-9 h-9 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg flex-shrink-0">
               {channel.platform === 'instagram' ? (
                 <Instagram className="h-4 w-4 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
@@ -430,11 +430,11 @@ function ChannelCard({ channel, onManage, onDelete, onToggle, isToggling, isDele
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-xs sm:text-sm lg:text-base truncate max-w-[120px] sm:max-w-[160px] lg:max-w-[200px]">{channel.name}</h3>
+              <h3 className="font-semibold text-xs sm:text-sm lg:text-base truncate">{channel.name}</h3>
               <p className="text-[9px] sm:text-[10px] lg:text-xs text-gray-500">{channel.queuedVideos || 0} videos in queue</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {isToggling ? (
               <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
             ) : (
@@ -1822,26 +1822,6 @@ export default function NewDashboard() {
       </div>
 
       {/* Drive Browser Dialog */}
-      <Dialog open={showDriveBrowser} onOpenChange={setShowDriveBrowser}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Import from Google Drive</DialogTitle>
-            <DialogDescription>Select videos to import from your Google Drive</DialogDescription>
-          </DialogHeader>
-          {selectedChannel && (
-            <DriveVideoBrowser
-              channelId={selectedChannel.id}
-              onImportComplete={() => {
-                setShowDriveBrowser(false);
-                loadChannelDetails(selectedChannel.id);
-                loadChannels();
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Public Drive Browser Dialog */}
       <DriveVideoBrowser
         open={showDriveBrowser}
         onClose={() => setShowDriveBrowser(false)}
