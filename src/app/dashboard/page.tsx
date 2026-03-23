@@ -386,20 +386,20 @@ function StatsCard({ title, value, icon: Icon, trend, color }: {
   return (
     <Card className="relative overflow-hidden border-0 shadow-lg">
       <div className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} opacity-5`} />
-      <CardContent className="p-3 sm:p-6">
+      <CardContent className="p-2 sm:p-3 lg:p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] sm:text-sm font-medium text-gray-500">{title}</p>
-            <p className="text-xl sm:text-3xl font-bold mt-1">{value}</p>
+            <p className="text-[9px] sm:text-[10px] lg:text-sm font-medium text-gray-500">{title}</p>
+            <p className="text-base sm:text-xl lg:text-3xl font-bold mt-0.5 sm:mt-1">{value}</p>
             {trend && (
-              <p className="text-[10px] sm:text-xs text-green-600 flex items-center gap-1 mt-1">
-                <TrendingUp className="h-3 w-3" />
+              <p className="text-[9px] sm:text-[10px] lg:text-xs text-green-600 flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1">
+                <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 {trend}
               </p>
             )}
           </div>
-          <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center`}>
-            <Icon className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
+          <div className={`w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-md sm:rounded-lg lg:rounded-xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center`}>
+            <Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-white" />
           </div>
         </div>
       </CardContent>
@@ -417,79 +417,79 @@ function ChannelCard({ channel, onManage, onDelete, onToggle, isToggling, isDele
 }) {
   return (
     <Card className="group hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900">
-      <CardContent className="p-4 sm:p-6">
+      <CardContent className="p-3 sm:p-4 lg:p-6">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-9 h-9 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg flex-shrink-0">
               {channel.platform === 'instagram' ? (
-                <Instagram className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
+                <Instagram className="h-4 w-4 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
               ) : channel.platform === 'facebook' ? (
-                <Facebook className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
+                <Facebook className="h-4 w-4 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
               ) : (
-                <Youtube className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
+                <Youtube className="h-4 w-4 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-sm sm:text-base truncate max-w-[140px] sm:max-w-[200px]">{channel.name}</h3>
-              <p className="text-[10px] sm:text-xs text-gray-500">{channel.queuedVideos || 0} videos in queue</p>
+              <h3 className="font-semibold text-xs sm:text-sm lg:text-base truncate max-w-[120px] sm:max-w-[160px] lg:max-w-[200px]">{channel.name}</h3>
+              <p className="text-[9px] sm:text-[10px] lg:text-xs text-gray-500">{channel.queuedVideos || 0} videos in queue</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {isToggling ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Switch
                   checked={channel.isActive}
                   onCheckedChange={onToggle}
-                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-300"
+                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-300 scale-75 sm:scale-100"
                 />
-                <span className="text-xs text-gray-500 hidden sm:inline">{channel.isActive ? 'On' : 'Off'}</span>
+                <span className="text-[9px] sm:text-xs text-gray-500 hidden sm:inline">{channel.isActive ? 'On' : 'Off'}</span>
               </div>
             )}
           </div>
         </div>
         
-        <div className="mt-4 sm:mt-6 grid grid-cols-3 gap-2 sm:gap-4">
-          <div className="text-center p-2 sm:p-3 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-900/20">
-            <p className="text-lg sm:text-2xl font-bold text-blue-600">{channel.stats?.queued || 0}</p>
-            <p className="text-[10px] sm:text-xs text-gray-500">Queued</p>
+        <div className="mt-3 sm:mt-4 lg:mt-6 grid grid-cols-3 gap-1.5 sm:gap-2 lg:gap-4">
+          <div className="text-center p-1.5 sm:p-2 lg:p-3 rounded-md sm:rounded-lg lg:rounded-xl bg-blue-50 dark:bg-blue-900/20">
+            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-blue-600">{channel.stats?.queued || 0}</p>
+            <p className="text-[9px] sm:text-[10px] lg:text-xs text-gray-500">Queued</p>
           </div>
-          <div className="text-center p-2 sm:p-3 rounded-lg sm:rounded-xl bg-green-50 dark:bg-green-900/20">
-            <p className="text-lg sm:text-2xl font-bold text-green-600">{channel.stats?.uploaded || 0}</p>
-            <p className="text-[10px] sm:text-xs text-gray-500">Uploaded</p>
+          <div className="text-center p-1.5 sm:p-2 lg:p-3 rounded-md sm:rounded-lg lg:rounded-xl bg-green-50 dark:bg-green-900/20">
+            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-green-600">{channel.stats?.uploaded || 0}</p>
+            <p className="text-[9px] sm:text-[10px] lg:text-xs text-gray-500">Uploaded</p>
           </div>
-          <div className="text-center p-2 sm:p-3 rounded-lg sm:rounded-xl bg-red-50 dark:bg-red-900/20">
-            <p className="text-lg sm:text-2xl font-bold text-red-600">{channel.stats?.failed || 0}</p>
-            <p className="text-[10px] sm:text-xs text-gray-500">Failed</p>
+          <div className="text-center p-1.5 sm:p-2 lg:p-3 rounded-md sm:rounded-lg lg:rounded-xl bg-red-50 dark:bg-red-900/20">
+            <p className="text-sm sm:text-lg lg:text-2xl font-bold text-red-600">{channel.stats?.failed || 0}</p>
+            <p className="text-[9px] sm:text-[10px] lg:text-xs text-gray-500">Failed</p>
           </div>
         </div>
         
-        <div className="mt-4 sm:mt-6 flex items-center justify-between text-xs sm:text-sm text-gray-500">
+        <div className="mt-2.5 sm:mt-3 lg:mt-4 flex items-center justify-between text-[10px] sm:text-xs lg:text-sm text-gray-500">
           <div className="flex items-center gap-1 sm:gap-2">
-            <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+            <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4" />
             <span>{channel.uploadTime}</span>
-            <Badge variant="outline" className="text-[10px] sm:text-xs">{channel.frequency}</Badge>
+            <Badge variant="outline" className="text-[8px] sm:text-[10px] lg:text-xs px-1 sm:px-1.5">{channel.frequency}</Badge>
           </div>
-          <Badge variant={channel.isActive ? 'default' : 'secondary'} className={`text-[10px] sm:text-xs ${channel.isActive ? 'bg-green-500' : ''}`}>
+          <Badge variant={channel.isActive ? 'default' : 'secondary'} className={`text-[8px] sm:text-[10px] lg:text-xs ${channel.isActive ? 'bg-green-500' : ''}`}>
             {channel.isActive ? 'Active' : 'Paused'}
           </Badge>
         </div>
         
-        <div className="mt-3 sm:mt-4 flex gap-2">
+        <div className="mt-2.5 sm:mt-3 lg:mt-4 flex gap-1.5 sm:gap-2">
           <Button 
             variant="outline" 
             size="sm"
-            className="flex-1 h-8 sm:h-9 text-xs sm:text-sm"
+            className="flex-1 h-7 sm:h-8 lg:h-9 text-[10px] sm:text-xs lg:text-sm"
             onClick={onManage}
           >
-            <Settings className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <Settings className="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 mr-1 sm:mr-2" />
             Manage
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0" disabled={isDeleting}>
-                {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}
+              <Button variant="destructive" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 lg:h-9 lg:w-9 p-0" disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 animate-spin" /> : <Trash2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4" />}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -518,13 +518,13 @@ function ActivityItem({ log }: { log: SchedulerLog }) {
   const isSuccess = log.status === 'success';
   
   return (
-    <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 hover:bg-gray-100 dark:hover:bg-slate-800 transition">
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSuccess ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-        {isSuccess ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+    <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gray-50 dark:bg-slate-800/50 hover:bg-gray-100 dark:hover:bg-slate-800 transition">
+      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isSuccess ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+        {isSuccess ? <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" /> : <XCircle className="h-4 w-4 sm:h-5 sm:w-5" />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{log.message}</p>
-        <p className="text-xs text-gray-500">{new Date(log.createdAt).toLocaleString()}</p>
+        <p className="text-xs sm:text-sm font-medium truncate">{log.message}</p>
+        <p className="text-[10px] sm:text-xs text-gray-500">{new Date(log.createdAt).toLocaleString()}</p>
       </div>
     </div>
   );
@@ -1166,9 +1166,9 @@ export default function NewDashboard() {
 
   // Render Dashboard Tab
   const renderDashboardTab = () => (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4">
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:gap-6 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-4">
         <StatsCard title="Total Channels" value={channels.length} icon={Youtube} color="red" />
         <StatsCard title="Active Channels" value={activeChannels} icon={CheckCircle} color="green" />
         <StatsCard title="Videos in Queue" value={totalQueued} icon={Video} color="blue" />
@@ -1182,11 +1182,11 @@ export default function NewDashboard() {
       
       {/* Quick Actions */}
       <Card className="border-0 shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-red-500 to-orange-500 p-4 sm:p-6 text-white">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-red-500 to-orange-500 p-3 sm:p-4 lg:p-6 text-white">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
             <div>
-              <h3 className="text-lg sm:text-xl font-bold">Quick Actions</h3>
-              <p className="text-white/80 mt-1 text-sm sm:text-base">Manage your content efficiently</p>
+              <h3 className="text-base sm:text-lg lg:text-xl font-bold">Quick Actions</h3>
+              <p className="text-white/80 mt-0.5 sm:mt-1 text-xs sm:text-sm lg:text-base">Manage your content efficiently</p>
             </div>
             <div className="flex gap-2 sm:gap-3 flex-wrap">
               {/* Run Scheduler - Hidden for now */}
@@ -1218,8 +1218,8 @@ export default function NewDashboard() {
       
       {/* Channels Section */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Your Channels</h2>
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-base sm:text-lg font-bold">Your Channels</h2>
           {channels.length > 0 && (
             <Button variant="ghost" onClick={connectChannel}>
               <Plus className="h-4 w-4 mr-2" />
@@ -1248,7 +1248,7 @@ export default function NewDashboard() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
             {channels.map((channel) => (
               <ChannelCard
                 key={channel.id}
@@ -1266,12 +1266,12 @@ export default function NewDashboard() {
       
       {/* Recent Activity */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Recent Activity</h2>
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h2 className="text-base sm:text-lg font-bold">Recent Activity</h2>
         </div>
         
         <Card className="border-0 shadow-lg">
-          <CardContent className="p-6">
+          <CardContent className="p-3 sm:p-4">
             {schedulerLogs.length === 0 ? (
               <div className="text-center py-8">
                 <Bell className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -1744,7 +1744,7 @@ export default function NewDashboard() {
       <div className="lg:ml-60">
         {/* Top Bar */}
         <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200 dark:border-slate-700">
-          <div className="flex items-center justify-between px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between px-2 sm:px-4 py-3 sm:py-4">
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setSidebarOpen(true)}
@@ -1789,7 +1789,7 @@ export default function NewDashboard() {
         </header>
         
         {/* Page Content */}
-        <main className="p-2 sm:p-4">
+        <main className="p-1 sm:p-2 lg:p-3">
           {activeTab === 'dashboard' && renderDashboardTab()}
           {activeTab === 'channel' && renderChannelDetailTab()}
           {activeTab === 'channels' && (
