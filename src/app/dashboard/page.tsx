@@ -293,9 +293,9 @@ function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }: {
       
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 left-0 z-50 h-full w-72 bg-gradient-to-b from-slate-900 to-slate-800 
+        fixed top-0 left-0 z-50 h-full w-60 bg-gradient-to-b from-slate-900 to-slate-800 
         transform transition-transform duration-300 ease-in-out
-        lg:translate-x-0 lg:static lg:z-0
+        lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
@@ -386,20 +386,20 @@ function StatsCard({ title, value, icon: Icon, trend, color }: {
   return (
     <Card className="relative overflow-hidden border-0 shadow-lg">
       <div className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} opacity-5`} />
-      <CardContent className="p-6">
+      <CardContent className="p-3 sm:p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
-            <p className="text-3xl font-bold mt-1">{value}</p>
+            <p className="text-[10px] sm:text-sm font-medium text-gray-500">{title}</p>
+            <p className="text-xl sm:text-3xl font-bold mt-1">{value}</p>
             {trend && (
-              <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+              <p className="text-[10px] sm:text-xs text-green-600 flex items-center gap-1 mt-1">
                 <TrendingUp className="h-3 w-3" />
                 {trend}
               </p>
             )}
           </div>
-          <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center`}>
-            <Icon className="h-6 w-6 text-white" />
+          <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center`}>
+            <Icon className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
           </div>
         </div>
       </CardContent>
@@ -417,74 +417,79 @@ function ChannelCard({ channel, onManage, onDelete, onToggle, isToggling, isDele
 }) {
   return (
     <Card className="group hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900">
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg flex-shrink-0">
               {channel.platform === 'instagram' ? (
-                <Instagram className="h-7 w-7 text-white" />
+                <Instagram className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
               ) : channel.platform === 'facebook' ? (
-                <Facebook className="h-7 w-7 text-white" />
+                <Facebook className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
               ) : (
-                <Youtube className="h-7 w-7 text-white" />
+                <Youtube className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
               )}
             </div>
-            <div>
-              <h3 className="font-semibold text-lg">{channel.name}</h3>
-              <p className="text-sm text-gray-500">{channel.queuedVideos || 0} videos in queue</p>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-base sm:text-lg truncate">{channel.name}</h3>
+              <p className="text-xs sm:text-sm text-gray-500">{channel.queuedVideos || 0} videos in queue</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {isToggling ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Switch
-                checked={channel.isActive}
-                onCheckedChange={onToggle}
-              />
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={channel.isActive}
+                  onCheckedChange={onToggle}
+                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-300"
+                />
+                <span className="text-xs text-gray-500 hidden sm:inline">{channel.isActive ? 'On' : 'Off'}</span>
+              </div>
             )}
           </div>
         </div>
         
-        <div className="mt-6 grid grid-cols-3 gap-4">
-          <div className="text-center p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20">
-            <p className="text-2xl font-bold text-blue-600">{channel.stats?.queued || 0}</p>
-            <p className="text-xs text-gray-500">Queued</p>
+        <div className="mt-4 sm:mt-6 grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="text-center p-2 sm:p-3 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-900/20">
+            <p className="text-lg sm:text-2xl font-bold text-blue-600">{channel.stats?.queued || 0}</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">Queued</p>
           </div>
-          <div className="text-center p-3 rounded-xl bg-green-50 dark:bg-green-900/20">
-            <p className="text-2xl font-bold text-green-600">{channel.stats?.uploaded || 0}</p>
-            <p className="text-xs text-gray-500">Uploaded</p>
+          <div className="text-center p-2 sm:p-3 rounded-lg sm:rounded-xl bg-green-50 dark:bg-green-900/20">
+            <p className="text-lg sm:text-2xl font-bold text-green-600">{channel.stats?.uploaded || 0}</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">Uploaded</p>
           </div>
-          <div className="text-center p-3 rounded-xl bg-red-50 dark:bg-red-900/20">
-            <p className="text-2xl font-bold text-red-600">{channel.stats?.failed || 0}</p>
-            <p className="text-xs text-gray-500">Failed</p>
+          <div className="text-center p-2 sm:p-3 rounded-lg sm:rounded-xl bg-red-50 dark:bg-red-900/20">
+            <p className="text-lg sm:text-2xl font-bold text-red-600">{channel.stats?.failed || 0}</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">Failed</p>
           </div>
         </div>
         
-        <div className="mt-6 flex items-center justify-between text-sm text-gray-500">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
+        <div className="mt-4 sm:mt-6 flex items-center justify-between text-xs sm:text-sm text-gray-500">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
             <span>{channel.uploadTime}</span>
-            <Badge variant="outline" className="text-xs">{channel.frequency}</Badge>
+            <Badge variant="outline" className="text-[10px] sm:text-xs">{channel.frequency}</Badge>
           </div>
-          <Badge variant={channel.isActive ? 'default' : 'secondary'} className={channel.isActive ? 'bg-green-500' : ''}>
+          <Badge variant={channel.isActive ? 'default' : 'secondary'} className={`text-[10px] sm:text-xs ${channel.isActive ? 'bg-green-500' : ''}`}>
             {channel.isActive ? 'Active' : 'Paused'}
           </Badge>
         </div>
         
-        <div className="mt-4 flex gap-2">
+        <div className="mt-3 sm:mt-4 flex gap-2">
           <Button 
             variant="outline" 
-            className="flex-1"
+            size="sm"
+            className="flex-1 h-8 sm:h-9 text-xs sm:text-sm"
             onClick={onManage}
           >
-            <Settings className="h-4 w-4 mr-2" />
+            <Settings className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             Manage
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="icon" disabled={isDeleting}>
-                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              <Button variant="destructive" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0" disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -1177,27 +1182,30 @@ export default function NewDashboard() {
       
       {/* Quick Actions */}
       <Card className="border-0 shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-red-500 to-orange-500 p-6 text-white">
+        <div className="bg-gradient-to-r from-red-500 to-orange-500 p-4 sm:p-6 text-white">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-xl font-bold">Quick Actions</h3>
-              <p className="text-white/80 mt-1">Manage your content efficiently</p>
+              <h3 className="text-lg sm:text-xl font-bold">Quick Actions</h3>
+              <p className="text-white/80 mt-1 text-sm sm:text-base">Manage your content efficiently</p>
             </div>
-            <div className="flex gap-3 flex-wrap">
-              <Button variant="secondary" onClick={runScheduler} disabled={runningScheduler}>
+            <div className="flex gap-2 sm:gap-3 flex-wrap">
+              {/* Run Scheduler - Hidden for now */}
+              {/* <Button variant="secondary" onClick={runScheduler} disabled={runningScheduler}>
                 <Zap className="h-4 w-4 mr-2" />
                 Run Scheduler
-              </Button>
-              <Button variant="outline" onClick={connectFacebook} className="bg-blue-600 text-white border-blue-600 hover:bg-blue-700">
+              </Button> */}
+              {/* Facebook - Hidden for now */}
+              {/* <Button variant="outline" onClick={connectFacebook} className="bg-blue-600 text-white border-blue-600 hover:bg-blue-700">
                 <Facebook className="h-4 w-4 mr-2" />
                 Facebook
-              </Button>
-              <Button variant="outline" onClick={connectInstagram} className="bg-pink-600 text-white border-pink-600 hover:bg-pink-700">
+              </Button> */}
+              {/* Instagram - Hidden for now */}
+              {/* <Button variant="outline" onClick={connectInstagram} className="bg-pink-600 text-white border-pink-600 hover:bg-pink-700">
                 <Instagram className="h-4 w-4 mr-2" />
                 Instagram
-              </Button>
-              <Button variant="secondary" onClick={connectChannel}>
-                <Plus className="h-4 w-4 mr-2" />
+              </Button> */}
+              <Button variant="secondary" onClick={connectChannel} className="text-sm sm:text-base">
+                <Plus className="h-4 w-4 mr-1 sm:mr-2" />
                 Add Channel
               </Button>
             </div>
@@ -1723,7 +1731,7 @@ export default function NewDashboard() {
       />
       
       {/* Main Content */}
-      <div className="lg:pl-72">
+      <div className="lg:ml-60">
         {/* Top Bar */}
         <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200 dark:border-slate-700">
           <div className="flex items-center justify-between px-4 sm:px-6 py-4">
@@ -1745,7 +1753,8 @@ export default function NewDashboard() {
             </div>
             
             <div className="flex items-center gap-2 sm:gap-4">
-              <Button 
+              {/* Run Scheduler Button - Hidden for now */}
+              {/* <Button 
                 variant="outline" 
                 onClick={runScheduler} 
                 disabled={runningScheduler}
@@ -1757,7 +1766,7 @@ export default function NewDashboard() {
                   <Play className="h-4 w-4 mr-2" />
                 )}
                 Run Scheduler
-              </Button>
+              </Button> */}
               {activeTab !== 'channel' && (
                 <Button onClick={connectChannel} className="bg-gradient-to-r from-red-500 to-orange-500">
                   <Plus className="h-4 w-4 mr-2" />
