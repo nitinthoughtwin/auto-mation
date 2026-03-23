@@ -128,14 +128,15 @@
     overflow-x: hidden;
   }
   
-  /* Ensure proper touch targets - but NOT for switches */
+  /* Reduce button/toggle height on mobile */
   @media (max-width: 640px) {
-    button:not([data-state]),
-    [role="button"]:not([data-state]),
+    button,
+    [role="button"],
     input[type="checkbox"],
     input[type="radio"],
-    [data-radix-collection-item]:not([data-state]) {
-      min-height: 44px;
+    .switch,
+    [data-radix-collection-item] {
+      min-height: 21px;
     }
     
     /* Switch/toggle should be smaller */

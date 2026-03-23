@@ -260,14 +260,14 @@ export default function LandingPage() {
           </p>
           
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 max-w-md mx-auto sm:max-w-none">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center px-2 sm:px-4 max-w-lg mx-auto sm:max-w-none">
             <Link href="/signup" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 shadow-xl shadow-red-500/25">
+              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 !text-white text-base sm:text-lg px-6 sm:px-8 py-4 sm:py-6 shadow-xl shadow-red-500/25">
                 Start Free Trial <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </Link>
             <Link href="/login" className="w-full sm:w-auto">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto border-gray-600 text-white hover:bg-white/5 text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto border-gray-600 !text-white hover:bg-white/10 hover:!text-white text-base sm:text-lg px-6 sm:px-8 py-4 sm:py-6">
                 Watch Demo <Play className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </Link>
@@ -318,15 +318,15 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {features.map((feature, index) => (
-              <div 
-                key={index} 
-                className="bg-gray-800/50 border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-red-500/5 rounded-xl p-4 sm:p-6"
+              <div
+                key={index}
+                className="bg-gray-800/80 border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-red-500/5 rounded-xl p-4 sm:p-6"
               >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gray-700 flex items-center justify-center mb-3 sm:mb-4">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gray-700/80 flex items-center justify-center mb-3 sm:mb-4">
                   {feature.icon}
                 </div>
-                <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">{feature.title}</h3>
-                <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">{feature.description}</p>
+                <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 !text-white">{feature.title}</h3>
+                <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>
@@ -347,22 +347,22 @@ export default function LandingPage() {
               <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-3 sm:mb-4 shadow-lg shadow-red-500/25">
                 1
               </div>
-              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">Connect</h3>
-              <p className="text-gray-400 text-xs sm:text-sm">Link your YouTube channels and Google Drive in seconds.</p>
+              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 !text-white">Connect</h3>
+              <p className="text-gray-300 text-xs sm:text-sm">Link your YouTube channels and Google Drive in seconds.</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-3 sm:mb-4 shadow-lg shadow-red-500/25">
                 2
               </div>
-              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">Upload</h3>
-              <p className="text-gray-400 text-xs sm:text-sm">Add videos from your Drive or upload directly to the platform.</p>
+              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 !text-white">Upload</h3>
+              <p className="text-gray-300 text-xs sm:text-sm">Add videos from your Drive or upload directly to the platform.</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-3 sm:mb-4 shadow-lg shadow-red-500/25">
                 3
               </div>
-              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 text-white">Schedule</h3>
-              <p className="text-gray-400 text-xs sm:text-sm">Set your schedule and let GPMart Studio handle the rest.</p>
+              <h3 className="text-base sm:text-lg lg:text-xl font-semibold mb-1 sm:mb-2 !text-white">Schedule</h3>
+              <p className="text-gray-300 text-xs sm:text-sm">Set your schedule and let GPMart Studio handle the rest.</p>
             </div>
           </div>
         </div>
@@ -393,11 +393,11 @@ export default function LandingPage() {
                     Most Popular
                   </div>
                 )}
-                <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">{plan.name}</h3>
-                <p className="text-gray-400 text-xs sm:text-sm mt-1">{plan.description}</p>
+                <h3 className="text-lg sm:text-xl lg:text-2xl font-bold !text-white">{plan.name}</h3>
+                <p className="text-gray-300 text-xs sm:text-sm mt-1">{plan.description}</p>
                 <div className="mt-4 mb-4 sm:mb-6">
-                  <span className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{plan.price}</span>
-                  <span className="text-gray-400 text-sm"> /{plan.period}</span>
+                  <span className="text-2xl sm:text-3xl lg:text-4xl font-bold !text-white">{plan.price}</span>
+                  <span className="text-gray-300 text-sm"> /{plan.period}</span>
                 </div>
                 <ul className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
                   {plan.features.map((feature, i) => (
@@ -441,10 +441,10 @@ export default function LandingPage() {
                     <Star key={i} className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500 fill-yellow-500" />
                   ))}
                 </div>
-                <p className="text-gray-300 mb-3 sm:mb-4 text-xs sm:text-sm leading-relaxed">"{testimonial.content}"</p>
+                <p className="text-gray-200 mb-3 sm:mb-4 text-xs sm:text-sm leading-relaxed">"{testimonial.content}"</p>
                 <div>
-                  <p className="font-semibold text-white text-sm sm:text-base">{testimonial.name}</p>
-                  <p className="text-gray-500 text-xs sm:text-sm">{testimonial.role}</p>
+                  <p className="font-semibold !text-white text-sm sm:text-base">{testimonial.name}</p>
+                  <p className="text-gray-400 text-xs sm:text-sm">{testimonial.role}</p>
                 </div>
               </div>
             ))}
@@ -456,14 +456,14 @@ export default function LandingPage() {
       <section className="py-12 sm:py-16 lg:py-20 px-3 sm:px-4">
         <div className="max-w-4xl mx-auto text-center">
           <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl py-8 sm:py-12 lg:py-16 px-4 sm:px-8">
-            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 lg:mb-4 text-white">
+            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 lg:mb-4 !text-white">
               Ready to Save 10+ Hours Every Week?
             </h2>
-            <p className="text-gray-400 mb-4 sm:mb-6 lg:mb-8 text-xs sm:text-sm lg:text-base">
+            <p className="text-gray-300 mb-4 sm:mb-6 lg:mb-8 text-xs sm:text-sm lg:text-base">
               Join 500+ creators who are automating their YouTube workflow with GPMart Studio.
             </p>
             <Link href="/signup">
-              <Button size="lg" className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 shadow-xl shadow-red-500/25">
+              <Button size="lg" className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 !text-white text-base sm:text-lg px-6 sm:px-8 py-4 sm:py-6 shadow-xl shadow-red-500/25">
                 Start Free Trial <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </Link>
@@ -487,7 +487,7 @@ export default function LandingPage() {
               </p>
             </div>
             <div>
-              <h4 className="font-semibold mb-2 sm:mb-3 lg:mb-4 text-sm sm:text-base text-white">Product</h4>
+              <h4 className="font-semibold mb-2 sm:mb-3 lg:mb-4 text-sm sm:text-base !text-white">Product</h4>
               <ul className="space-y-1 sm:space-y-2 text-gray-400 text-xs sm:text-sm">
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
@@ -495,14 +495,14 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2 sm:mb-3 lg:mb-4 text-sm sm:text-base text-white">Legal</h4>
+              <h4 className="font-semibold mb-2 sm:mb-3 lg:mb-4 text-sm sm:text-base !text-white">Legal</h4>
               <ul className="space-y-1 sm:space-y-2 text-gray-400 text-xs sm:text-sm">
                 <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2 sm:mb-3 lg:mb-4 text-sm sm:text-base text-white">Support</h4>
+              <h4 className="font-semibold mb-2 sm:mb-3 lg:mb-4 text-sm sm:text-base !text-white">Support</h4>
               <ul className="space-y-1 sm:space-y-2 text-gray-400 text-xs sm:text-sm">
                 <li><a href="mailto:support@gpmart.in" className="hover:text-white transition-colors">support@gpmart.in</a></li>
               </ul>
