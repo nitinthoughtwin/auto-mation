@@ -60,7 +60,7 @@ export async function GET(
     // Fetch videos from Google Drive folder using public API
     try {
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+mimeType+contains+'video'+and+trashed=false&fields=files(id,name,size,mimeType,thumbnailLink,createdTime,webViewLink)&key=${process.env.GOOGLE_API_KEY}`,
+        `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+mimeType+contains+'video'+and+trashed=false&fields=files(id,name,size,mimeType,thumbnailLink,createdTime,webViewLink)&key=${process.env.GOOGLE_DRIVE_API_KEY}`,
         {
           headers: {
             'Accept': 'application/json',

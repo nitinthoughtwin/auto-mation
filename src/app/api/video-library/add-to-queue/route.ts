@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No videos found' }, { status: 404 });
     }
 
-    const createdVideos = [];
+    const createdVideos: any[] = [];
 
     for (const libVideo of libraryVideos) {
       const title = libVideo.name.replace(/\.[^/.]+$/, '');
