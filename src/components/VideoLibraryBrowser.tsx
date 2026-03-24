@@ -403,43 +403,30 @@ export default function VideoLibraryBrowser({
                   <p className="text-sm mt-1">Ask admin to add video categories</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-2">
                   {categories.map((category) => (
                     <Card
                       key={category.id}
-                      className="cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-200 group overflow-hidden border-0 bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900 shadow-md"
+                      className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all group overflow-hidden"
                       onClick={() => handleOpenCategory(category)}
                     >
-                      <CardContent className="p-4">
-                        {/* Icon and Title */}
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-md flex-shrink-0">
-                            <FolderOpen className="h-5 w-5 text-white" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="font-semibold text-sm truncate">{category.name}</h3>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {category.videos?.length || 0} videos
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {/* Description */}
-                        <p className="text-xs text-muted-foreground line-clamp-2 mb-3 h-8">
-                          {category.description || 'No description available'}
+                      <CardHeader className="p-4 pb-2">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2 line-clamp-1">
+                          <FolderOpen className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+                          <span className="truncate">{category.name}</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0">
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
+                          {category.description || 'No description'}
                         </p>
-                        
-                        {/* Video Count Badge */}
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
-                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30">
-                            <Video className="h-3 w-3 text-orange-600 dark:text-orange-400" />
-                            <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
-                              {category.videos?.length || 0}
-                            </span>
+                        <div className="flex items-center justify-between pt-2 border-t">
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Video className="h-4 w-4" />
+                            <span>{category.videos?.length || 0} videos</span>
                           </div>
-                          <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                            Browse
-                            <ChevronLeft className="h-3 w-3 rotate-180" />
+                          <div className="text-xs text-primary font-medium group-hover:underline">
+                            Browse →
                           </div>
                         </div>
                       </CardContent>
