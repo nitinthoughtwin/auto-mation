@@ -117,7 +117,7 @@ export default function VideoLibraryBrowser({
     
     try {
       // Fetch videos from the category API (handles both static and drive)
-      const res = await fetch(`/api/video-library/category/${category.id}/videos`);
+      const res = await fetch(`/api/video-library/categories/${category.id}/videos`);
       const data = await res.json();
       
       if (data.videos) {
