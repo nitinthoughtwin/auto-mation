@@ -70,6 +70,45 @@ interface LibraryVideo {
   addedToQueue: boolean;
 }
 
+// Get thumbnail URL with fallback
+const getThumbnailUrl = (video: LibraryVideo): string => {
+  if (video.thumbnailLink) {
+    return video.thumbnailLink;
+  }
+  if (video.driveFileId) {
+    return `https://lh3.googleusercontent.com/d/${video.driveFileId}=w300-h200-c`;
+  }
+  return '';
+};
+
+// Default video thumbnail component
+const DefaultThumbnail = ({ name }: { name: string }) => {
+  const colors = [
+    'from-red-500 to-orange-500',
+    'from-blue-500 to-purple-500',
+    'from-green-500 to-teal-500',
+    'from-purple-500 to-pink-500',
+    'from-yellow-500 to-red-500',
+    'from-indigo-500 to-blue-500',
+    'from-pink-500 to-rose-500',
+    'from-teal-500 to-cyan-500',
+  ];
+  
+  const colorIndex = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+  const gradientClass = colors[colorIndex];
+  
+  return (
+    <div className={`w-full h-full bg-gradient-to-br ${gradientClass} flex items-center justify-center`}>
+      <div className="text-center text-white/90">
+        <Video className="h-10 w-10 mx-auto mb-1 opacity-80" />
+        <p className="text-xs font-medium px-2 truncate max-w-[120px]">
+          {name.replace(/\.[^/.]+$/, '').substring(0, 15)}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 export default function AdminVideoLibraryPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -403,57 +442,64 @@ export default function AdminVideoLibraryPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {videos.map((video) => (
-                <Card key={video.id} className="overflow-hidden">
-                  <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative">
-                    {video.thumbnailLink ? (
-                      <img
-                        src={video.thumbnailLink}
-                        alt={video.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Video className="h-8 w-8 text-muted-foreground" />
+              {videos.map((video) => {
+                const thumbnailUrl = getThumbnailUrl(video);
+                
+                return (
+                  <Card key={video.id} className="overflow-hidden">
+                    <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative">
+                      {thumbnailUrl ? (
+                        <img
+                          src={thumbnailUrl}
+                          alt={video.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={thumbnailUrl ? 'hidden w-full h-full' : 'w-full h-full'}>
+                        <DefaultThumbnail name={video.name} />
                       </div>
-                    )}
-                    {video.addedToQueue && (
-                      <div className="absolute top-2 right-2">
-                        <Badge className="bg-green-500 text-white">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Added
-                        </Badge>
-                      </div>
-                    )}
-                    <Badge
-                      variant="secondary"
-                      className="absolute bottom-2 right-2 text-xs bg-black/60 text-white"
-                    >
-                      {formatFileSize(video.size)}
-                    </Badge>
-                  </div>
-                  <CardContent className="p-3">
-                    <p className="text-sm font-medium truncate" title={video.name}>
-                      {video.name.replace(/\.[^/.]+$/, '')}
-                    </p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-muted-foreground">
-                        {video.createdTime ? new Date(video.createdTime).toLocaleDateString() : 'Unknown date'}
-                      </span>
-                      {video.webViewLink && (
-                        <a
-                          href={video.webViewLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          View
-                        </a>
+                      {video.addedToQueue && (
+                        <div className="absolute top-2 right-2">
+                          <Badge className="bg-green-500 text-white">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Added
+                          </Badge>
+                        </div>
                       )}
+                      <Badge
+                        variant="secondary"
+                        className="absolute bottom-2 right-2 text-xs bg-black/60 text-white border-0"
+                      >
+                        {formatFileSize(video.size)}
+                      </Badge>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <CardContent className="p-3">
+                      <p className="text-sm font-medium truncate" title={video.name}>
+                        {video.name.replace(/\.[^/.]+$/, '')}
+                      </p>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-muted-foreground">
+                          {video.createdTime ? new Date(video.createdTime).toLocaleDateString() : 'Unknown date'}
+                        </span>
+                        {video.webViewLink && (
+                          <a
+                            href={video.webViewLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            View
+                          </a>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
