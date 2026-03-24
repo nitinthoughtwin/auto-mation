@@ -46,7 +46,9 @@ declare global {
 
 export default function PricingPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const sessionData = useSession();
+  const session = sessionData?.data;
+  const status = sessionData?.status || 'loading';
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
@@ -147,8 +149,14 @@ export default function PricingPage() {
         }
 
         if (data.orderId) {
-          // Open Razorpay checkout
-          openRazorpayCheckout(data, plan);
+          // Check if demo mode
+          if (data.demoMode) {
+            // Handle demo payment flow
+            handleDemoPayment(data, plan);
+          } else {
+            // Open Razorpay checkout
+            openRazorpayCheckout(data, plan);
+          }
         } else {
           throw new Error('Invalid payment response');
         }
@@ -156,6 +164,48 @@ export default function PricingPage() {
     } catch (error: any) {
       console.error('[Pricing] Error:', error);
       toast.error(error.message || 'Failed to process request');
+    } finally {
+      setProcessingPlan(null);
+    }
+  };
+
+  const handleDemoPayment = async (orderData: any, plan: Plan) => {
+    // Show demo payment confirmation
+    const confirmed = confirm(
+      `Demo Mode\n\nPlan: ${plan.displayName}\nAmount: ₹${orderData.amount.toLocaleString('en-IN')}\n\nThis is a demo payment. Click OK to simulate successful payment.`
+    );
+    
+    if (!confirmed) {
+      setProcessingPlan(null);
+      toast.info('Payment cancelled');
+      return;
+    }
+
+    try {
+      // Simulate payment verification
+      const verifyRes = await fetch('/api/payment/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_order_id: orderData.orderId,
+          razorpay_payment_id: `demo_pay_${Date.now()}`,
+          razorpay_signature: 'demo_signature',
+          demoMode: true,
+        }),
+      });
+      const verifyData = await verifyRes.json();
+      
+      if (verifyData.success) {
+        toast.success('Demo payment successful! Plan activated.', {
+          description: 'This was a simulated payment. Configure Razorpay credentials for real payments.',
+        });
+        setCurrentPlan(plan.name);
+        router.push('/');
+      } else {
+        throw new Error(verifyData.error || 'Payment verification failed');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Payment verification failed');
     } finally {
       setProcessingPlan(null);
     }
