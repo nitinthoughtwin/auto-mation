@@ -1123,6 +1123,15 @@ export default function YouTubeAutomationDashboard() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {/* Video Library - Primary Action */}
+          <Button 
+            onClick={() => setShowVideoLibrary(true)}
+            className="h-10 sm:h-9 text-sm touch-manipulation bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-md"
+          >
+            <Video className="mr-1 sm:mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Browse Videos</span>
+            <span className="sm:hidden">Videos</span>
+          </Button>
           <Button 
             variant="outline" 
             onClick={runScheduler} 
@@ -1165,6 +1174,32 @@ export default function YouTubeAutomationDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Video Library Quick Access Card */}
+      <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30 border-yellow-200 dark:border-yellow-800">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-full bg-yellow-100 dark:bg-yellow-900/50">
+                <Video className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Video Library</h3>
+                <p className="text-sm text-muted-foreground">
+                  Browse pre-added videos by category and add them to your upload queue
+                </p>
+              </div>
+            </div>
+            <Button 
+              onClick={() => setShowVideoLibrary(true)}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white shadow-md"
+            >
+              <Video className="mr-2 h-4 w-4" />
+              Browse Videos
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
@@ -1584,7 +1619,7 @@ export default function YouTubeAutomationDashboard() {
                     <Switch
                       id="randomDelay"
                       checked={editSettings.randomDelayEnabled}
-                      onValueChange={(value) => setEditSettings({ ...editSettings, randomDelayEnabled: value })}
+                      onCheckedChange={(value) => setEditSettings({ ...editSettings, randomDelayEnabled: value })}
                       className="touch-manipulation"
                     />
                   </div>
