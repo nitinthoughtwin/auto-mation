@@ -24,6 +24,9 @@ declare module 'next-auth/jwt' {
   }
 }
 
+// Check if email verification is required
+const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false';
+
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
@@ -44,7 +47,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await db.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: credentials.email.toLowerCase() },
         });
 
         if (!user || !user.password) {
@@ -55,6 +58,11 @@ export const authOptions: NextAuthOptions = {
 
         if (!passwordMatch) {
           return null;
+        }
+
+        // Check email verification if required
+        if (REQUIRE_EMAIL_VERIFICATION && !user.emailVerified) {
+          throw new Error('EmailNotVerified');
         }
 
         return {

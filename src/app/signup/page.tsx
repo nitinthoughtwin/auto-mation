@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Youtube, Mail, Lock, User, Loader2 } from 'lucide-react';
+import { Youtube, Mail, Lock, User, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SignupPage() {
@@ -21,6 +21,8 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  const [requiresVerification, setRequiresVerification] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,20 +54,27 @@ export default function SignupPage() {
         return;
       }
 
-      // Auto login after signup
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        toast.success('Account created! Please login.');
-        router.push('/login');
+      // Check if email verification is required
+      if (data.requiresVerification) {
+        setRequiresVerification(true);
+        setRegisteredEmail(email);
+        toast.success('Account created! Please check your email to verify.');
       } else {
-        toast.success('Account created successfully!');
-        router.push('/');
-        router.refresh();
+        // Auto login after signup if no verification needed
+        const result = await signIn('credentials', {
+          email,
+          password,
+          redirect: false,
+        });
+
+        if (result?.error) {
+          toast.success('Account created! Please login.');
+          router.push('/login');
+        } else {
+          toast.success('Account created successfully!');
+          router.push('/');
+          router.refresh();
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -74,10 +83,73 @@ export default function SignupPage() {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (!registeredEmail) return;
+
+    try {
+      const res = await fetch(`/api/auth/verify-email?email=${encodeURIComponent(registeredEmail)}`);
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success('Verification email sent! Check your inbox.');
+      } else {
+        toast.error('Failed to send email');
+      }
+    } catch (err) {
+      toast.error('Failed to send email');
+    }
+  };
+
   const handleGoogleSignup = async () => {
     setGoogleLoading(true);
     await signIn('google', { callbackUrl: '/' });
   };
+
+  // Show verification message
+  if (requiresVerification) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+        <Card className="w-full max-w-md bg-gray-800/50 border-gray-700 backdrop-blur-sm">
+          <CardHeader className="text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="p-3 bg-yellow-600 rounded-full">
+                <Mail className="h-8 w-8 text-white" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold text-white">Verify Your Email</CardTitle>
+            <CardDescription className="text-gray-400">
+              We've sent a verification link to
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-gray-700/50 p-3 rounded-lg text-center">
+              <p className="text-white font-medium">{registeredEmail}</p>
+            </div>
+            <Alert className="bg-blue-900/30 border-blue-800">
+              <AlertDescription className="text-blue-300">
+                Click the link in the email to verify your account. The link will expire in 24 hours.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full border-gray-600 text-white hover:bg-gray-700"
+                onClick={handleResendVerification}
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Resend Verification Email
+              </Button>
+              <Link href="/login" className="block">
+                <Button variant="ghost" className="w-full text-gray-400 hover:text-white">
+                  Back to Login
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">

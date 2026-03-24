@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { sendVerificationEmail, sendWelcomeEmail } from '@/lib/email';
+
+// Check if email verification is required
+const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { name, email, password } = body;
 
+    // Validate input
     if (!email || !password) {
       return NextResponse.json(
         { success: false, error: 'Email and password are required' },
@@ -21,9 +27,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid email address' },
+        { status: 400 }
+      );
+    }
+
     // Check if user already exists
     const existingUser = await db.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
     });
 
     if (existingUser) {
@@ -36,24 +51,95 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Get the free plan
+    const freePlan = await db.plan.findFirst({
+      where: { name: 'free' },
+    });
+
     // Create user
     const user = await db.user.create({
       data: {
         name: name || email.split('@')[0],
-        email,
+        email: email.toLowerCase(),
         password: hashedPassword,
         role: 'user',
+        emailVerified: REQUIRE_EMAIL_VERIFICATION ? null : new Date(),
       },
     });
 
-    console.log('User created:', user.email);
+    // Create free subscription if free plan exists
+    if (freePlan) {
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+      const subscription = await db.subscription.create({
+        data: {
+          userId: user.id,
+          planId: freePlan.id,
+          status: 'active',
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+        },
+      });
+
+      // Create usage record
+      await db.usage.create({
+        data: {
+          subscriptionId: subscription.id,
+        },
+      });
+    }
+
+    // Send verification email if required
+    if (REQUIRE_EMAIL_VERIFICATION) {
+      const verifyToken = crypto.randomBytes(32).toString('hex');
+      const verifyTokenExpiry = new Date(Date.now() + 86400000); // 24 hours
+
+      await db.verificationToken.create({
+        data: {
+          identifier: `verify-${user.id}`,
+          token: verifyToken,
+          expires: verifyTokenExpiry,
+        },
+      });
+
+      const verifyUrl = `${process.env.NEXTAUTH_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/verify-email?token=${verifyToken}&email=${encodeURIComponent(email)}`;
+
+      // Try to send verification email
+      try {
+        await sendVerificationEmail(email, user.name || '', verifyUrl);
+      } catch (emailError) {
+        console.error('[Register] Email error:', emailError);
+        // Continue even if email fails - user can request resend
+      }
+
+      return NextResponse.json({
+        success: true,
+        requiresVerification: true,
+        message: 'Account created! Please check your email to verify your account.',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+      });
+    }
+
+    // Send welcome email if no verification required
+    try {
+      await sendWelcomeEmail(email, user.name || '');
+    } catch (emailError) {
+      console.error('[Register] Welcome email error:', emailError);
+    }
 
     return NextResponse.json({
       success: true,
+      requiresVerification: false,
       user: {
         id: user.id,
-        name: user.name,
         email: user.email,
+        name: user.name,
       },
     });
   } catch (error: any) {

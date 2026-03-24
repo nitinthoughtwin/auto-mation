@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Youtube, Mail, Lock, Loader2 } from 'lucide-react';
+import { Youtube, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
@@ -19,10 +19,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNeedsVerification(false);
     setLoading(true);
 
     try {
@@ -33,10 +36,18 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError('Invalid email or password');
+        // Check for specific error types
+        if (result.error === 'EmailNotVerified') {
+          setNeedsVerification(true);
+          setError('Please verify your email before logging in.');
+        } else if (result.error === 'CredentialsSignin') {
+          setError('Invalid email or password');
+        } else {
+          setError(result.error);
+        }
       } else {
         toast.success('Login successful!');
-        router.push('/dashboard');
+        router.push('/');
         router.refresh();
       }
     } catch (err) {
@@ -46,9 +57,30 @@ export default function LoginPage() {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (!email) return;
+
+    setResending(true);
+    try {
+      const res = await fetch(`/api/auth/verify-email?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success('Verification email sent! Check your inbox.');
+        setNeedsVerification(false);
+      } else {
+        toast.error('Failed to send email');
+      }
+    } catch (err) {
+      toast.error('Failed to send email');
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    signIn('google', { callbackUrl: '/dashboard' });
+    await signIn('google', { callbackUrl: '/' });
   };
 
   return (
@@ -68,7 +100,31 @@ export default function LoginPage() {
         <CardContent className="space-y-6">
           {error && (
             <Alert variant="destructive" className="bg-red-900/50 border-red-800">
-              <AlertDescription>{error}</AlertDescription>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="flex flex-col gap-2">
+                <span>{error}</span>
+                {needsVerification && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-fit mt-2"
+                    onClick={handleResendVerification}
+                    disabled={resending}
+                  >
+                    {resending ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="mr-2 h-3 w-3" />
+                        Resend Verification Email
+                      </>
+                    )}
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -122,7 +178,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-gray-300">Password</Label>
-                <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-gray-300">
+                <Link href="/forgot-password" className="text-sm text-red-500 hover:text-red-400">
                   Forgot password?
                 </Link>
               </div>
