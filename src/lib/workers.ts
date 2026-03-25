@@ -19,7 +19,7 @@ import {
   sendSubscriptionEmail,
   sendPaymentReceiptEmail,
 } from './email';
-import { db } from '@/lib/db';
+import { db } from './db';
 import * as Sentry from '@sentry/nextjs';
 
 // Email worker processor
