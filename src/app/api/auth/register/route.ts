@@ -91,18 +91,9 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Get the base URL - prioritize NEXTAUTH_URL, then request origin
-      const baseUrl = process.env.NEXTAUTH_URL || 
-        request.headers.get('origin') || 
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-      
-      const verifyUrl = `${baseUrl}/verify-email?token=${verifyToken}&email=${encodeURIComponent(email)}`;
-      
-      console.log('[Register] Verification URL:', verifyUrl);
-
-      // Try to send verification email
+      // Try to send verification email - pass token, function will construct URL
       try {
-        await sendVerificationEmail(email, user.name || '', verifyUrl);
+        await sendVerificationEmail(email, verifyToken, user.name || '');
       } catch (emailError) {
         console.error('[Register] Email error:', emailError);
         // Continue even if email fails - user can request resend
