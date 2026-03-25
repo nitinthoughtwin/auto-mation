@@ -131,7 +131,10 @@ export async function GET(request: NextRequest) {
     });
 
     // Send verification email
-    const verifyUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/verify-email?token=${verifyToken}&email=${encodeURIComponent(email)}`;
+    const baseUrl = process.env.NEXTAUTH_URL || 
+      request.headers.get('origin') ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const verifyUrl = `${baseUrl}/verify-email?token=${verifyToken}&email=${encodeURIComponent(email)}`;
 
     try {
       await sendVerificationEmail(email, user.name || '', verifyUrl);

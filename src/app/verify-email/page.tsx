@@ -136,8 +136,8 @@ function VerifyEmailContent() {
         <CardContent className="space-y-4">
           {email && (
             <Button
-              variant="outline"
-              className="w-full border-gray-600 text-white hover:bg-gray-700"
+              variant="default"
+              className="w-full bg-red-600 hover:bg-red-700 text-white"
               onClick={handleResend}
               disabled={resending}
             >
@@ -155,7 +155,7 @@ function VerifyEmailContent() {
             </Button>
           )}
           <Link href="/login" className="block">
-            <Button variant="ghost" className="w-full text-gray-400 hover:text-white">
+            <Button variant="outline" className="w-full border-gray-600 text-white hover:bg-gray-700 hover:text-white">
               Back to Login
             </Button>
           </Link>
