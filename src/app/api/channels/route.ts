@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getNextUploadTime } from '@/lib/utils-shared';
-import { getCurrentUser } from '@/lib/auth-wrapper';
 
 // GET - List all channels for current user
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // If no user, return empty (for backward compatibility)
-    const whereClause = user?.id ? { userId: user.id } : {};
+    console.log('[Channels API] User ID:', session.user.id);
 
     const channels = await db.channel.findMany({
-      where: whereClause,
+      where: { 
+        userId: session.user.id 
+      },
       include: {
         _count: {
           select: { videos: true },
@@ -27,6 +33,9 @@ export async function GET() {
 
     const channelsWithStats = channels.map(channel => ({
       ...channel,
+      // Hide sensitive tokens in response
+      accessToken: undefined,
+      refreshToken: undefined,
       nextUploadTime: getNextUploadTime(channel),
       totalVideos: channel._count.videos,
       queuedVideos: channel.videos.length,
@@ -42,12 +51,17 @@ export async function GET() {
   }
 }
 
-// POST - Add a new channel
+// POST - Add a new channel (manual, usually done via OAuth)
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { name, youtubeChannelId, accessToken, refreshToken, uploadTime, frequency, platform, instagramAccountId, facebookPageId, facebookPageName } = body;
+    const { name, youtubeChannelId, accessToken, refreshToken, uploadTime, frequency } = body;
 
     if (!name || !accessToken || !refreshToken) {
       return NextResponse.json(
@@ -56,15 +70,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if user already has max channels (based on plan)
+    const userChannels = await db.channel.count({
+      where: { userId: session.user.id },
+    });
+
+    // TODO: Get max channels from user's subscription plan
+    const maxChannels = 3; // Default limit
+
+    if (userChannels >= maxChannels) {
+      return NextResponse.json(
+        { error: `Maximum ${maxChannels} channels allowed. Upgrade your plan for more.` },
+        { status: 403 }
+      );
+    }
+
     const channel = await db.channel.create({
       data: {
-        userId: user?.id || null,
+        userId: session.user.id,
         name,
-        platform: platform || 'youtube',
-        youtubeChannelId,
-        instagramAccountId,
-        facebookPageId,
-        facebookPageName,
+        youtubeChannelId: youtubeChannelId || `local_${Date.now()}`,
         accessToken,
         refreshToken,
         uploadTime: uploadTime || '18:00',
@@ -73,7 +98,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ channel });
+    // Return without sensitive tokens
+    const { accessToken: _, refreshToken: __, ...safeChannel } = channel;
+
+    return NextResponse.json({ channel: safeChannel });
   } catch (error: any) {
     console.error('Error creating channel:', error);
     return NextResponse.json(

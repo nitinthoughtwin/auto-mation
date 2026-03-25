@@ -1,23 +1,5 @@
 'use client';
 
-// Facebook SDK type declaration
-declare global {
-  interface Window {
-    FB?: {
-      init: (params: {
-        appId: string;
-        cookie: boolean;
-        xfbml: boolean;
-        version: string;
-      }) => void;
-      login: (callback: (response: any) => void, params?: { scope: string }) => void;
-      api: (path: string, method: string, params: any, callback: (response: any) => void) => void;
-      getLoginStatus: (callback: (response: any) => void) => void;
-    };
-    fbAsyncInit?: () => void;
-  }
-}
-
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,7 +67,6 @@ import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared
 import DriveVideoBrowser from '@/components/DriveVideoBrowser';
 import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 import UsageDashboard from '@/components/UsageDashboard';
-import VideoLibraryBrowser from '@/components/VideoLibraryBrowser';
 
 // Helper to get Google Drive thumbnail URL from file ID or URL
 const getThumbnailUrl = (fileIdOrUrl: string | null): string | null => {
@@ -341,7 +322,6 @@ export default function YouTubeAutomationDashboard() {
   // Drive video browser state
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
   const [showPublicDriveBrowser, setShowPublicDriveBrowser] = useState(false);
-  const [showVideoLibrary, setShowVideoLibrary] = useState(false);
 
   // AI Generation state
   const [generatingAI, setGeneratingAI] = useState(false);
@@ -449,9 +429,9 @@ export default function YouTubeAutomationDashboard() {
     }
   }, [loadChannels]);
 
-  // Connect new channel
+  // Connect new channel - redirect to YouTube connection page
   const connectChannel = () => {
-    window.location.href = '/api/auth/youtube';
+    window.location.href = '/connect-youtube';
   };
 
   // Connect Facebook page
@@ -1123,15 +1103,6 @@ export default function YouTubeAutomationDashboard() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {/* Video Library - Primary Action */}
-          <Button 
-            onClick={() => setShowVideoLibrary(true)}
-            className="h-10 sm:h-9 text-sm touch-manipulation bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-md"
-          >
-            <Video className="mr-1 sm:mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">Browse Videos</span>
-            <span className="sm:hidden">Videos</span>
-          </Button>
           <Button 
             variant="outline" 
             onClick={runScheduler} 
@@ -1174,32 +1145,6 @@ export default function YouTubeAutomationDashboard() {
           </Button>
         </div>
       </div>
-
-      {/* Video Library Quick Access Card */}
-      <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30 border-yellow-200 dark:border-yellow-800">
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-full bg-yellow-100 dark:bg-yellow-900/50">
-                <Video className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg">Video Library</h3>
-                <p className="text-sm text-muted-foreground">
-                  Browse pre-added videos by category and add them to your upload queue
-                </p>
-              </div>
-            </div>
-            <Button 
-              onClick={() => setShowVideoLibrary(true)}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white shadow-md"
-            >
-              <Video className="mr-2 h-4 w-4" />
-              Browse Videos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Stats Cards */}
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
@@ -1815,14 +1760,6 @@ export default function YouTubeAutomationDashboard() {
                     <Link className="mr-2 h-4 w-4" />
                     Add from Link
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowVideoLibrary(true)}
-                    className="w-full sm:w-auto h-10 sm:h-9 touch-manipulation bg-yellow-50 border-yellow-300 hover:bg-yellow-100 text-yellow-700"
-                  >
-                    <Video className="mr-2 h-4 w-4" />
-                    Video Library
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -2319,17 +2256,6 @@ export default function YouTubeAutomationDashboard() {
           open={showPublicDriveBrowser}
           onClose={() => setShowPublicDriveBrowser(false)}
           channelId={selectedChannel?.id || ''}
-          onVideosAdded={() => {
-            loadChannelDetails(selectedChannel?.id || '');
-            loadChannels();
-          }}
-        />
-
-        {/* Video Library Browser */}
-        <VideoLibraryBrowser
-          open={showVideoLibrary}
-          onClose={() => setShowVideoLibrary(false)}
-          channels={channels}
           onVideosAdded={() => {
             loadChannelDetails(selectedChannel?.id || '');
             loadChannels();
