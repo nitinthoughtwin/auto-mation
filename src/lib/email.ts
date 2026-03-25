@@ -42,7 +42,7 @@ function getBaseEmailStyles() {
 
 export async function sendPasswordResetEmail(email: string, token: string, name?: string): Promise<boolean> {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-  const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+  const resetUrl = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
   const template: EmailTemplate = {
     subject: 'Reset Your Password - GPMart Studio',
     html: `
@@ -269,7 +269,7 @@ Manage Billing: ${billingUrl}
 
 export async function sendVerificationEmail(email: string, token: string, name?: string): Promise<boolean> {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-  const verifyUrl = `${baseUrl}/verify-email?token=${token}`;
+  const verifyUrl = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
   
   const template: EmailTemplate = {
     subject: 'Verify Your Email - GPMart Studio',
