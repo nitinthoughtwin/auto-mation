@@ -32,7 +32,7 @@ function ResetPasswordContent() {
       setError('Invalid reset link. Please request a new password reset.');
       return;
     }
-    
+
     // Token presence check - actual validation happens on submit
     setValidToken(true);
     setVerifying(false);
@@ -55,7 +55,7 @@ function ResetPasswordContent() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const res = await fetch('/api/user/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, email, password }),
@@ -234,13 +234,17 @@ function ResetPasswordContent() {
   );
 }
 
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+    </div>
+  );
+}
+
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-        <Loader2 className="h-8 w-8 animate-spin text-red-500" />
-      </div>
-    }>
+    <Suspense fallback={<LoadingFallback />}>
       <ResetPasswordContent />
     </Suspense>
   );

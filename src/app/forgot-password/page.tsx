@@ -9,12 +9,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Youtube, Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [resetLink, setResetLink] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,7 +24,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      const res = await fetch('/api/user/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -33,13 +34,9 @@ export default function ForgotPasswordPage() {
 
       if (res.ok) {
         setSuccess(true);
-        // For development, show the reset link
-        if (data.resetLink) {
-          setResetLink(data.resetLink);
-        }
-        toast.success('Password reset link generated!');
+        toast.success('Password reset email sent!');
       } else {
-        setError(data.error || 'Failed to generate reset link');
+        setError(data.error || 'Failed to send reset email');
       }
     } catch (err) {
       setError('Something went wrong. Please try again.');
@@ -67,28 +64,6 @@ export default function ForgotPasswordPage() {
             <p className="text-sm text-gray-400 text-center">
               Didn't receive the email? Check your spam folder or try again.
             </p>
-            
-            {/* For Development - Show Reset Link */}
-            {resetLink && (
-              <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
-                <p className="text-sm text-yellow-400 mb-2">Dev Mode - Reset Link:</p>
-                <p className="text-xs text-yellow-300 break-all bg-black/30 p-2 rounded">
-                  {resetLink}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 w-full"
-                  onClick={() => {
-                    navigator.clipboard.writeText(resetLink);
-                    toast.success('Link copied!');
-                  }}
-                >
-                  Copy Link
-                </Button>
-              </div>
-            )}
-            
             <Button
               variant="outline"
               className="w-full"

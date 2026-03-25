@@ -31,7 +31,7 @@ function VerifyEmailContent() {
 
   const verifyEmail = async () => {
     try {
-      const res = await fetch('/api/auth/verify-email', {
+      const res = await fetch('/api/user/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, email }),
@@ -57,7 +57,7 @@ function VerifyEmailContent() {
 
     setResending(true);
     try {
-      const res = await fetch(`/api/auth/verify-email?email=${encodeURIComponent(email)}`);
+      const res = await fetch(`/api/user/verify-email?email=${encodeURIComponent(email)}`);
       const data = await res.json();
 
       if (data.success) {
