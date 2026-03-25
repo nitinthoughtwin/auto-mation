@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { sendVerificationEmail, sendWelcomeEmail } from '@/lib/email';
+import { authSchemas, validateBody } from '@/lib/validations';
 
 // Check if email verification is required
 const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false';
@@ -10,31 +11,17 @@ const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION !== 'f
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, password } = body;
-
+    
     // Validate input
-    if (!email || !password) {
+    const validation = validateBody(authSchemas.register, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, error: 'Email and password are required' },
+        { success: false, error: validation.error },
         { status: 400 }
       );
     }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { success: false, error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      );
-    }
-
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid email address' },
-        { status: 400 }
-      );
-    }
+    
+    const { name, email, password } = validation.data;
 
     // Check if user already exists
     const existingUser = await db.user.findUnique({
