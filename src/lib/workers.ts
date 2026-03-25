@@ -19,7 +19,7 @@ import {
   sendSubscriptionEmail,
   sendPaymentReceiptEmail,
 } from './email';
-import { prisma } from './db';
+import { db } from '@/lib/db';
 import * as Sentry from '@sentry/nextjs';
 
 // Email worker processor
@@ -93,7 +93,7 @@ async function processPaymentJob(job: Job): Promise<void> {
 
       case 'subscription-check':
         // Check subscription status
-        const subscription = await prisma.subscription.findFirst({
+        const subscription = await db.subscription.findFirst({
           where: {
             userId,
             status: 'ACTIVE',
@@ -105,7 +105,7 @@ async function processPaymentJob(job: Job): Promise<void> {
 
         if (subscription && subscription.endDate < new Date()) {
           // Subscription expired
-          await prisma.subscription.update({
+          await db.subscription.update({
             where: { id: subscription.id },
             data: { status: 'EXPIRED' },
           });
@@ -145,7 +145,7 @@ async function processSubscriptionJob(job: Job): Promise<void> {
     switch (type) {
       case 'expire':
         // Mark subscription as expired
-        await prisma.subscription.update({
+        await db.subscription.update({
           where: { id: subscriptionId },
           data: { status: 'EXPIRED' },
         });
@@ -154,7 +154,7 @@ async function processSubscriptionJob(job: Job): Promise<void> {
 
       case 'renew':
         // Handle subscription renewal
-        const plan = await prisma.plan.findUnique({
+        const plan = await db.plan.findUnique({
           where: { id: planId },
         });
 
@@ -165,7 +165,7 @@ async function processSubscriptionJob(job: Job): Promise<void> {
         const newEndDate = new Date();
         newEndDate.setMonth(newEndDate.getMonth() + plan.duration);
 
-        await prisma.subscription.update({
+        await db.subscription.update({
           where: { id: subscriptionId },
           data: {
             status: 'ACTIVE',
