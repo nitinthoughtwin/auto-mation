@@ -43,7 +43,6 @@ function getBaseEmailStyles() {
 export async function sendPasswordResetEmail(email: string, token: string, name?: string): Promise<boolean> {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const resetUrl = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
-  
   const template: EmailTemplate = {
     subject: 'Reset Your Password - GPMart Studio',
     html: `
@@ -57,7 +56,7 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
           </div>
           <div class="content">
             <h2>Password Reset Request</h2>
-            <p>Hi${name ? ` ${name}` : ''},</p>
+            <p>Hi there,</p>
             <p>We received a request to reset your password for your GPMart Studio account. Click the button below to create a new password:</p>
             <div style="text-align: center;">
               <a href="${resetUrl}" class="button">Reset Password</a>
@@ -78,8 +77,6 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
     `,
     text: `
 Reset Your Password - GPMart Studio
-
-Hi${name ? ` ${name}` : ''},
 
 We received a request to reset your password for your GPMart Studio account.
 
@@ -150,14 +147,33 @@ Go to Dashboard: ${loginUrl}
 
 export async function sendSubscriptionEmail(
   email: string,
+  name: string,
   planName: string,
-  amount: number,
-  nextBillingDate?: Date
+  type: 'started' | 'renewed' | 'expired'
 ): Promise<boolean> {
   const dashboardUrl = `${process.env.NEXTAUTH_URL}/billing`;
   
+  const typeMessages = {
+    started: {
+      title: 'Subscription Started! ✨',
+      message: `Your <strong>${planName}</strong> plan is now active. Welcome aboard!`,
+    },
+    renewed: {
+      title: 'Subscription Renewed! 🔄',
+      message: `Your <strong>${planName}</strong> plan has been renewed successfully.`,
+    },
+    expired: {
+      title: 'Subscription Expired ⚠️',
+      message: `Your <strong>${planName}</strong> plan has expired. Renew now to continue enjoying premium features.`,
+    },
+  };
+
+  const { title, message } = typeMessages[type];
+  
   const template: EmailTemplate = {
-    subject: `Subscription Activated - ${planName} Plan`,
+    subject: type === 'expired' 
+      ? `Subscription Expired - ${planName} Plan` 
+      : `Subscription ${type === 'started' ? 'Started' : 'Renewed'} - ${planName} Plan`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -168,16 +184,11 @@ export async function sendSubscriptionEmail(
             <h1>🎬 GPMart Studio</h1>
           </div>
           <div class="content">
-            <h2>Subscription Activated! ✨</h2>
-            <p>Your <strong>${planName}</strong> plan is now active.</p>
-            ${amount > 0 ? `
-              <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0;"><strong>Amount:</strong> ₹${(amount / 100).toLocaleString()}</p>
-                ${nextBillingDate ? `<p style="margin: 10px 0 0 0;"><strong>Next billing:</strong> ${nextBillingDate.toLocaleDateString()}</p>` : ''}
-              </div>
-            ` : ''}
+            <h2>${title}</h2>
+            <p>Hi ${name},</p>
+            <p>${message}</p>
             <div style="text-align: center;">
-              <a href="${dashboardUrl}" class="button">View Subscription</a>
+              <a href="${dashboardUrl}" class="button">${type === 'expired' ? 'Renew Now' : 'View Subscription'}</a>
             </div>
           </div>
           <div class="footer">
@@ -188,13 +199,12 @@ export async function sendSubscriptionEmail(
       </html>
     `,
     text: `
-Subscription Activated - ${planName} Plan
+${title}
 
-Your ${planName} plan is now active.
-${amount > 0 ? `Amount: ₹${(amount / 100).toLocaleString()}` : ''}
-${nextBillingDate ? `Next billing: ${nextBillingDate.toLocaleDateString()}` : ''}
+Hi ${name},
+${message}
 
-View Subscription: ${dashboardUrl}
+${type === 'expired' ? 'Renew Now' : 'View Subscription'}: ${dashboardUrl}
 
 © ${new Date().getFullYear()} GPMart Studio
     `,
@@ -344,6 +354,70 @@ Password Changed - GPMart Studio
 Your password has been successfully changed.
 
 If you didn't make this change, please contact support immediately.
+
+© ${new Date().getFullYear()} GPMart Studio
+    `,
+  };
+
+  return sendEmail(email, template);
+}
+
+export async function sendPaymentReceiptEmail(
+  email: string,
+  name: string,
+  amount: number,
+  planName: string,
+  paymentId: string,
+  date: string
+): Promise<boolean> {
+  const dashboardUrl = `${process.env.NEXTAUTH_URL}/billing`;
+  
+  const template: EmailTemplate = {
+    subject: `Payment Receipt - ${planName} Plan`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>${getBaseEmailStyles()}</head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎬 GPMart Studio</h1>
+          </div>
+          <div class="content">
+            <h2>Payment Receipt 🧾</h2>
+            <p>Hi ${name},</p>
+            <p>Thank you for your payment! Here are your receipt details:</p>
+            <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0;"><strong>Plan:</strong> ${planName}</p>
+              <p style="margin: 10px 0 0 0;"><strong>Amount:</strong> ₹${(amount / 100).toLocaleString()}</p>
+              <p style="margin: 10px 0 0 0;"><strong>Payment ID:</strong> ${paymentId}</p>
+              <p style="margin: 10px 0 0 0;"><strong>Date:</strong> ${date}</p>
+            </div>
+            <div style="text-align: center;">
+              <a href="${dashboardUrl}" class="button">View Billing</a>
+            </div>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} GPMart Studio. All rights reserved.</p>
+            <p>This email was sent to ${email}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    text: `
+Payment Receipt - ${planName} Plan
+
+Hi ${name},
+
+Thank you for your payment!
+
+Plan: ${planName}
+Amount: ₹${(amount / 100).toLocaleString()}
+Payment ID: ${paymentId}
+Date: ${date}
+
+View Billing: ${dashboardUrl}
 
 © ${new Date().getFullYear()} GPMart Studio
     `,
