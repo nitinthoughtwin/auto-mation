@@ -7,7 +7,13 @@ export async function POST(request: NextRequest) {
   try {
     const { token, email } = await request.json();
 
+    console.log('[Verify Email] Request:', { 
+      token: token ? `${token.substring(0, 10)}...` : null, 
+      email 
+    });
+
     if (!token || !email) {
+      console.log('[Verify Email] Missing fields');
       return NextResponse.json(
         { error: 'Token and email are required' },
         { status: 400 }
@@ -19,6 +25,8 @@ export async function POST(request: NextRequest) {
       where: { email: email.toLowerCase() },
     });
 
+    console.log('[Verify Email] User found:', user ? { id: user.id, email: user.email, verified: !!user.emailVerified } : 'NOT FOUND');
+
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
@@ -28,6 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Check if already verified
     if (user.emailVerified) {
+      console.log('[Verify Email] Already verified');
       return NextResponse.json({
         success: true,
         message: 'Email already verified',
@@ -38,9 +47,25 @@ export async function POST(request: NextRequest) {
     const verificationToken = await db.verificationToken.findFirst({
       where: {
         identifier: `verify-${user.id}`,
-        token,
+        token: token,
         expires: { gt: new Date() },
       },
+    });
+
+    console.log('[Verify Email] Token found:', verificationToken ? 'YES' : 'NO');
+
+    // Debug: Find all tokens for this user
+    const allUserTokens = await db.verificationToken.findMany({
+      where: { identifier: `verify-${user.id}` },
+    });
+    console.log('[Verify Email] All tokens for user:', allUserTokens.length);
+    allUserTokens.forEach(t => {
+      console.log('[Verify Email] Token:', {
+        tokenPreview: t.token.substring(0, 10) + '...',
+        expires: t.expires,
+        isExpired: t.expires < new Date(),
+        matches: t.token === token
+      });
     });
 
     if (!verificationToken) {
@@ -59,15 +84,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log('[Verify Email] User updated successfully');
+
     // Delete used token
     await db.verificationToken.delete({
       where: {
         identifier_token: {
           identifier: `verify-${user.id}`,
-          token,
+          token: token,
         },
       },
     });
+
+    console.log('[Verify Email] Token deleted');
 
     return NextResponse.json({
       success: true,
@@ -130,9 +159,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    console.log('[Resend Verify] Created token:', {
+      identifier: `verify-${user.id}`,
+      tokenPreview: verifyToken.substring(0, 10) + '...',
+      expires: verifyTokenExpiry
+    });
+
     // Send verification email - pass token, function will construct URL
     try {
       await sendVerificationEmail(email, verifyToken, user.name || '');
+      console.log('[Resend Verify] Email sent successfully');
     } catch (emailError) {
       console.error('[Resend Verify] Email error:', emailError);
     }
