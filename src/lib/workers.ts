@@ -1,334 +1,395 @@
-/**
- * Queue Workers
- * 
- * These workers process jobs from the BullMQ queues.
- * Import and start these workers in your application startup.
- */
-
-import { Job } from 'bullmq';
-import {
-  createEmailWorker,
-  createPaymentWorker,
-  createSubscriptionWorker,
-  createVideoWorker,
-} from './queue';
+import { Worker, Job } from 'bullmq';
+import { Redis } from 'ioredis';
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
   sendSubscriptionEmail,
-  sendPaymentReceiptEmail,
+  sendPaymentReminderEmail,
+  sendPasswordChangedEmail,
 } from './email';
 import { db } from './db';
-import * as Sentry from '@sentry/nextjs';
+import { QUEUE_NAMES, EmailJobData, PaymentJobData, SubscriptionJobData, VideoJobData } from './queue';
 
-// Email worker processor
-async function processEmailJob(job: Job): Promise<void> {
-  const { type, to, subject, data } = job.data;
+// Redis connection
+const REDIS_URL = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
 
-  console.log(`Processing email job: ${type} to ${to}`);
-
-  try {
-    switch (type) {
-      case 'verification':
-        await sendVerificationEmail(to, data.token as string, data.name as string);
-        break;
-
-      case 'password-reset':
-        await sendPasswordResetEmail(to, data.token as string, data.name as string);
-        break;
-
-      case 'welcome':
-        await sendWelcomeEmail(to, data.name as string);
-        break;
-
-      case 'subscription':
-        await sendSubscriptionEmail(
-          to,
-          data.name as string,
-          data.planName as string,
-          data.type as 'started' | 'renewed' | 'expired'
-        );
-        break;
-
-      case 'payment-receipt':
-        await sendPaymentReceiptEmail(
-          to,
-          data.name as string,
-          data.amount as number,
-          data.planName as string,
-          data.paymentId as string,
-          data.date as string
-        );
-        break;
-
-      default:
-        throw new Error(`Unknown email type: ${type}`);
-    }
-
-    console.log(`Email job completed: ${type} to ${to}`);
-  } catch (error) {
-    console.error(`Email job failed: ${type} to ${to}`, error);
-    Sentry.captureException(error, {
-      tags: { job: 'email', type },
-      extra: { to, subject },
-    });
-    throw error;
+const createRedisConnection = (): Redis | null => {
+  if (!REDIS_URL) {
+    return null;
   }
-}
+  
+  return new Redis(REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+};
 
-// Payment worker processor
-async function processPaymentJob(job: Job): Promise<void> {
-  const { type, paymentId, subscriptionId, userId, data } = job.data;
+// Email Worker
+export const startEmailWorker = (): Worker | null => {
+  const connection = createRedisConnection();
+  if (!connection) {
+    console.log('[Worker] Email worker not started - Redis not configured');
+    return null;
+  }
 
-  console.log(`Processing payment job: ${type} for user ${userId}`);
-
-  try {
-    switch (type) {
-      case 'webhook':
-        // Handle payment webhook
-        // This would be called when a webhook needs async processing
-        console.log('Processing webhook:', { paymentId, subscriptionId, userId });
-        break;
-
-      case 'subscription-check':
-        // Check subscription status
-        const subscription = await db.subscription.findFirst({
-          where: {
-            userId,
-            status: 'ACTIVE',
-          },
-          include: {
-            plan: true,
-          },
-        });
-
-        if (subscription && subscription.endDate < new Date()) {
-          // Subscription expired
-          await db.subscription.update({
-            where: { id: subscription.id },
-            data: { status: 'EXPIRED' },
-          });
-
-          // Schedule notification
-          console.log(`Subscription ${subscription.id} expired for user ${userId}`);
+  const worker = new Worker<EmailJobData>(
+    QUEUE_NAMES.EMAIL,
+    async (job: Job<EmailJobData>) => {
+      const { type, email, data } = job.data;
+      
+      console.log(`[Email Worker] Processing ${type} email for ${email}`);
+      
+      try {
+        switch (type) {
+          case 'verification':
+            await sendVerificationEmail(email, data.token, data.name);
+            break;
+            
+          case 'welcome':
+            await sendWelcomeEmail(email, data.name);
+            break;
+            
+          case 'password-reset':
+            await sendPasswordResetEmail(email, data.token, data.name);
+            break;
+            
+          case 'subscription':
+            await sendSubscriptionEmail(email, data.planName, data.amount, data.nextBillingDate);
+            break;
+            
+          case 'payment-reminder':
+            await sendPaymentReminderEmail(email, data.planName, data.amount, data.dueDate);
+            break;
+            
+          case 'password-changed':
+            await sendPasswordChangedEmail(email);
+            break;
+            
+          default:
+            console.warn(`[Email Worker] Unknown email type: ${type}`);
         }
-        break;
-
-      case 'renewal-reminder':
-        // Send renewal reminder
-        console.log('Sending renewal reminder:', { userId, subscriptionId });
-        break;
-
-      default:
-        throw new Error(`Unknown payment job type: ${type}`);
+        
+        console.log(`[Email Worker] Successfully sent ${type} email to ${email}`);
+        return { success: true };
+      } catch (error) {
+        console.error(`[Email Worker] Failed to send ${type} email:`, error);
+        throw error;
+      }
+    },
+    {
+      connection,
+      concurrency: 5,
+      limiter: {
+        max: 100,
+        duration: 60000, // 100 emails per minute
+      },
     }
+  );
 
-    console.log(`Payment job completed: ${type} for user ${userId}`);
-  } catch (error) {
-    console.error(`Payment job failed: ${type} for user ${userId}`, error);
-    Sentry.captureException(error, {
-      tags: { job: 'payment', type },
-      extra: { paymentId, subscriptionId, userId },
-    });
-    throw error;
+  worker.on('completed', (job) => {
+    console.log(`[Email Worker] Job ${job.id} completed`);
+  });
+
+  worker.on('failed', (job, err) => {
+    console.error(`[Email Worker] Job ${job?.id} failed:`, err);
+  });
+
+  console.log('[Worker] Email worker started');
+  return worker;
+};
+
+// Payment Worker
+export const startPaymentWorker = (): Worker | null => {
+  const connection = createRedisConnection();
+  if (!connection) {
+    console.log('[Worker] Payment worker not started - Redis not configured');
+    return null;
   }
-}
 
-// Subscription worker processor
-async function processSubscriptionJob(job: Job): Promise<void> {
-  const { type, subscriptionId, userId, planId } = job.data;
-
-  console.log(`Processing subscription job: ${type} for user ${userId}`);
-
-  try {
-    switch (type) {
-      case 'expire':
-        // Mark subscription as expired
-        await db.subscription.update({
-          where: { id: subscriptionId },
-          data: { status: 'EXPIRED' },
-        });
-        console.log(`Subscription ${subscriptionId} expired`);
-        break;
-
-      case 'renew':
-        // Handle subscription renewal
-        const plan = await db.plan.findUnique({
-          where: { id: planId },
-        });
-
-        if (!plan) {
-          throw new Error(`Plan not found: ${planId}`);
+  const worker = new Worker<PaymentJobData>(
+    QUEUE_NAMES.PAYMENT,
+    async (job: Job<PaymentJobData>) => {
+      const { type, paymentId, data } = job.data;
+      
+      console.log(`[Payment Worker] Processing ${type} for payment ${paymentId}`);
+      
+      try {
+        switch (type) {
+          case 'process-payment':
+            // Handle payment processing
+            const payment = await db.payment.findUnique({
+              where: { id: paymentId },
+              include: { user: true, subscription: true },
+            });
+            
+            if (!payment) {
+              throw new Error(`Payment ${paymentId} not found`);
+            }
+            
+            // Update payment status
+            await db.payment.update({
+              where: { id: paymentId },
+              data: { status: 'completed' },
+            });
+            
+            console.log(`[Payment Worker] Payment ${paymentId} processed`);
+            break;
+            
+          case 'refund':
+            // Handle refund
+            await db.payment.update({
+              where: { id: paymentId },
+              data: { status: 'refunded' },
+            });
+            
+            console.log(`[Payment Worker] Payment ${paymentId} refunded`);
+            break;
+            
+          case 'subscription-renewal':
+            // Handle subscription renewal
+            const subscription = await db.subscription.findFirst({
+              where: { id: data.subscriptionId },
+            });
+            
+            if (subscription) {
+              const newPeriodEnd = new Date(subscription.currentPeriodEnd);
+              newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+              
+              await db.subscription.update({
+                where: { id: subscription.id },
+                data: {
+                  currentPeriodStart: subscription.currentPeriodEnd,
+                  currentPeriodEnd: newPeriodEnd,
+                },
+              });
+              
+              console.log(`[Payment Worker] Subscription renewed`);
+            }
+            break;
+            
+          default:
+            console.warn(`[Payment Worker] Unknown payment type: ${type}`);
         }
-
-        const newEndDate = new Date();
-        newEndDate.setMonth(newEndDate.getMonth() + plan.duration);
-
-        await db.subscription.update({
-          where: { id: subscriptionId },
-          data: {
-            status: 'ACTIVE',
-            endDate: newEndDate,
-          },
-        });
-        console.log(`Subscription ${subscriptionId} renewed until ${newEndDate}`);
-        break;
-
-      case 'reminder':
-        // Send expiration reminder
-        console.log(`Sending expiration reminder for subscription ${subscriptionId}`);
-        break;
-
-      default:
-        throw new Error(`Unknown subscription job type: ${type}`);
+        
+        return { success: true };
+      } catch (error) {
+        console.error(`[Payment Worker] Failed to process ${type}:`, error);
+        throw error;
+      }
+    },
+    {
+      connection,
+      concurrency: 3,
     }
+  );
 
-    console.log(`Subscription job completed: ${type} for user ${userId}`);
-  } catch (error) {
-    console.error(`Subscription job failed: ${type} for user ${userId}`, error);
-    Sentry.captureException(error, {
-      tags: { job: 'subscription', type },
-      extra: { subscriptionId, userId, planId },
-    });
-    throw error;
+  worker.on('completed', (job) => {
+    console.log(`[Payment Worker] Job ${job.id} completed`);
+  });
+
+  worker.on('failed', (job, err) => {
+    console.error(`[Payment Worker] Job ${job?.id} failed:`, err);
+  });
+
+  console.log('[Worker] Payment worker started');
+  return worker;
+};
+
+// Subscription Worker
+export const startSubscriptionWorker = (): Worker | null => {
+  const connection = createRedisConnection();
+  if (!connection) {
+    console.log('[Worker] Subscription worker not started - Redis not configured');
+    return null;
   }
-}
 
-// Video worker processor
-async function processVideoJob(job: Job): Promise<void> {
-  const { type, videoId, userId, data } = job.data;
-
-  console.log(`Processing video job: ${type} for video ${videoId}`);
-
-  try {
-    switch (type) {
-      case 'process':
-        // Process video (e.g., extract metadata, generate thumbnail)
-        console.log(`Processing video ${videoId}`);
-        break;
-
-      case 'thumbnail':
-        // Generate thumbnail
-        console.log(`Generating thumbnail for video ${videoId}`);
-        break;
-
-      case 'transcode':
-        // Transcode video to different qualities
-        console.log(`Transcoding video ${videoId}`);
-        break;
-
-      case 'delete':
-        // Delete video and associated files
-        console.log(`Deleting video ${videoId}`);
-        break;
-
-      default:
-        throw new Error(`Unknown video job type: ${type}`);
+  const worker = new Worker<SubscriptionJobData>(
+    QUEUE_NAMES.SUBSCRIPTION,
+    async (job: Job<SubscriptionJobData>) => {
+      const { type, subscriptionId, data } = job.data;
+      
+      console.log(`[Subscription Worker] Processing ${type} for subscription ${subscriptionId}`);
+      
+      try {
+        switch (type) {
+          case 'check-expiration':
+            const subscription = await db.subscription.findUnique({
+              where: { id: subscriptionId },
+              include: { user: true },
+            });
+            
+            if (subscription && subscription.currentPeriodEnd < new Date()) {
+              await db.subscription.update({
+                where: { id: subscriptionId },
+                data: { status: 'expired' },
+              });
+              
+              console.log(`[Subscription Worker] Subscription ${subscriptionId} expired`);
+            }
+            break;
+            
+          case 'send-reminder':
+            // Send renewal reminder
+            const sub = await db.subscription.findUnique({
+              where: { id: subscriptionId },
+              include: { user: true, plan: true },
+            });
+            
+            if (sub && sub.user.email) {
+              await sendPaymentReminderEmail(
+                sub.user.email,
+                sub.plan?.name || 'Unknown',
+                sub.plan?.price || 0,
+                sub.currentPeriodEnd
+              );
+            }
+            break;
+            
+          case 'update-usage':
+            // Update usage stats
+            const subForUsage = await db.subscription.findUnique({
+              where: { id: subscriptionId },
+              include: { usage: true },
+            });
+            
+            if (subForUsage?.usage) {
+              await db.usage.update({
+                where: { id: subForUsage.usage.id },
+                data: data.usageUpdate || {},
+              });
+            }
+            break;
+            
+          default:
+            console.warn(`[Subscription Worker] Unknown subscription type: ${type}`);
+        }
+        
+        return { success: true };
+      } catch (error) {
+        console.error(`[Subscription Worker] Failed to process ${type}:`, error);
+        throw error;
+      }
+    },
+    {
+      connection,
+      concurrency: 5,
     }
+  );
 
-    console.log(`Video job completed: ${type} for video ${videoId}`);
-  } catch (error) {
-    console.error(`Video job failed: ${type} for video ${videoId}`, error);
-    Sentry.captureException(error, {
-      tags: { job: 'video', type },
-      extra: { videoId, userId },
-    });
-    throw error;
-  }
-}
+  worker.on('completed', (job) => {
+    console.log(`[Subscription Worker] Job ${job.id} completed`);
+  });
 
-// Worker instances (lazy initialization)
-let emailWorker: ReturnType<typeof createEmailWorker> | null = null;
-let paymentWorker: ReturnType<typeof createPaymentWorker> | null = null;
-let subscriptionWorker: ReturnType<typeof createSubscriptionWorker> | null = null;
-let videoWorker: ReturnType<typeof createVideoWorker> | null = null;
+  worker.on('failed', (job, err) => {
+    console.error(`[Subscription Worker] Job ${job?.id} failed:`, err);
+  });
 
-/**
- * Start all workers
- * Call this in your application startup (e.g., in a custom server or API route)
- */
-export function startWorkers(): void {
-  if (emailWorker) {
-    console.log('Workers already started');
-    return;
+  console.log('[Worker] Subscription worker started');
+  return worker;
+};
+
+// Video Worker
+export const startVideoWorker = (): Worker | null => {
+  const connection = createRedisConnection();
+  if (!connection) {
+    console.log('[Worker] Video worker not started - Redis not configured');
+    return null;
   }
 
-  console.log('Starting job queue workers...');
+  const worker = new Worker<VideoJobData>(
+    QUEUE_NAMES.VIDEO,
+    async (job: Job<VideoJobData>) => {
+      const { type, videoId, data } = job.data;
+      
+      console.log(`[Video Worker] Processing ${type} for video ${videoId}`);
+      
+      try {
+        switch (type) {
+          case 'upload':
+            // Handle video upload to YouTube
+            const video = await db.video.findUnique({
+              where: { id: videoId },
+              include: { channel: true },
+            });
+            
+            if (!video) {
+              throw new Error(`Video ${videoId} not found`);
+            }
+            
+            // Update video status
+            await db.video.update({
+              where: { id: videoId },
+              data: { status: 'processing' },
+            });
+            
+            // YouTube upload logic would go here
+            console.log(`[Video Worker] Video ${videoId} upload initiated`);
+            break;
+            
+          case 'process':
+            // Handle video processing
+            await db.video.update({
+              where: { id: videoId },
+              data: { status: data.status || 'processing' },
+            });
+            break;
+            
+          case 'thumbnail':
+            // Handle thumbnail generation
+            console.log(`[Video Worker] Thumbnail generation for video ${videoId}`);
+            break;
+            
+          default:
+            console.warn(`[Video Worker] Unknown video type: ${type}`);
+        }
+        
+        return { success: true };
+      } catch (error) {
+        console.error(`[Video Worker] Failed to process ${type}:`, error);
+        throw error;
+      }
+    },
+    {
+      connection,
+      concurrency: 2,
+      limiter: {
+        max: 10,
+        duration: 60000, // 10 video jobs per minute
+      },
+    }
+  );
 
-  // Start email worker
-  emailWorker = createEmailWorker(processEmailJob);
-  emailWorker.on('completed', (job) => {
-    console.log(`Email job ${job.id} completed`);
+  worker.on('completed', (job) => {
+    console.log(`[Video Worker] Job ${job.id} completed`);
   });
-  emailWorker.on('failed', (job, err) => {
-    console.error(`Email job ${job?.id} failed:`, err.message);
+
+  worker.on('failed', (job, err) => {
+    console.error(`[Video Worker] Job ${job?.id} failed:`, err);
   });
 
-  // Start payment worker
-  paymentWorker = createPaymentWorker(processPaymentJob);
-  paymentWorker.on('completed', (job) => {
-    console.log(`Payment job ${job.id} completed`);
-  });
-  paymentWorker.on('failed', (job, err) => {
-    console.error(`Payment job ${job?.id} failed:`, err.message);
-  });
+  console.log('[Worker] Video worker started');
+  return worker;
+};
 
-  // Start subscription worker
-  subscriptionWorker = createSubscriptionWorker(processSubscriptionJob);
-  subscriptionWorker.on('completed', (job) => {
-    console.log(`Subscription job ${job.id} completed`);
-  });
-  subscriptionWorker.on('failed', (job, err) => {
-    console.error(`Subscription job ${job?.id} failed:`, err.message);
-  });
+// Start all workers
+export const startAllWorkers = () => {
+  const workers = {
+    email: startEmailWorker(),
+    payment: startPaymentWorker(),
+    subscription: startSubscriptionWorker(),
+    video: startVideoWorker(),
+  };
+  
+  console.log('[Workers] All workers initialized');
+  return workers;
+};
 
-  // Start video worker
-  videoWorker = createVideoWorker(processVideoJob);
-  videoWorker.on('completed', (job) => {
-    console.log(`Video job ${job.id} completed`);
-  });
-  videoWorker.on('failed', (job, err) => {
-    console.error(`Video job ${job?.id} failed:`, err.message);
-  });
-
-  console.log('All workers started successfully');
-}
-
-/**
- * Stop all workers gracefully
- */
-export async function stopWorkers(): Promise<void> {
-  console.log('Stopping job queue workers...');
-
-  const stopPromises: Promise<void>[] = [];
-
-  if (emailWorker) {
-    stopPromises.push(emailWorker.close());
-  }
-  if (paymentWorker) {
-    stopPromises.push(paymentWorker.close());
-  }
-  if (subscriptionWorker) {
-    stopPromises.push(subscriptionWorker.close());
-  }
-  if (videoWorker) {
-    stopPromises.push(videoWorker.close());
-  }
-
-  await Promise.all(stopPromises);
-
-  emailWorker = null;
-  paymentWorker = null;
-  subscriptionWorker = null;
-  videoWorker = null;
-
-  console.log('All workers stopped');
-}
-
-export {
-  emailWorker,
-  paymentWorker,
-  subscriptionWorker,
-  videoWorker,
+// Graceful shutdown helper
+export const stopWorkers = async (workers: { email: Worker | null; payment: Worker | null; subscription: Worker | null; video: Worker | null }) => {
+  const activeWorkers = Object.values(workers).filter((w): w is Worker => w !== null);
+  
+  await Promise.all(activeWorkers.map(w => w.close()));
+  
+  console.log('[Workers] All workers stopped');
 };

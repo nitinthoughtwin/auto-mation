@@ -258,7 +258,6 @@ Manage Billing: ${billingUrl}
 }
 
 export async function sendVerificationEmail(email: string, token: string, name?: string): Promise<boolean> {
-  console.log("--token", token)
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const verifyUrl = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
   
