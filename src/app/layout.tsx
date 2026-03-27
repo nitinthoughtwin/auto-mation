@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   title: "YouTube Automation Dashboard",
   description: "Multi-platform video scheduling and automation tool",
   keywords: ["YouTube", "Instagram", "Facebook", "automation", "scheduler"],
+  verification: {
+    google: "lO3DnryssZxgIAK8CXuRoiX2h96yUyRf2nDSYZlMmGw",
+  },
 };
 
 export default function RootLayout({
