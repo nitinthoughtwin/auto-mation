@@ -84,6 +84,84 @@ export const authOptions: NextAuthOptions = {
     error: '/login',
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Handle Google OAuth sign in
+      if (account?.provider === 'google' && user.email) {
+        try {
+          // Check if user exists
+          const existingUser = await db.user.findUnique({
+            where: { email: user.email.toLowerCase() },
+          });
+
+          if (!existingUser) {
+            // Create new user from Google profile
+            const newUser = await db.user.create({
+              data: {
+                email: user.email.toLowerCase(),
+                name: user.name || user.email.split('@')[0],
+                image: user.image,
+                role: 'user',
+                emailVerified: new Date(), // Google emails are already verified
+              },
+            });
+
+            // Get the free plan
+            const freePlan = await db.plan.findFirst({
+              where: { name: 'free' },
+            });
+
+            // Create free subscription if free plan exists
+            if (freePlan) {
+              const now = new Date();
+              const periodEnd = new Date(now);
+              periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+              const subscription = await db.subscription.create({
+                data: {
+                  userId: newUser.id,
+                  planId: freePlan.id,
+                  status: 'active',
+                  currentPeriodStart: now,
+                  currentPeriodEnd: periodEnd,
+                },
+              });
+
+              // Create usage record
+              await db.usage.create({
+                data: {
+                  subscriptionId: subscription.id,
+                },
+              });
+            }
+
+            console.log('[Auth] Created new user from Google:', newUser.email);
+
+            // Update user object with new user data
+            user.id = newUser.id;
+            user.role = newUser.role;
+          } else {
+            // User exists, update their info if needed
+            if (!existingUser.image && user.image) {
+              await db.user.update({
+                where: { id: existingUser.id },
+                data: { image: user.image },
+              });
+            }
+
+            // Update user object with existing user data
+            user.id = existingUser.id;
+            user.role = existingUser.role;
+          }
+
+          return true;
+        } catch (error) {
+          console.error('[Auth] Google sign in error:', error);
+          return false;
+        }
+      }
+
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
