@@ -62,7 +62,7 @@ export default function LoginPage() {
 
     setResending(true);
     try {
-      const res = await fetch(`/api/auth/verify-email?email=${encodeURIComponent(email)}`);
+      const res = await fetch(`/api/user/verify-email?email=${encodeURIComponent(email)}`);
       const data = await res.json();
 
       if (data.success) {

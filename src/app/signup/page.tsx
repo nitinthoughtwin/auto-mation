@@ -87,7 +87,7 @@ export default function SignupPage() {
     if (!registeredEmail) return;
 
     try {
-      const res = await fetch(`/api/auth/verify-email?email=${encodeURIComponent(registeredEmail)}`);
+      const res = await fetch(`/api/user/verify-email?email=${encodeURIComponent(registeredEmail)}`);
       const data = await res.json();
 
       if (data.success) {
