@@ -1,9 +1,3 @@
-/**
- * Worker Control API
- * 
- * Admin endpoint to start/stop workers and get queue statistics
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -11,83 +5,95 @@ import { startWorkers, stopWorkers } from '@/lib/workers';
 import { getQueueStats, QUEUE_NAMES } from '@/lib/queue';
 
 // Track if workers have been started
-let workersStarted = false;
+let workersInstance: ReturnType<typeof startWorkers> | null = null;
 
+// GET - Get worker and queue stats
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication and admin role
     const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (!session || session.user?.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' },
+        { status: 401 }
+      );
     }
 
-    // Get queue statistics
-    const stats = await Promise.all([
-      getQueueStats(QUEUE_NAMES.EMAIL).catch(() => null),
-      getQueueStats(QUEUE_NAMES.PAYMENT).catch(() => null),
-      getQueueStats(QUEUE_NAMES.SUBSCRIPTION).catch(() => null),
-      getQueueStats(QUEUE_NAMES.VIDEO).catch(() => null),
-    ]);
+    const queueStats = await getQueueStats();
+    const redisConfigured = !!(process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL);
 
     return NextResponse.json({
-      workersStarted,
-      queues: {
-        email: stats[0],
-        payment: stats[1],
-        subscription: stats[2],
-        video: stats[3],
+      success: true,
+      redis: {
+        configured: redisConfigured,
+        url: redisConfigured ? '(configured)' : '(not configured)',
       },
+      workers: {
+        running: workersInstance !== null,
+        queues: Object.values(QUEUE_NAMES),
+      },
+      stats: queueStats,
     });
-  } catch (error) {
-    console.error('Error getting worker stats:', error);
+  } catch (error: any) {
+    console.error('[Admin Workers] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to get worker statistics' },
+      { error: error.message || 'Failed to get worker stats' },
       { status: 500 }
     );
   }
 }
 
+// POST - Start/Stop workers
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication and admin role
     const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
-    // Check if user is admin
-    // You might want to add an isAdmin check here
+    if (!session || session.user?.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' },
+        { status: 401 }
+      );
+    }
 
     const body = await request.json();
     const { action } = body;
 
     if (action === 'start') {
-      if (workersStarted) {
-        return NextResponse.json({ message: 'Workers already running' });
+      if (workersInstance) {
+        return NextResponse.json({
+          success: true,
+          message: 'Workers already running',
+        });
       }
-      
-      startWorkers();
-      workersStarted = true;
-      
-      return NextResponse.json({ 
-        message: 'Workers started successfully',
-        workersStarted: true,
+
+      workersInstance = startWorkers();
+
+      return NextResponse.json({
+        success: true,
+        message: 'Workers started',
+        workers: {
+          email: workersInstance.email !== null,
+          payment: workersInstance.payment !== null,
+          subscription: workersInstance.subscription !== null,
+          video: workersInstance.video !== null,
+        },
       });
     }
 
     if (action === 'stop') {
-      if (!workersStarted) {
-        return NextResponse.json({ message: 'Workers not running' });
+      if (!workersInstance) {
+        return NextResponse.json({
+          success: true,
+          message: 'Workers not running',
+        });
       }
-      
-      await stopWorkers();
-      workersStarted = false;
-      
-      return NextResponse.json({ 
-        message: 'Workers stopped successfully',
-        workersStarted: false,
+
+      await stopWorkers(workersInstance);
+      workersInstance = null;
+
+      return NextResponse.json({
+        success: true,
+        message: 'Workers stopped',
       });
     }
 
@@ -95,10 +101,10 @@ export async function POST(request: NextRequest) {
       { error: 'Invalid action. Use "start" or "stop"' },
       { status: 400 }
     );
-  } catch (error) {
-    console.error('Error controlling workers:', error);
+  } catch (error: any) {
+    console.error('[Admin Workers] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to control workers' },
+      { error: error.message || 'Failed to manage workers' },
       { status: 500 }
     );
   }

@@ -18,7 +18,7 @@ const createRedisConnection = (): Redis | null => {
   if (!REDIS_URL) {
     return null;
   }
-  
+
   return new Redis(REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
@@ -37,39 +37,39 @@ export const startEmailWorker = (): Worker | null => {
     QUEUE_NAMES.EMAIL,
     async (job: Job<EmailJobData>) => {
       const { type, email, data } = job.data;
-      
+
       console.log(`[Email Worker] Processing ${type} email for ${email}`);
-      
+
       try {
         switch (type) {
           case 'verification':
             await sendVerificationEmail(email, data.token, data.name);
             break;
-            
+
           case 'welcome':
             await sendWelcomeEmail(email, data.name);
             break;
-            
+
           case 'password-reset':
             await sendPasswordResetEmail(email, data.token, data.name);
             break;
-            
+
           case 'subscription':
             await sendSubscriptionEmail(email, data.planName, data.amount, data.nextBillingDate);
             break;
-            
+
           case 'payment-reminder':
             await sendPaymentReminderEmail(email, data.planName, data.amount, data.dueDate);
             break;
-            
+
           case 'password-changed':
             await sendPasswordChangedEmail(email);
             break;
-            
+
           default:
             console.warn(`[Email Worker] Unknown email type: ${type}`);
         }
-        
+
         console.log(`[Email Worker] Successfully sent ${type} email to ${email}`);
         return { success: true };
       } catch (error) {
@@ -111,9 +111,9 @@ export const startPaymentWorker = (): Worker | null => {
     QUEUE_NAMES.PAYMENT,
     async (job: Job<PaymentJobData>) => {
       const { type, paymentId, data } = job.data;
-      
+
       console.log(`[Payment Worker] Processing ${type} for payment ${paymentId}`);
-      
+
       try {
         switch (type) {
           case 'process-payment':
@@ -122,40 +122,40 @@ export const startPaymentWorker = (): Worker | null => {
               where: { id: paymentId },
               include: { user: true, subscription: true },
             });
-            
+
             if (!payment) {
               throw new Error(`Payment ${paymentId} not found`);
             }
-            
+
             // Update payment status
             await db.payment.update({
               where: { id: paymentId },
               data: { status: 'completed' },
             });
-            
+
             console.log(`[Payment Worker] Payment ${paymentId} processed`);
             break;
-            
+
           case 'refund':
             // Handle refund
             await db.payment.update({
               where: { id: paymentId },
               data: { status: 'refunded' },
             });
-            
+
             console.log(`[Payment Worker] Payment ${paymentId} refunded`);
             break;
-            
+
           case 'subscription-renewal':
             // Handle subscription renewal
             const subscription = await db.subscription.findFirst({
               where: { id: data.subscriptionId },
             });
-            
+
             if (subscription) {
               const newPeriodEnd = new Date(subscription.currentPeriodEnd);
               newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
-              
+
               await db.subscription.update({
                 where: { id: subscription.id },
                 data: {
@@ -163,15 +163,15 @@ export const startPaymentWorker = (): Worker | null => {
                   currentPeriodEnd: newPeriodEnd,
                 },
               });
-              
+
               console.log(`[Payment Worker] Subscription renewed`);
             }
             break;
-            
+
           default:
             console.warn(`[Payment Worker] Unknown payment type: ${type}`);
         }
-        
+
         return { success: true };
       } catch (error) {
         console.error(`[Payment Worker] Failed to process ${type}:`, error);
@@ -208,9 +208,9 @@ export const startSubscriptionWorker = (): Worker | null => {
     QUEUE_NAMES.SUBSCRIPTION,
     async (job: Job<SubscriptionJobData>) => {
       const { type, subscriptionId, data } = job.data;
-      
+
       console.log(`[Subscription Worker] Processing ${type} for subscription ${subscriptionId}`);
-      
+
       try {
         switch (type) {
           case 'check-expiration':
@@ -218,24 +218,24 @@ export const startSubscriptionWorker = (): Worker | null => {
               where: { id: subscriptionId },
               include: { user: true },
             });
-            
+
             if (subscription && subscription.currentPeriodEnd < new Date()) {
               await db.subscription.update({
                 where: { id: subscriptionId },
                 data: { status: 'expired' },
               });
-              
+
               console.log(`[Subscription Worker] Subscription ${subscriptionId} expired`);
             }
             break;
-            
+
           case 'send-reminder':
             // Send renewal reminder
             const sub = await db.subscription.findUnique({
               where: { id: subscriptionId },
               include: { user: true, plan: true },
             });
-            
+
             if (sub && sub.user.email) {
               await sendPaymentReminderEmail(
                 sub.user.email,
@@ -245,14 +245,14 @@ export const startSubscriptionWorker = (): Worker | null => {
               );
             }
             break;
-            
+
           case 'update-usage':
             // Update usage stats
             const subForUsage = await db.subscription.findUnique({
               where: { id: subscriptionId },
               include: { usage: true },
             });
-            
+
             if (subForUsage?.usage) {
               await db.usage.update({
                 where: { id: subForUsage.usage.id },
@@ -260,11 +260,11 @@ export const startSubscriptionWorker = (): Worker | null => {
               });
             }
             break;
-            
+
           default:
             console.warn(`[Subscription Worker] Unknown subscription type: ${type}`);
         }
-        
+
         return { success: true };
       } catch (error) {
         console.error(`[Subscription Worker] Failed to process ${type}:`, error);
@@ -301,9 +301,9 @@ export const startVideoWorker = (): Worker | null => {
     QUEUE_NAMES.VIDEO,
     async (job: Job<VideoJobData>) => {
       const { type, videoId, data } = job.data;
-      
+
       console.log(`[Video Worker] Processing ${type} for video ${videoId}`);
-      
+
       try {
         switch (type) {
           case 'upload':
@@ -312,21 +312,21 @@ export const startVideoWorker = (): Worker | null => {
               where: { id: videoId },
               include: { channel: true },
             });
-            
+
             if (!video) {
               throw new Error(`Video ${videoId} not found`);
             }
-            
+
             // Update video status
             await db.video.update({
               where: { id: videoId },
               data: { status: 'processing' },
             });
-            
+
             // YouTube upload logic would go here
             console.log(`[Video Worker] Video ${videoId} upload initiated`);
             break;
-            
+
           case 'process':
             // Handle video processing
             await db.video.update({
@@ -334,16 +334,16 @@ export const startVideoWorker = (): Worker | null => {
               data: { status: data.status || 'processing' },
             });
             break;
-            
+
           case 'thumbnail':
             // Handle thumbnail generation
             console.log(`[Video Worker] Thumbnail generation for video ${videoId}`);
             break;
-            
+
           default:
             console.warn(`[Video Worker] Unknown video type: ${type}`);
         }
-        
+
         return { success: true };
       } catch (error) {
         console.error(`[Video Worker] Failed to process ${type}:`, error);
@@ -373,14 +373,14 @@ export const startVideoWorker = (): Worker | null => {
 };
 
 // Start all workers
-export const startAllWorkers = () => {
+export const startWorkers = () => {
   const workers = {
     email: startEmailWorker(),
     payment: startPaymentWorker(),
     subscription: startSubscriptionWorker(),
     video: startVideoWorker(),
   };
-  
+
   console.log('[Workers] All workers initialized');
   return workers;
 };
@@ -388,8 +388,8 @@ export const startAllWorkers = () => {
 // Graceful shutdown helper
 export const stopWorkers = async (workers: { email: Worker | null; payment: Worker | null; subscription: Worker | null; video: Worker | null }) => {
   const activeWorkers = Object.values(workers).filter((w): w is Worker => w !== null);
-  
+
   await Promise.all(activeWorkers.map(w => w.close()));
-  
+
   console.log('[Workers] All workers stopped');
 };

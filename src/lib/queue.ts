@@ -10,7 +10,7 @@ const createRedisConnection = () => {
     console.log('[Queue] Redis URL not configured, using in-memory fallback');
     return null;
   }
-  
+
   return new Redis(REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
@@ -115,7 +115,7 @@ export const addEmailJob = async (data: EmailJobData, options?: { delay?: number
     console.log('[Queue] Email queue not available, processing synchronously');
     return null;
   }
-  
+
   return queue.add(data.type, data, {
     delay: options?.delay,
     attempts: 3,
@@ -129,7 +129,7 @@ export const addPaymentJob = async (data: PaymentJobData, options?: { delay?: nu
     console.log('[Queue] Payment queue not available');
     return null;
   }
-  
+
   return queue.add(data.type, data, {
     delay: options?.delay,
     attempts: 3,
@@ -143,7 +143,7 @@ export const addSubscriptionJob = async (data: SubscriptionJobData, options?: { 
     console.log('[Queue] Subscription queue not available');
     return null;
   }
-  
+
   return queue.add(data.type, data, {
     delay: options?.delay,
     attempts: 3,
@@ -157,7 +157,7 @@ export const addVideoJob = async (data: VideoJobData, options?: { delay?: number
     console.log('[Queue] Video queue not available');
     return null;
   }
-  
+
   return queue.add(data.type, data, {
     delay: options?.delay,
     attempts: 5,
@@ -168,16 +168,57 @@ export const addVideoJob = async (data: VideoJobData, options?: { delay?: number
 // Graceful shutdown
 export const closeQueues = async () => {
   const queues = [emailQueue, paymentQueue, subscriptionQueue, videoQueue];
-  
+
   await Promise.all(
     queues
       .filter(q => q !== null)
       .map(q => q!.close())
   );
-  
+
   if (redisConnection) {
     await redisConnection.quit();
   }
-  
+
   console.log('[Queue] All queues closed');
+};
+
+// Get queue statistics
+export const getQueueStats = async () => {
+  const stats: Record<string, any> = {};
+
+  const queues = [
+    { name: 'email', queue: emailQueue },
+    { name: 'payment', queue: paymentQueue },
+    { name: 'subscription', queue: subscriptionQueue },
+    { name: 'video', queue: videoQueue },
+  ];
+
+  for (const { name, queue } of queues) {
+    if (queue) {
+      try {
+        const [waiting, active, completed, failed, delayed] = await Promise.all([
+          queue.getWaitingCount(),
+          queue.getActiveCount(),
+          queue.getCompletedCount(),
+          queue.getFailedCount(),
+          queue.getDelayedCount(),
+        ]);
+
+        stats[name] = {
+          waiting,
+          active,
+          completed,
+          failed,
+          delayed,
+          total: waiting + active + completed + failed + delayed,
+        };
+      } catch (error) {
+        stats[name] = { error: 'Failed to get stats' };
+      }
+    } else {
+      stats[name] = { status: 'not initialized' };
+    }
+  }
+
+  return stats;
 };
