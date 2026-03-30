@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
-  Youtube,
   Play,
   Calendar,
   Zap,
@@ -17,42 +16,65 @@ import {
   Menu,
   X,
   Loader2,
+  Youtube,
+  Upload,
+  Clock,
+  Users,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 
+// ============================================
+// FEATURE DATA
+// ============================================
 const features = [
   {
-    icon: <Youtube className="h-6 w-6 sm:h-8 sm:w-8 text-red-500" />,
+    icon: <Youtube className="h-6 w-6" />,
     title: 'YouTube Integration',
-    description: 'Connect multiple YouTube channels and manage all your uploads from one dashboard.',
+    description: 'Connect multiple YouTube channels and manage all your uploads from one unified dashboard.',
+    color: 'text-red-500',
+    bg: 'bg-red-50 dark:bg-red-950/30',
   },
   {
-    icon: <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />,
+    icon: <Calendar className="h-6 w-6" />,
     title: 'Smart Scheduling',
-    description: 'Schedule videos to upload at optimal times. Set daily, weekly, or custom schedules.',
+    description: 'Schedule videos at optimal times with daily, weekly, or custom frequency options.',
+    color: 'text-blue-500',
+    bg: 'bg-blue-50 dark:bg-blue-950/30',
   },
   {
-    icon: <Play className="h-6 w-6 sm:h-8 sm:w-8 text-green-500" />,
+    icon: <Upload className="h-6 w-6" />,
     title: 'Google Drive Import',
     description: 'Import videos directly from Google Drive. No need to download and re-upload.',
+    color: 'text-green-500',
+    bg: 'bg-green-50 dark:bg-green-950/30',
   },
   {
-    icon: <Zap className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-500" />,
-    title: 'AI-Powered',
+    icon: <Sparkles className="h-6 w-6" />,
+    title: 'AI-Powered Titles',
     description: 'Generate titles, descriptions, and tags using AI. Save hours of manual work.',
+    color: 'text-purple-500',
+    bg: 'bg-purple-50 dark:bg-purple-950/30',
   },
   {
-    icon: <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-purple-500" />,
+    icon: <Shield className="h-6 w-6" />,
     title: 'Secure & Reliable',
     description: 'Enterprise-grade security with 99.9% uptime. Your data is always safe.',
+    color: 'text-teal-500',
+    bg: 'bg-teal-50 dark:bg-teal-950/30',
   },
   {
-    icon: <Globe className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-500" />,
+    icon: <Globe className="h-6 w-6" />,
     title: 'Multi-Platform',
     description: 'Coming soon: Upload to Instagram, Facebook, and more platforms simultaneously.',
+    color: 'text-orange-500',
+    bg: 'bg-orange-50 dark:bg-orange-950/30',
   },
 ];
 
+// ============================================
+// PRICING DATA
+// ============================================
 const pricingPlans = [
   {
     name: 'Free',
@@ -67,6 +89,7 @@ const pricingPlans = [
       'Email support',
     ],
     popular: false,
+    buttonText: 'Start Free',
   },
   {
     name: 'Pro',
@@ -83,6 +106,7 @@ const pricingPlans = [
       'Video analytics',
     ],
     popular: true,
+    buttonText: 'Get Started',
   },
   {
     name: 'Premium',
@@ -99,30 +123,50 @@ const pricingPlans = [
       'Dedicated support',
     ],
     popular: false,
+    buttonText: 'Contact Sales',
   },
 ];
 
+// ============================================
+// TESTIMONIAL DATA
+// ============================================
 const testimonials = [
   {
     name: 'Rajesh Kumar',
     role: 'Tech YouTuber',
     content: 'GPMart Studio saved me 10+ hours every week. The scheduling feature is a game-changer!',
     rating: 5,
+    avatar: 'RK',
   },
   {
     name: 'Priya Sharma',
     role: 'Content Creator',
     content: 'Finally, a tool that handles all my YouTube uploads. The AI title generation is amazing!',
     rating: 5,
+    avatar: 'PS',
   },
   {
     name: 'Amit Patel',
     role: 'Digital Marketer',
     content: 'Managing 5 YouTube channels was a nightmare. Now it takes just minutes. Highly recommended!',
     rating: 5,
+    avatar: 'AP',
   },
 ];
 
+// ============================================
+// STATS DATA
+// ============================================
+const stats = [
+  { label: 'Videos Uploaded', value: '10K+', icon: <Play className="h-5 w-5" /> },
+  { label: 'Active Users', value: '500+', icon: <Users className="h-5 w-5" /> },
+  { label: 'Uptime', value: '99.9%', icon: <Clock className="h-5 w-5" /> },
+  { label: 'Support', value: '24/7', icon: <Shield className="h-5 w-5" /> },
+];
+
+// ============================================
+// LANDING PAGE COMPONENT
+// ============================================
 export default function LandingPage() {
   const { status } = useSession();
   const router = useRouter();
@@ -136,15 +180,15 @@ export default function LandingPage() {
   }, [status, router]);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
+    const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -154,82 +198,114 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white overflow-x-hidden">
-      {/* Navigation */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-gray-900/95 backdrop-blur-md shadow-lg' : 'bg-gray-900/80 backdrop-blur-sm'
-      }`}>
-        <div className="max-w-7xl mx-auto px-1.5 sm:px-3 lg:px-4">
-          <div className="flex items-center justify-between h-12 sm:h-14 lg:h-16">
-            <Link href="/" className="flex items-center gap-1.5 sm:gap-2">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
-                <Youtube className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-white" />
+    <div className="min-h-screen bg-background">
+      {/* ============================================
+          NAVIGATION
+          ============================================ */}
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? 'glass border-b border-border/50 shadow-soft'
+            : 'bg-transparent'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 sm:h-20">
+            {/* Logo */}
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg shadow-primary/25 group-hover:shadow-primary/40 transition-shadow">
+                <Youtube className="h-5 w-5 sm:h-5.5 sm:w-5.5 text-white" />
               </div>
-              <span className="text-sm sm:text-base lg:text-lg font-bold text-white">GPMart Studio</span>
+              <span className="text-lg sm:text-xl font-bold text-foreground">
+                GPMart Studio
+              </span>
             </Link>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-3 lg:gap-4">
-              <a href="#features" className="text-white/80 hover:text-white transition-colors text-sm">Features</a>
-              <a href="#pricing" className="text-white/80 hover:text-white transition-colors text-sm">Pricing</a>
-              <a href="#testimonials" className="text-white/80 hover:text-white transition-colors text-sm">Reviews</a>
+            <div className="hidden md:flex items-center gap-8">
+              <a
+                href="#features"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Features
+              </a>
+              <a
+                href="#pricing"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Pricing
+              </a>
+              <a
+                href="#testimonials"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Reviews
+              </a>
+            </div>
+
+            {/* Desktop Auth Buttons */}
+            <div className="hidden md:flex items-center gap-3">
               <Link href="/login">
-                <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10 text-sm h-8">Login</Button>
+                <Button variant="ghost" size="default" className="text-sm">
+                  Login
+                </Button>
               </Link>
               <Link href="/signup">
-                <Button className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-sm h-8">
-                  Get Started <ArrowRight className="ml-1 h-3 w-3" />
+                <Button className="gradient-primary gradient-primary-hover text-white shadow-lg shadow-primary/25 btn-press">
+                  Get Started
+                  <ArrowRight className="ml-1.5 h-4 w-4" />
                 </Button>
               </Link>
             </div>
 
             {/* Mobile Menu Button */}
             <button
-              className="md:hidden p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white"
+              className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
             >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {mobileMenuOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
             </button>
           </div>
         </div>
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-gray-900/98 backdrop-blur-md border-t border-gray-800">
-            <div className="px-2 py-3 space-y-2">
+          <div className="md:hidden glass border-t border-border/50 animate-fade-in">
+            <div className="px-4 py-4 space-y-3">
               <a
                 href="#features"
-                className="block text-white/80 hover:text-white py-1.5 text-sm px-2"
+                className="block py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Features
               </a>
               <a
                 href="#pricing"
-                className="block text-white/80 hover:text-white py-1.5 text-sm px-2"
+                className="block py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Pricing
               </a>
               <a
                 href="#testimonials"
-                className="block text-white/80 hover:text-white py-1.5 text-sm px-2"
+                className="block py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Reviews
               </a>
-              <div className="flex gap-2 pt-2 px-1">
-                <Link
-                  href="/login"
-                  className="flex-1"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Button variant="outline" className="w-full border-gray-600 text-white hover:bg-white/5 text-sm h-9">
+              <div className="pt-3 border-t border-border flex gap-3">
+                <Link href="/login" className="flex-1">
+                  <Button variant="outline" className="w-full">
                     Login
                   </Button>
                 </Link>
-                <Link href="/signup" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
-                  <Button className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-sm h-9">
+                <Link href="/signup" className="flex-1">
+                  <Button className="w-full gradient-primary text-white">
                     Get Started
                   </Button>
                 </Link>
@@ -239,183 +315,254 @@ export default function LandingPage() {
         )}
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-16 sm:pt-20 lg:pt-24 pb-6 sm:pb-10 lg:pb-14 px-1.5 sm:px-2">
+      {/* ============================================
+          HERO SECTION
+          ============================================ */}
+      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 overflow-hidden">
+        {/* Background Gradient */}
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-teal-500/5" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-primary/10 rounded-full blur-3xl opacity-30" />
+        </div>
+
         <div className="max-w-7xl mx-auto text-center">
           {/* Badge */}
-          <div className="inline-flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 mb-3 sm:mb-4 lg:mb-6">
-            <Zap className="h-3 w-3 text-red-400" />
-            <span className="text-[10px] sm:text-xs text-red-400 font-medium">Automate your YouTube workflow</span>
+          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-6 animate-fade-in">
+            <Zap className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-primary">
+              Automate your YouTube workflow
+            </span>
           </div>
-          
+
           {/* Heading */}
-          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold mb-2 sm:mb-3 lg:mb-4 leading-tight px-1">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
             Upload Videos on
-            <span className="block sm:inline mt-0.5 sm:mt-0 sm:ml-1.5 bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent"> Autopilot</span>
+            <span className="block mt-2 text-gradient">Autopilot</span>
           </h1>
-          
+
           {/* Subheading */}
-          <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-400 max-w-2xl mx-auto mb-4 sm:mb-6 lg:mb-8 px-1 leading-relaxed">
-            Schedule YouTube uploads, manage multiple channels, and grow your audience — all from one powerful dashboard.
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+            Schedule YouTube uploads, manage multiple channels, and grow your
+            audience — all from one powerful dashboard.
           </p>
-          
-          {/* CTA Buttons - Side by side on all screens */}
-          <div className="flex flex-row gap-2 sm:gap-3 justify-center items-center max-w-md mx-auto px-1">
-            <Link href="/signup" className="flex-1 sm:flex-none">
-              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 !text-white text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 shadow-xl shadow-red-500/25">
-                Start Free Trial <ArrowRight className="ml-1.5 h-4 w-4" />
+
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in" style={{ animationDelay: '0.3s' }}>
+            <Link href="/signup">
+              <Button
+                size="lg"
+                className="gradient-primary gradient-primary-hover text-white shadow-xl shadow-primary/25 btn-press h-12 sm:h-14 px-8 text-base"
+              >
+                Start Free Trial
+                <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/login" className="flex-1 sm:flex-none">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto border-gray-600 !text-white hover:bg-white/10 hover:!text-white text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 bg-white/5">
-                Watch Demo <Play className="ml-1.5 h-4 w-4" />
+            <Link href="/login">
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 sm:h-14 px-8 text-base"
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Watch Demo
               </Button>
             </Link>
           </div>
-          
+
           {/* Trust Text */}
-          <p className="text-gray-500 mt-3 sm:mt-4 text-[10px] sm:text-xs">
+          <p className="mt-6 text-sm text-muted-foreground animate-fade-in" style={{ animationDelay: '0.4s' }}>
             No credit card required • Free plan available • Cancel anytime
           </p>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-3 sm:py-5 lg:py-6 border-y border-gray-800">
-        <div className="max-w-7xl mx-auto px-1.5 sm:px-2">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 sm:gap-3 lg:gap-4 text-center">
-            <div className="p-1 sm:p-2">
-              <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">10K+</div>
-              <div className="text-gray-400 text-[10px] sm:text-xs mt-0.5">Videos Uploaded</div>
-            </div>
-            <div className="p-1 sm:p-2">
-              <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">500+</div>
-              <div className="text-gray-400 text-[10px] sm:text-xs mt-0.5">Active Users</div>
-            </div>
-            <div className="p-1 sm:p-2">
-              <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">99.9%</div>
-              <div className="text-gray-400 text-[10px] sm:text-xs mt-0.5">Uptime</div>
-            </div>
-            <div className="p-1 sm:p-2">
-              <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">24/7</div>
-              <div className="text-gray-400 text-[10px] sm:text-xs mt-0.5">Support</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-6 sm:py-10 lg:py-14 px-1.5 sm:px-2">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-4 sm:mb-8 lg:mb-10">
-            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-1.5 sm:mb-2 lg:mb-3">
-              Everything You Need to <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">Grow</span>
-            </h2>
-            <p className="text-gray-400 max-w-xl mx-auto text-[10px] sm:text-xs lg:text-sm">
-              Powerful features designed for content creators, marketers, and agencies.
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
-            {features.map((feature, index) => (
+      {/* ============================================
+          STATS SECTION
+          ============================================ */}
+      <section className="py-12 sm:py-16 border-y border-border/50 bg-muted/30">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+            {stats.map((stat, index) => (
               <div
                 key={index}
-                className="bg-gray-800/60 border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-red-500/5 rounded-lg sm:rounded-xl p-3 sm:p-4"
+                className="text-center animate-fade-in"
+                style={{ animationDelay: `${0.1 * index}s` }}
               >
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gray-700/60 flex items-center justify-center mb-2 sm:mb-3">
-                  {feature.icon}
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-background shadow-soft mb-3 text-primary">
+                  {stat.icon}
                 </div>
-                <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">{feature.title}</h3>
-                <p className="text-gray-400 text-[10px] sm:text-xs leading-relaxed">{feature.description}</p>
+                <div className="text-2xl sm:text-3xl font-bold text-foreground">
+                  {stat.value}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {stat.label}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-6 sm:py-10 lg:py-14 px-1.5 sm:px-2 bg-gray-800/20">
+      {/* ============================================
+          FEATURES SECTION
+          ============================================ */}
+      <section id="features" className="py-16 sm:py-24 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-4 sm:mb-8 lg:mb-10">
-            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-1.5 sm:mb-2 lg:mb-3">
-              How It <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">Works</span>
+          {/* Section Header */}
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Everything You Need to{' '}
+              <span className="text-gradient">Grow</span>
             </h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              Powerful features designed for content creators, marketers, and
+              agencies.
+            </p>
           </div>
-          
-          <div className="grid md:grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
-            <div className="text-center">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-lg sm:text-xl font-bold mx-auto mb-2 sm:mb-3 shadow-lg shadow-red-500/25">
-                1
+
+          {/* Features Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                className="group p-6 rounded-2xl bg-card border border-border/50 hover:border-primary/30 hover:shadow-soft-lg transition-all duration-300 card-hover"
+              >
+                <div
+                  className={`w-12 h-12 rounded-xl ${feature.bg} flex items-center justify-center mb-4 ${feature.color} group-hover:scale-110 transition-transform`}
+                >
+                  {feature.icon}
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-foreground">
+                  {feature.title}
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {feature.description}
+                </p>
               </div>
-              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">Connect</h3>
-              <p className="text-gray-400 text-[10px] sm:text-xs">Link your YouTube channels and Google Drive in seconds.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-lg sm:text-xl font-bold mx-auto mb-2 sm:mb-3 shadow-lg shadow-red-500/25">
-                2
-              </div>
-              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">Upload</h3>
-              <p className="text-gray-400 text-[10px] sm:text-xs">Add videos from your Drive or upload directly to the platform.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-lg sm:text-xl font-bold mx-auto mb-2 sm:mb-3 shadow-lg shadow-red-500/25">
-                3
-              </div>
-              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 !text-white">Schedule</h3>
-              <p className="text-gray-400 text-[10px] sm:text-xs">Set your schedule and let GPMart Studio handle the rest.</p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-6 sm:py-10 lg:py-14 px-1.5 sm:px-2">
+      {/* ============================================
+          HOW IT WORKS SECTION
+          ============================================ */}
+      <section className="py-16 sm:py-24 px-4 bg-muted/30">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-4 sm:mb-8 lg:mb-10">
-            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-1.5 sm:mb-2 lg:mb-3">
-              Simple, Transparent <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">Pricing</span>
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              How It <span className="text-gradient">Works</span>
             </h2>
-            <p className="text-gray-400 max-w-xl mx-auto text-[10px] sm:text-xs lg:text-sm">
-              Choose the plan that fits your needs. All plans include core features.
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              Get started in minutes with our simple 3-step process.
             </p>
           </div>
-          
-          <div className="grid md:grid-cols-3 gap-2 sm:gap-3 lg:gap-4 max-w-5xl mx-auto">
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                step: '1',
+                title: 'Connect',
+                description: 'Link your YouTube channels and Google Drive in seconds.',
+              },
+              {
+                step: '2',
+                title: 'Upload',
+                description: 'Add videos from your Drive or upload directly to the platform.',
+              },
+              {
+                step: '3',
+                title: 'Schedule',
+                description: 'Set your schedule and let GPMart Studio handle the rest.',
+              },
+            ].map((item, index) => (
+              <div
+                key={index}
+                className="relative text-center animate-fade-in"
+                style={{ animationDelay: `${0.1 * index}s` }}
+              >
+                {/* Connector Line */}
+                {index < 2 && (
+                  <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-primary/50 to-transparent" />
+                )}
+
+                <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center text-2xl font-bold text-white mx-auto mb-4 shadow-lg shadow-primary/25">
+                  {item.step}
+                </div>
+                <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
+                <p className="text-muted-foreground text-sm">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================
+          PRICING SECTION
+          ============================================ */}
+      <section id="pricing" className="py-16 sm:py-24 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Simple, Transparent{' '}
+              <span className="text-gradient">Pricing</span>
+            </h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              Choose the plan that fits your needs. All plans include core
+              features.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {pricingPlans.map((plan, index) => (
-              <div 
-                key={index} 
-                className={`relative bg-gray-800/60 border rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 ${
-                  plan.popular ? 'border-red-500/50 md:scale-105 shadow-xl shadow-red-500/10' : 'border-gray-700/50'
+              <div
+                key={index}
+                className={`relative p-6 sm:p-8 rounded-2xl bg-card border transition-all duration-300 ${
+                  plan.popular
+                    ? 'border-primary/50 shadow-xl shadow-primary/10 scale-105 z-10'
+                    : 'border-border/50 hover:border-primary/30 hover:shadow-soft-lg'
                 }`}
               >
+                {/* Popular Badge */}
                 {plan.popular && (
-                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] sm:text-xs font-medium px-2.5 sm:px-3 py-0.5 rounded-full shadow-lg">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 gradient-primary text-white text-xs font-semibold px-4 py-1 rounded-full shadow-lg">
                     Most Popular
                   </div>
                 )}
-                <h3 className="text-base sm:text-lg lg:text-xl font-bold !text-white">{plan.name}</h3>
-                <p className="text-gray-400 text-[10px] sm:text-xs mt-0.5">{plan.description}</p>
-                <div className="mt-2 sm:mt-3 mb-2 sm:mb-3">
-                  <span className="text-xl sm:text-2xl lg:text-3xl font-bold !text-white">{plan.price}</span>
-                  <span className="text-gray-400 text-[10px] sm:text-xs"> /{plan.period}</span>
+
+                {/* Plan Header */}
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
+                  <p className="text-sm text-muted-foreground">{plan.description}</p>
                 </div>
-                <ul className="space-y-1 sm:space-y-1.5 mb-3 sm:mb-4">
+
+                {/* Price */}
+                <div className="mb-6">
+                  <span className="text-4xl font-bold">{plan.price}</span>
+                  <span className="text-muted-foreground ml-1">/{plan.period}</span>
+                </div>
+
+                {/* Features */}
+                <ul className="space-y-3 mb-8">
                   {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-1.5 text-gray-300 text-[10px] sm:text-xs">
-                      <Check className="h-3 w-3 sm:h-4 sm:w-4 text-green-500 flex-shrink-0" />
-                      {feature}
+                    <li key={i} className="flex items-start gap-2.5 text-sm">
+                      <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                      <span className="text-muted-foreground">{feature}</span>
                     </li>
                   ))}
                 </ul>
-                <Link href="/signup">
-                  <Button 
-                    className={`w-full text-xs sm:text-sm ${
-                      plan.popular 
-                        ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-lg shadow-red-500/25' 
-                        : 'bg-gray-700 hover:bg-gray-600'
+
+                {/* CTA */}
+                <Link href="/signup" className="block">
+                  <Button
+                    className={`w-full btn-press ${
+                      plan.popular
+                        ? 'gradient-primary gradient-primary-hover text-white shadow-lg shadow-primary/25'
+                        : ''
                     }`}
+                    variant={plan.popular ? 'default' : 'outline'}
                   >
-                    Get Started
+                    {plan.buttonText}
                   </Button>
                 </Link>
               </div>
@@ -424,27 +571,52 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-6 sm:py-10 lg:py-14 px-1.5 sm:px-2 bg-gray-800/20">
+      {/* ============================================
+          TESTIMONIALS SECTION
+          ============================================ */}
+      <section id="testimonials" className="py-16 sm:py-24 px-4 bg-muted/30">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-4 sm:mb-8 lg:mb-10">
-            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-1.5 sm:mb-2 lg:mb-3">
-              Loved by <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">Creators</span>
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Loved by <span className="text-gradient">Creators</span>
             </h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              See what our users are saying about GPMart Studio.
+            </p>
           </div>
-          
-          <div className="grid md:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
+
+          <div className="grid md:grid-cols-3 gap-6">
             {testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-gray-800/60 border border-gray-700/50 rounded-lg sm:rounded-xl p-3 sm:p-4">
-                <div className="flex gap-0.5 mb-2 sm:mb-3">
+              <div
+                key={index}
+                className="p-6 rounded-2xl bg-card border border-border/50 shadow-soft"
+              >
+                {/* Stars */}
+                <div className="flex gap-1 mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500 fill-yellow-500" />
+                    <Star
+                      key={i}
+                      className="h-4 w-4 text-amber-400 fill-amber-400"
+                    />
                   ))}
                 </div>
-                <p className="text-gray-300 mb-2 sm:mb-3 text-[10px] sm:text-xs leading-relaxed">"{testimonial.content}"</p>
-                <div>
-                  <p className="font-semibold !text-white text-xs sm:text-sm">{testimonial.name}</p>
-                  <p className="text-gray-500 text-[10px] sm:text-xs">{testimonial.role}</p>
+
+                {/* Quote */}
+                <p className="text-muted-foreground mb-4 leading-relaxed">
+                  "{testimonial.content}"
+                </p>
+
+                {/* Author */}
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-semibold text-sm">
+                    {testimonial.avatar}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{testimonial.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {testimonial.role}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -452,63 +624,129 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-6 sm:py-10 lg:py-14 px-1.5 sm:px-2">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-lg sm:rounded-xl py-5 sm:py-8 lg:py-10 px-3 sm:px-5">
-            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-1.5 sm:mb-2 lg:mb-3 !text-white">
+      {/* ============================================
+          CTA SECTION
+          ============================================ */}
+      <section className="py-16 sm:py-24 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="relative p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-teal-500/10 border border-primary/20 text-center overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 -z-10 opacity-30">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-500/20 rounded-full blur-3xl" />
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
               Ready to Save 10+ Hours Every Week?
             </h2>
-            <p className="text-gray-400 mb-3 sm:mb-5 lg:mb-6 text-[10px] sm:text-xs lg:text-sm">
-              Join 500+ creators who are automating their YouTube workflow with GPMart Studio.
+            <p className="text-muted-foreground max-w-xl mx-auto mb-8">
+              Join 500+ creators who are automating their YouTube workflow with
+              GPMart Studio.
             </p>
             <Link href="/signup">
-              <Button size="lg" className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-sm sm:text-base px-5 sm:px-6 py-2.5 sm:py-3 shadow-xl shadow-red-500/25">
-                Start Free Trial <ArrowRight className="ml-1.5 h-4 w-4" />
+              <Button
+                size="lg"
+                className="gradient-primary gradient-primary-hover text-white shadow-xl shadow-primary/25 btn-press h-12 sm:h-14 px-8"
+              >
+                Start Free Trial
+                <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-5 sm:py-6 px-1.5 sm:px-2 border-t border-gray-800">
+      {/* ============================================
+          FOOTER
+          ============================================ */}
+      <footer className="py-12 px-4 border-t border-border/50 bg-muted/30">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5 mb-3 sm:mb-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+            {/* Brand */}
             <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-1.5 mb-2 sm:mb-3">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
-                  <Youtube className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+              <Link href="/" className="flex items-center gap-2.5 mb-4">
+                <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center">
+                  <Youtube className="h-5 w-5 text-white" />
                 </div>
-                <span className="font-bold text-xs sm:text-sm">GPMart Studio</span>
-              </div>
-              <p className="text-gray-400 text-[10px] sm:text-xs leading-relaxed">
+                <span className="font-bold">GPMart Studio</span>
+              </Link>
+              <p className="text-sm text-muted-foreground leading-relaxed">
                 Automate your YouTube workflow and grow your channel faster.
               </p>
             </div>
+
+            {/* Product */}
             <div>
-              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm !text-white">Product</h4>
-              <ul className="space-y-1 text-gray-400 text-[10px] sm:text-xs">
-                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><Link href="/login" className="hover:text-white transition-colors">Login</Link></li>
+              <h4 className="font-semibold mb-3 text-sm">Product</h4>
+              <ul className="space-y-2">
+                <li>
+                  <a
+                    href="#features"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Features
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#pricing"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Pricing
+                  </a>
+                </li>
+                <li>
+                  <Link
+                    href="/login"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Login
+                  </Link>
+                </li>
               </ul>
             </div>
+
+            {/* Legal */}
             <div>
-              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm !text-white">Legal</h4>
-              <ul className="space-y-1 text-gray-400 text-[10px] sm:text-xs">
-                <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+              <h4 className="font-semibold mb-3 text-sm">Legal</h4>
+              <ul className="space-y-2">
+                <li>
+                  <Link
+                    href="/privacy"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/terms"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Terms of Service
+                  </Link>
+                </li>
               </ul>
             </div>
+
+            {/* Support */}
             <div>
-              <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm !text-white">Support</h4>
-              <ul className="space-y-1 text-gray-400 text-[10px] sm:text-xs">
-                <li><a href="mailto:support@gpmart.in" className="hover:text-white transition-colors">support@gpmart.in</a></li>
+              <h4 className="font-semibold mb-3 text-sm">Support</h4>
+              <ul className="space-y-2">
+                <li>
+                  <a
+                    href="mailto:support@gpmart.in"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    support@gpmart.in
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
-          <div className="text-center text-gray-500 text-[10px] sm:text-xs pt-3 sm:pt-4 border-t border-gray-800">
+
+          {/* Copyright */}
+          <div className="pt-8 border-t border-border/50 text-center text-sm text-muted-foreground">
             © {new Date().getFullYear()} GPMart Studio. All rights reserved.
           </div>
         </div>

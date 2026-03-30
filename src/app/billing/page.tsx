@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Crown,
   Zap,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -74,14 +75,12 @@ export default function BillingPage() {
 
   const loadData = async () => {
     try {
-      // Load subscription
       const subRes = await fetch('/api/subscription');
       const subData = await subRes.json();
       if (subData.subscription) {
         setSubscription(subData.subscription);
       }
 
-      // Load payments
       const payRes = await fetch('/api/payments');
       if (payRes.ok) {
         const payData = await payRes.json();
@@ -139,96 +138,96 @@ export default function BillingPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-emerald-500" />;
       case 'pending':
-        return <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500" />;
+        return <Clock className="h-4 w-4 text-amber-500" />;
       case 'failed':
-        return <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-red-500" />;
       default:
-        return <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />;
+        return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge className="bg-green-500 text-[9px] sm:text-[10px]">Active</Badge>;
+        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Active</Badge>;
       case 'trialing':
-        return <Badge className="bg-blue-500 text-[9px] sm:text-[10px]">Trial</Badge>;
+        return <Badge className="bg-primary/10 text-primary border-primary/20">Trial</Badge>;
       case 'cancelled':
-        return <Badge variant="destructive" className="text-[9px] sm:text-[10px]">Cancelled</Badge>;
+        return <Badge variant="destructive">Cancelled</Badge>;
       case 'past_due':
-        return <Badge variant="destructive" className="text-[9px] sm:text-[10px]">Past Due</Badge>;
+        return <Badge variant="destructive">Past Due</Badge>;
       default:
-        return <Badge variant="secondary" className="text-[9px] sm:text-[10px]">{status}</Badge>;
+        return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
   if (loading || status === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 dark:from-slate-900 dark:to-slate-950 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 dark:from-slate-900 dark:to-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200 dark:border-slate-700">
-        <div className="max-w-5xl mx-auto px-2 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="hidden sm:inline">Back to Dashboard</span>
-              <span className="sm:hidden">Back</span>
-            </Link>
-          </div>
+      <header className="sticky top-0 z-30 glass border-b border-border/50 shadow-soft">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Dashboard</span>
+          </Link>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" />
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">Billing & Subscription</h1>
+      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <CreditCard className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Billing & Subscription</h1>
+            <p className="text-muted-foreground text-sm">Manage your subscription and payment history</p>
+          </div>
         </div>
 
         {/* Current Plan */}
-        <Card className="border-0 shadow-lg overflow-hidden">
+        <Card className="border-border/50 shadow-soft overflow-hidden">
           {subscription && (
-            <div className="h-1 sm:h-1.5 bg-gradient-to-r from-red-500 to-orange-500" />
+            <div className="h-1.5 gradient-primary" />
           )}
-          <CardHeader className="p-3 sm:p-4 lg:p-6">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
               {subscription ? (
                 <>
-                  <Crown className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
+                  <Crown className="h-5 w-5 text-amber-500" />
                   Current Plan
                 </>
               ) : (
                 <>
-                  <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+                  <Sparkles className="h-5 w-5 text-primary" />
                   Subscription
                 </>
               )}
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">
+            <CardDescription>
               {subscription ? 'Your subscription details and benefits' : 'Choose a plan to get started'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-3 sm:p-4 lg:p-6">
+          <CardContent>
             {subscription ? (
-              <div className="space-y-4 sm:space-y-6">
+              <div className="space-y-6">
                 {/* Plan Header */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-lg sm:text-xl font-bold">
-                        {subscription.plan.displayName}
-                      </h3>
+                      <h3 className="text-xl font-bold">{subscription.plan.displayName}</h3>
                       {getStatusBadge(subscription.status)}
                     </div>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       {subscription.cancelAtPeriodEnd 
                         ? `Cancels on ${formatDate(subscription.currentPeriodEnd)}`
                         : `Renews on ${formatDate(subscription.currentPeriodEnd)}`
@@ -239,7 +238,7 @@ export default function BillingPage() {
                     <Button 
                       variant="outline" 
                       onClick={() => router.push('/pricing')} 
-                      className="flex-1 sm:flex-none h-8 sm:h-9 text-xs sm:text-sm"
+                      className="flex-1 sm:flex-none h-10"
                     >
                       Change Plan
                     </Button>
@@ -248,10 +247,10 @@ export default function BillingPage() {
                         variant="ghost" 
                         onClick={handleCancelSubscription}
                         disabled={cancelling}
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 h-8 sm:h-9 text-xs sm:text-sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10"
                       >
                         {cancelling ? (
-                          <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           'Cancel'
                         )}
@@ -263,36 +262,36 @@ export default function BillingPage() {
                 <Separator />
 
                 {/* Plan Limits */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
-                  <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Videos/Month</p>
-                    <p className="text-base sm:text-xl font-bold text-blue-600 dark:text-blue-400">{subscription.plan.maxVideosPerMonth}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/10">
+                    <p className="text-xs text-muted-foreground mb-1">Videos/Month</p>
+                    <p className="text-xl font-bold text-primary">{subscription.plan.maxVideosPerMonth}</p>
                   </div>
-                  <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Channels</p>
-                    <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400">{subscription.plan.maxChannels}</p>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border border-emerald-500/10">
+                    <p className="text-xs text-muted-foreground mb-1">Channels</p>
+                    <p className="text-xl font-bold text-emerald-600">{subscription.plan.maxChannels}</p>
                   </div>
-                  <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Storage</p>
-                    <p className="text-base sm:text-xl font-bold text-purple-600 dark:text-purple-400">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/5 to-violet-500/10 border border-violet-500/10">
+                    <p className="text-xs text-muted-foreground mb-1">Storage</p>
+                    <p className="text-xl font-bold text-violet-600">
                       {subscription.plan.maxStorageMB >= 1024 
                         ? `${subscription.plan.maxStorageMB / 1024}GB` 
                         : `${subscription.plan.maxStorageMB}MB`
                       }
                     </p>
                   </div>
-                  <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">AI Credits</p>
-                    <p className="text-base sm:text-xl font-bold text-orange-600 dark:text-orange-400">{subscription.plan.aiCreditsPerMonth}</p>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/5 to-amber-500/10 border border-amber-500/10">
+                    <p className="text-xs text-muted-foreground mb-1">AI Credits</p>
+                    <p className="text-xl font-bold text-amber-600">{subscription.plan.aiCreditsPerMonth}</p>
                   </div>
                 </div>
 
                 {/* Trial Info */}
                 {subscription.trialEndsAt && (
-                  <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+                  <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
-                      <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      <p className="text-sm text-primary">
                         Trial ends on {formatDate(subscription.trialEndsAt)}
                       </p>
                     </div>
@@ -300,17 +299,17 @@ export default function BillingPage() {
                 )}
               </div>
             ) : (
-              <div className="text-center py-6 sm:py-8">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-purple-500" />
+              <div className="text-center py-8">
+                <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/25">
+                  <Crown className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="font-medium mb-1 sm:mb-2 text-sm sm:text-base">No active subscription</h3>
-                <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
+                <h3 className="font-semibold mb-1">No active subscription</h3>
+                <p className="text-sm text-muted-foreground mb-4">
                   Choose a plan to unlock all features
                 </p>
                 <Button 
                   onClick={() => router.push('/pricing')}
-                  className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 h-9 sm:h-10 text-xs sm:text-sm"
+                  className="gradient-primary text-white shadow-lg shadow-primary/25"
                 >
                   View Plans
                 </Button>
@@ -320,82 +319,76 @@ export default function BillingPage() {
         </Card>
 
         {/* Payment History */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="p-3 sm:p-4 lg:p-6">
-            <CardTitle className="text-base sm:text-lg">Payment History</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">
-              View your past payments and download invoices
-            </CardDescription>
+        <Card className="border-border/50 shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-lg">Payment History</CardTitle>
+            <CardDescription>View your past payments and download invoices</CardDescription>
           </CardHeader>
-          <CardContent className="p-3 sm:p-4 lg:p-6">
+          <CardContent>
             {payments.length > 0 ? (
-              <div className="space-y-2 sm:space-y-3">
+              <div className="space-y-3">
                 {payments.map((payment) => (
                   <div 
                     key={payment.id} 
-                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-gray-50 dark:bg-slate-800"
+                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl bg-secondary/50"
                   >
-                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        payment.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        payment.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
                       }`}>
                         {getStatusIcon(payment.status)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs sm:text-sm font-medium truncate">{formatDate(payment.createdAt)}</p>
-                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                        <p className="text-sm font-medium truncate">{formatDate(payment.createdAt)}</p>
+                        <p className="text-xs text-muted-foreground">
                           {payment.invoiceNumber || 'Processing...'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between w-full sm:w-auto gap-2 sm:gap-4">
+                    <div className="flex items-center justify-between w-full sm:w-auto gap-4">
                       <div className="text-right sm:text-left">
-                        <p className="text-sm sm:text-base font-bold">{formatCurrency(payment.amount, payment.currency)}</p>
+                        <p className="text-base font-bold">{formatCurrency(payment.amount, payment.currency)}</p>
                         {payment.gstAmount && (
-                          <p className="text-[9px] sm:text-[10px] text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             incl. GST: {formatCurrency(payment.gstAmount, payment.currency)}
                           </p>
                         )}
                       </div>
                       {payment.invoiceUrl ? (
-                        <Button variant="outline" size="sm" className="h-7 sm:h-8 text-[10px] sm:text-xs" asChild>
+                        <Button variant="outline" size="sm" className="h-8" asChild>
                           <a href={payment.invoiceUrl} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
+                            <Download className="h-3.5 w-3.5 mr-1.5" />
                             Invoice
-                            <ExternalLink className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-1" />
+                            <ExternalLink className="h-3 w-3 ml-1.5" />
                           </a>
                         </Button>
                       ) : (
-                        <span className="text-[10px] sm:text-xs text-muted-foreground">-</span>
+                        <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-6 sm:py-8">
-                <CreditCard className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground opacity-50" />
-                <p className="text-xs sm:text-sm text-muted-foreground">No payment history yet</p>
+              <div className="text-center py-8">
+                <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <p className="text-sm text-muted-foreground">No payment history yet</p>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Help Section */}
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <Card className="border-border/50 shadow-soft bg-gradient-to-br from-primary/5 to-emerald-500/5">
+          <CardContent className="p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h3 className="font-medium text-sm sm:text-base">Need help with billing?</h3>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+                <h3 className="font-semibold">Need help with billing?</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
                   Contact our support team for any billing related queries
                 </p>
               </div>
-              <Button 
-                variant="outline" 
-                className="h-8 sm:h-9 text-[10px] sm:text-xs"
-                asChild
-              >
+              <Button variant="outline" className="h-10" asChild>
                 <a href="mailto:support@gpmart.in">
                   Contact Support
                 </a>
