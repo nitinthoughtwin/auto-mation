@@ -1976,18 +1976,6 @@ export default function YouTubeAutomationDashboard() {
           }}
         />
 
-        {/* Video Library Browser */}
-        <VideoLibraryBrowser
-          open={showVideoLibrary}
-          onClose={() => setShowVideoLibrary(false)}
-          channels={channels}
-          onVideosAdded={() => {
-            if (selectedChannel) {
-              loadChannelDetails(selectedChannel.id);
-            }
-            loadChannels();
-          }}
-        />
       </div>
     );
   };
@@ -2063,6 +2051,19 @@ export default function YouTubeAutomationDashboard() {
         )}
       </div>
       {renderDeleteConfirmations()}
+      
+      {/* Video Library Browser - Available globally */}
+      <VideoLibraryBrowser
+        open={showVideoLibrary}
+        onClose={() => setShowVideoLibrary(false)}
+        channels={channels}
+        onVideosAdded={() => {
+          if (selectedChannel) {
+            loadChannelDetails(selectedChannel.id);
+          }
+          loadChannels();
+        }}
+      />
     </div>
   );
 }
