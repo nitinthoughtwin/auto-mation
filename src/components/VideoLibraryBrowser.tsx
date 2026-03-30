@@ -28,6 +28,7 @@ import {
   Play,
   ChevronLeft,
   ExternalLink,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,43 +64,121 @@ interface VideoLibraryBrowserProps {
   onVideosAdded: () => void;
 }
 
-// Get thumbnail URL with fallback
-const getThumbnailUrl = (video: LibraryVideo): string => {
-  // Use stored thumbnail or generate Google Drive thumbnail URL
-  if (video.thumbnailLink) {
-    return video.thumbnailLink;
-  }
-  // Google Drive thumbnail URL format
-  if (video.driveFileId) {
-    return `https://lh3.googleusercontent.com/d/${video.driveFileId}=w300-h200-c`;
-  }
-  return '';
-};
+// Video thumbnail component with fallback
+const VideoThumbnail = ({ video, isSelected, onClick, onPreview }: {
+  video: LibraryVideo;
+  isSelected: boolean;
+  onClick: () => void;
+  onPreview: () => void;
+}) => {
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
 
-// Default video thumbnail component
-const DefaultThumbnail = ({ name }: { name: string }) => {
-  // Generate a color based on the video name
-  const colors = [
-    'from-red-500 to-orange-500',
-    'from-blue-500 to-purple-500',
-    'from-green-500 to-teal-500',
-    'from-purple-500 to-pink-500',
-    'from-yellow-500 to-red-500',
-    'from-indigo-500 to-blue-500',
-    'from-pink-500 to-rose-500',
-    'from-teal-500 to-cyan-500',
-  ];
-  
-  const colorIndex = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-  const gradientClass = colors[colorIndex];
-  
+  // Generate thumbnail URL - use Google Drive thumbnail API
+  const getThumbnailSrc = () => {
+    if (video.thumbnailLink && !imageError) {
+      return video.thumbnailLink;
+    }
+    return null;
+  };
+
+  const thumbnailSrc = getThumbnailSrc();
+
+  // Generate gradient based on video name
+  const getGradient = (name: string) => {
+    const gradients = [
+      'from-violet-500 to-purple-600',
+      'from-blue-500 to-cyan-500',
+      'from-emerald-500 to-teal-500',
+      'from-orange-500 to-red-500',
+      'from-pink-500 to-rose-500',
+      'from-indigo-500 to-blue-500',
+      'from-amber-500 to-orange-500',
+      'from-green-500 to-emerald-500',
+    ];
+    const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % gradients.length;
+    return gradients[index];
+  };
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+  };
+
   return (
-    <div className={`w-full h-full bg-gradient-to-br ${gradientClass} flex items-center justify-center`}>
-      <div className="text-center text-white/90">
-        <Video className="h-10 w-10 mx-auto mb-1 opacity-80" />
-        <p className="text-xs font-medium px-2 truncate max-w-[120px]">
-          {name.replace(/\.[^/.]+$/, '').substring(0, 15)}
-        </p>
+    <div
+      className={`relative aspect-video bg-muted rounded-lg overflow-hidden cursor-pointer transition-all touch-manipulation ${
+        isSelected ? 'ring-3 ring-blue-500 ring-offset-2' : ''
+      }`}
+      onClick={onClick}
+    >
+      {/* Loading skeleton */}
+      {imageLoading && thumbnailSrc && (
+        <div className="absolute inset-0 bg-muted animate-pulse" />
+      )}
+
+      {/* Image or Fallback */}
+      {thumbnailSrc && !imageError ? (
+        <img
+          src={thumbnailSrc}
+          alt={video.name}
+          className="w-full h-full object-cover"
+          onLoad={() => setImageLoading(false)}
+          onError={() => {
+            setImageError(true);
+            setImageLoading(false);
+          }}
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className={`w-full h-full bg-gradient-to-br ${getGradient(video.name)} flex items-center justify-center`}>
+          <div className="text-center text-white p-2">
+            <Video className="h-8 w-8 sm:h-10 sm:w-10 mx-auto mb-1 opacity-90" />
+            <p className="text-xs sm:text-sm font-medium line-clamp-2 max-w-[100px] sm:max-w-[120px]">
+              {video.name.replace(/\.[^/.]+$/, '').substring(0, 20)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Play button overlay */}
+      <button
+        className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 active:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreview();
+        }}
+      >
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+          <Play className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 ml-0.5" />
+        </div>
+      </button>
+
+      {/* Selection badge */}
+      {isSelected && (
+        <div className="absolute top-2 left-2">
+          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-md">
+            <CheckCircle2 className="h-4 w-4 text-white" />
+          </div>
+        </div>
+      )}
+
+      {/* Status badges */}
+      <div className="absolute bottom-2 right-2 flex gap-1">
+        {video.addedToQueue && (
+          <Badge className="bg-green-500 text-white text-[10px] sm:text-xs px-1.5 sm:px-2">
+            Added
+          </Badge>
+        )}
+        {video.size && (
+          <Badge variant="secondary" className="text-[10px] sm:text-xs bg-black/60 text-white border-0 px-1.5 sm:px-2">
+            {formatFileSize(video.size)}
+          </Badge>
+        )}
       </div>
     </div>
   );
@@ -108,7 +187,7 @@ const DefaultThumbnail = ({ name }: { name: string }) => {
 export default function VideoLibraryBrowser({
   open,
   onClose,
-  channels = [], // Default to empty array to prevent undefined errors
+  channels = [],
   onVideosAdded
 }: VideoLibraryBrowserProps) {
   const [categories, setCategories] = useState<VideoCategory[]>([]);
@@ -125,7 +204,6 @@ export default function VideoLibraryBrowser({
       loadCategories();
       setSelectedCategory(null);
       setSelectedVideos(new Set());
-      // Safe access to channels array with fallback
       setSelectedChannelId(channels && channels.length > 0 ? channels[0].id : '');
     }
   }, [open, channels]);
@@ -225,246 +303,222 @@ export default function VideoLibraryBrowser({
     }
   };
 
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return 'Unknown';
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
-  };
-
   const getVideoPreviewUrl = (fileId: string) => {
     return `https://drive.google.com/file/d/${fileId}/preview`;
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <FolderOpen className="h-5 w-5 text-yellow-500" />
-            {selectedCategory ? selectedCategory.name : 'Video Library'}
-          </DialogTitle>
-          <DialogDescription>
-            {selectedCategory
-              ? `${selectedCategory.videos.length} videos available`
-              : 'Browse pre-added videos by category'}
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : selectedCategory ? (
-          // Videos View
-          <>
-            {/* Navigation */}
-            <div className="flex items-center justify-between py-2 border-b flex-wrap gap-2">
-              <Button variant="ghost" size="sm" onClick={handleBackToCategories}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back to Categories
-              </Button>
-              <div className="flex items-center gap-2">
-                {selectedVideos.size > 0 && (
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                    {selectedVideos.size} selected
-                  </Badge>
-                )}
-                <Button variant="outline" size="sm" onClick={selectedVideos.size > 0 ? deselectAll : selectAllVideos}>
-                  {selectedVideos.size > 0 ? 'Deselect All' : 'Select All'}
-                </Button>
+    <>
+      {/* Main Dialog */}
+      <Dialog open={open && !previewVideo} onOpenChange={onClose}>
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+          {/* Header - Fixed */}
+          <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 border-b flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                  <FolderOpen className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+                  <span className="truncate">
+                    {selectedCategory ? selectedCategory.name : 'Video Library'}
+                  </span>
+                </DialogTitle>
+                <DialogDescription className="mt-1 text-sm">
+                  {selectedCategory
+                    ? `${selectedCategory.videos.length} videos available`
+                    : 'Browse pre-added videos by category'}
+                </DialogDescription>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="h-8 w-8 flex-shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
+          </DialogHeader>
 
-            {/* Videos Grid */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-2">
-                {selectedCategory.videos.map((video) => {
-                  const thumbnailUrl = getThumbnailUrl(video);
-                  
-                  return (
-                    <Card
-                      key={video.id}
-                      className={`cursor-pointer transition-all hover:shadow-md group overflow-hidden ${
-                        selectedVideos.has(video.id)
-                          ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950'
-                          : ''
-                      }`}
+          {/* Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : selectedCategory ? (
+              // Videos View
+              <div className="p-3 sm:p-4">
+                {/* Navigation & Actions */}
+                <div className="flex flex-col gap-3 mb-4">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleBackToCategories}
+                    className="self-start"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Back to Categories
+                  </Button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedVideos.size > 0 && (
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                        {selectedVideos.size} selected
+                      </Badge>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={selectedVideos.size > 0 ? deselectAll : selectAllVideos}
                     >
-                      <div className="relative aspect-video bg-muted">
-                        {thumbnailUrl ? (
-                          <img
-                            src={thumbnailUrl}
-                            alt={video.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              // Hide broken image and show default
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                        ) : null}
-                        <div className={thumbnailUrl ? 'hidden w-full h-full' : 'w-full h-full'}>
-                          <DefaultThumbnail name={video.name} />
-                        </div>
+                      {selectedVideos.size > 0 ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  </div>
+                </div>
 
-                        {/* Play Button Overlay */}
-                        <button
-                          className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewVideo(video);
-                          }}
-                        >
-                          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                            <Play className="h-6 w-6 text-blue-600 ml-1" />
-                          </div>
-                        </button>
-
-                        {/* Selection Check */}
-                        {selectedVideos.has(video.id) && (
-                          <div className="absolute top-2 right-2">
-                            <CheckCircle2 className="h-6 w-6 text-blue-500 bg-white rounded-full" />
-                          </div>
-                        )}
-
-                        {video.addedToQueue && (
-                          <Badge className="absolute top-2 left-2 bg-green-500 text-white text-xs">
-                            Added
-                          </Badge>
-                        )}
-
-                        <Badge
-                          variant="secondary"
-                          className="absolute bottom-2 right-2 text-xs bg-black/60 text-white border-0"
-                        >
-                          {formatFileSize(video.size)}
-                        </Badge>
-                      </div>
-                      <CardContent className="p-2" onClick={() => toggleVideoSelection(video.id)}>
-                        <p className="text-xs truncate font-medium" title={video.name}>
-                          {video.name.replace(/\.[^/.]+$/, '')}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-
-                {selectedCategory.videos.length === 0 && (
-                  <div className="col-span-full text-center py-12 text-muted-foreground">
+                {/* Videos Grid */}
+                {selectedCategory.videos.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
                     <Video className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>No videos in this category</p>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+                    {selectedCategory.videos.map((video) => (
+                      <div
+                        key={video.id}
+                        className="group"
+                      >
+                        <VideoThumbnail
+                          video={video}
+                          isSelected={selectedVideos.has(video.id)}
+                          onClick={() => toggleVideoSelection(video.id)}
+                          onPreview={() => setPreviewVideo(video)}
+                        />
+                        <p className="mt-1.5 text-xs sm:text-sm font-medium truncate px-0.5" title={video.name}>
+                          {video.name.replace(/\.[^/.]+$/, '')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
-
-            {/* Footer */}
-            <DialogFooter className="border-t pt-4 flex flex-col sm:flex-row gap-2">
-              <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
-                <SelectTrigger className="w-full sm:w-64">
-                  <SelectValue placeholder="Select channel" />
-                </SelectTrigger>
-                <SelectContent>
-                  {channels && channels.length > 0 ? (
-                    channels.map((channel) => (
-                      <SelectItem key={channel.id} value={channel.id}>
-                        {channel.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="" disabled>
-                      No channels available
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={handleAddToQueue}
-                disabled={selectedVideos.size === 0 || adding || !selectedChannelId}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {adding ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Adding...
-                  </>
+            ) : (
+              // Categories View
+              <div className="p-3 sm:p-4">
+                {categories.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No video categories available</p>
+                    <p className="text-sm mt-1">Add video categories to get started</p>
+                  </div>
                 ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add {selectedVideos.size} Video(s) to Queue
-                  </>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {categories.map((category) => (
+                      <Card
+                        key={category.id}
+                        className="cursor-pointer hover:shadow-md hover:border-primary/50 transition-all overflow-hidden"
+                        onClick={() => handleOpenCategory(category)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
+                              <FolderOpen className="h-5 w-5 text-yellow-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-sm sm:text-base truncate">
+                                {category.name}
+                              </h3>
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                {category.description || 'No description'}
+                              </p>
+                              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                                <Video className="h-3 w-3" />
+                                <span>{category.videos?.length || 0} videos</span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 )}
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          // Categories View
-          <>
-            <div className="flex-1 overflow-y-auto">
-              {categories.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No video categories available</p>
-                  <p className="text-sm mt-1">Ask admin to add video categories</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-2">
-                  {categories.map((category) => (
-                    <Card
-                      key={category.id}
-                      className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all group overflow-hidden"
-                      onClick={() => handleOpenCategory(category)}
-                    >
-                      <CardHeader className="p-4 pb-2">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2 line-clamp-1">
-                          <FolderOpen className="h-5 w-5 text-yellow-500 flex-shrink-0" />
-                          <span className="truncate">{category.name}</span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
-                          {category.description || 'No description'}
-                        </p>
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Video className="h-4 w-4" />
-                            <span>{category.videos?.length || 0} videos</span>
-                          </div>
-                          <div className="text-xs text-primary font-medium group-hover:underline">
-                            Browse →
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
 
-            <DialogFooter className="border-t pt-4 flex-shrink-0">
-              <Button variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-      </DialogContent>
+          {/* Footer - Fixed */}
+          <div className="border-t p-3 sm:p-4 flex-shrink-0 bg-background">
+            {selectedCategory ? (
+              // Videos footer with channel selection
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
+                  <SelectTrigger className="w-full sm:w-52">
+                    <SelectValue placeholder="Select channel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {channels && channels.length > 0 ? (
+                      channels.map((channel) => (
+                        <SelectItem key={channel.id} value={channel.id}>
+                          {channel.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>
+                        No channels available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={handleAddToQueue}
+                  disabled={selectedVideos.size === 0 || adding || !selectedChannelId}
+                  className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
+                >
+                  {adding ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add {selectedVideos.size} Video{selectedVideos.size !== 1 ? 's' : ''} to Queue
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              // Categories footer
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Video Preview Dialog */}
       <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="text-lg truncate pr-8">
-              {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-            </DialogTitle>
-            <DialogDescription>
-              {formatFileSize(previewVideo?.size ?? null)} • Click outside to close
-            </DialogDescription>
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden p-0 gap-0">
+          <DialogHeader className="p-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-base sm:text-lg truncate pr-4">
+                {previewVideo?.name.replace(/\.[^/.]+$/, '')}
+              </DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setPreviewVideo(null)}
+                className="h-8 w-8 flex-shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className="aspect-video bg-black rounded-lg overflow-hidden">
+          <div className="aspect-video bg-black">
             {previewVideo && (
               <iframe
                 src={getVideoPreviewUrl(previewVideo.driveFileId)}
@@ -475,12 +529,12 @@ export default function VideoLibraryBrowser({
             )}
           </div>
 
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setPreviewVideo(null)}>
+          <div className="p-3 sm:p-4 border-t flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setPreviewVideo(null)} className="flex-1 sm:flex-none">
               Close
             </Button>
             {previewVideo?.webViewLink && (
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="flex-1 sm:flex-none">
                 <a href={previewVideo.webViewLink} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Open in Drive
@@ -495,23 +549,23 @@ export default function VideoLibraryBrowser({
                 }
               }}
               disabled={previewVideo ? selectedVideos.has(previewVideo.id) : false}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
             >
               {previewVideo && selectedVideos.has(previewVideo.id) ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Already Selected
+                  Selected
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Select This Video
+                  Select Video
                 </>
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
-    </Dialog>
+    </>
   );
 }
