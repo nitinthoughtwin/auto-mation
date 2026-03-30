@@ -911,6 +911,14 @@ export default function YouTubeAutomationDashboard() {
             <p className="text-muted-foreground mt-1">Manage your channels and schedule uploads</p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {/* Video Library - Highlighted Button */}
+            <Button 
+              onClick={() => setShowVideoLibrary(true)}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg shadow-purple-500/25 font-semibold btn-press"
+            >
+              <FolderOpen className="mr-2 h-4 w-4" />
+              Video Library
+            </Button>
             <Button onClick={connectChannel} className="gradient-primary gradient-primary-hover text-white btn-press">
               <Plus className="mr-2 h-4 w-4" />
               Add Channel
@@ -1972,9 +1980,11 @@ export default function YouTubeAutomationDashboard() {
         <VideoLibraryBrowser
           open={showVideoLibrary}
           onClose={() => setShowVideoLibrary(false)}
-          channelId={selectedChannel?.id || ''}
+          channels={channels}
           onVideosAdded={() => {
-            loadChannelDetails(selectedChannel?.id || '');
+            if (selectedChannel) {
+              loadChannelDetails(selectedChannel.id);
+            }
             loadChannels();
           }}
         />

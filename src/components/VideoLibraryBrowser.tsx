@@ -59,7 +59,7 @@ interface Channel {
 interface VideoLibraryBrowserProps {
   open: boolean;
   onClose: () => void;
-  channels: Channel[];
+  channels?: Channel[];
   onVideosAdded: () => void;
 }
 
@@ -108,7 +108,7 @@ const DefaultThumbnail = ({ name }: { name: string }) => {
 export default function VideoLibraryBrowser({
   open,
   onClose,
-  channels,
+  channels = [], // Default to empty array to prevent undefined errors
   onVideosAdded
 }: VideoLibraryBrowserProps) {
   const [categories, setCategories] = useState<VideoCategory[]>([]);
@@ -125,7 +125,8 @@ export default function VideoLibraryBrowser({
       loadCategories();
       setSelectedCategory(null);
       setSelectedVideos(new Set());
-      setSelectedChannelId(channels[0]?.id || '');
+      // Safe access to channels array with fallback
+      setSelectedChannelId(channels && channels.length > 0 ? channels[0].id : '');
     }
   }, [open, channels]);
 
@@ -366,11 +367,17 @@ export default function VideoLibraryBrowser({
                   <SelectValue placeholder="Select channel" />
                 </SelectTrigger>
                 <SelectContent>
-                  {channels.map((channel) => (
-                    <SelectItem key={channel.id} value={channel.id}>
-                      {channel.name}
+                  {channels && channels.length > 0 ? (
+                    channels.map((channel) => (
+                      <SelectItem key={channel.id} value={channel.id}>
+                        {channel.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      No channels available
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
               <Button
