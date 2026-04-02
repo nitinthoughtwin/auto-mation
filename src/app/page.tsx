@@ -347,21 +347,21 @@ export default function LandingPage() {
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in" style={{ animationDelay: '0.3s' }}>
-            <Link href="/signup">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center animate-fade-in" style={{ animationDelay: '0.3s' }}>
+            <Link href="/signup" className="w-full sm:w-auto">
               <Button
                 size="lg"
-                className="gradient-primary gradient-primary-hover text-white shadow-xl shadow-primary/25 btn-press h-12 sm:h-14 px-8 text-base"
+                className="w-full gradient-primary gradient-primary-hover text-white shadow-xl shadow-primary/25 btn-press h-12 px-8 text-base"
               >
                 Start Free Trial
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/login">
+            <Link href="/login" className="w-full sm:w-auto">
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 sm:h-14 px-8 text-base"
+                className="w-full h-12 px-8 text-base"
               >
                 <Play className="mr-2 h-4 w-4" />
                 Watch Demo
@@ -513,13 +513,13 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
             {pricingPlans.map((plan, index) => (
               <div
                 key={index}
-                className={`relative p-6 sm:p-8 rounded-2xl bg-card border transition-all duration-300 ${
+                className={`relative p-6 rounded-2xl bg-card border transition-all duration-300 ${
                   plan.popular
-                    ? 'border-primary/50 shadow-xl shadow-primary/10 scale-105 z-10'
+                    ? 'border-primary/50 shadow-xl shadow-primary/10 md:scale-105 md:z-10'
                     : 'border-border/50 hover:border-primary/30 hover:shadow-soft-lg'
                 }`}
               >

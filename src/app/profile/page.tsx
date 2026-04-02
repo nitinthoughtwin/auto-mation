@@ -129,16 +129,25 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => router.push('/')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
+    <div className="max-w-2xl mx-auto space-y-5">
+      {/* Page Header */}
+      <div className="flex items-center gap-3 pt-1">
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+            <User className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold leading-tight">Profile</h1>
+            <p className="text-muted-foreground text-xs">Your personal information</p>
+          </div>
+        </div>
       </div>
-
-      <h1 className="text-2xl sm:text-3xl font-bold">Profile</h1>
 
       {/* Profile Card */}
       <Card>

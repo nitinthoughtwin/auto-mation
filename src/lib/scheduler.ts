@@ -3,6 +3,7 @@ import { db } from './db';
 import { uploadVideo, refreshAccessToken, setThumbnail } from './youtube';
 import { deleteFile } from './storage';
 import { downloadFromGoogleDrive, extractFileIdFromUrl } from './google-drive';
+import { getUserPlanAndUsage, checkVideoLimit } from './plan-limits';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
@@ -409,6 +410,34 @@ export async function processScheduledUploads(): Promise<{
 
       console.log(`Processing: ${channel.name}, video: ${video.title}`);
       console.log(`Video fileName: ${video.fileName}`);
+
+      // Check plan limits before uploading
+      if (channel.userId) {
+        try {
+          const { limits, usage } = await getUserPlanAndUsage(channel.userId);
+          const limitCheck = checkVideoLimit(limits, usage);
+          if (!limitCheck.allowed) {
+            console.log(`Plan limit reached for channel ${channel.name}: ${limitCheck.message}`);
+            results.push({
+              channel: channel.name,
+              status: 'skipped',
+              message: `Plan limit: ${limitCheck.message}`,
+            });
+            skipped++;
+            continue;
+          }
+        } catch (limitError) {
+          console.warn(`Could not check plan limits for channel ${channel.name}:`, limitError);
+          // If no subscription found, skip the upload
+          results.push({
+            channel: channel.name,
+            status: 'skipped',
+            message: 'No active subscription found',
+          });
+          skipped++;
+          continue;
+        }
+      }
 
       try {
         // Refresh token if needed

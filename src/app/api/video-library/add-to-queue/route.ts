@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getUserPlanAndUsage, checkVideoLimit } from '@/lib/plan-limits';
 
 // POST - Add library videos to user's channel queue
 export async function POST(request: NextRequest) {
@@ -29,6 +30,17 @@ export async function POST(request: NextRequest) {
 
     if (!channel) {
       return NextResponse.json({ error: 'Channel not found or access denied' }, { status: 404 });
+    }
+
+    // Enforce plan limits
+    try {
+      const { limits, usage } = await getUserPlanAndUsage(session.user.id);
+      const videoCheck = checkVideoLimit(limits, usage, videoIds.length);
+      if (!videoCheck.allowed) {
+        return NextResponse.json({ error: videoCheck.message, limitExceeded: 'videos' }, { status: 403 });
+      }
+    } catch {
+      // No subscription — allow with default behaviour
     }
 
     // Get library videos with category info

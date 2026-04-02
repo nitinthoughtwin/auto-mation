@@ -18,7 +18,6 @@ import {
   AlertCircle,
   ExternalLink,
   Crown,
-  Zap,
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -165,34 +164,34 @@ export default function BillingPage() {
 
   if (loading || status === 'loading') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-30 glass border-b border-border/50 shadow-soft">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <CreditCard className="h-5 w-5 text-primary" />
+    <div className="max-w-2xl mx-auto space-y-5">
+      {/* Page Header */}
+      <div className="flex items-center gap-3 pt-1">
+        <Link
+          href="/dashboard"
+          className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+            <CreditCard className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Billing & Subscription</h1>
-            <p className="text-muted-foreground text-sm">Manage your subscription and payment history</p>
+            <h1 className="text-lg font-bold leading-tight">Billing & Subscription</h1>
+            <p className="text-muted-foreground text-xs">Manage your plan and payments</p>
           </div>
         </div>
+      </div>
+
+      <div className="space-y-4">
 
         {/* Current Plan */}
         <Card className="border-border/50 shadow-soft overflow-hidden">
@@ -396,7 +395,7 @@ export default function BillingPage() {
             </div>
           </CardContent>
         </Card>
-      </main>
+      </div>
     </div>
   );
 }

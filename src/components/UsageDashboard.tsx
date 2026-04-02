@@ -1,22 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Video,
-  Youtube,
+  Tv,
   HardDrive,
   Sparkles,
-  TrendingUp,
   Clock,
   AlertTriangle,
   ChevronRight,
   Loader2,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
 interface UsageData {
@@ -93,12 +91,6 @@ export default function UsageDashboard() {
     return 'text-green-600';
   };
 
-  const getProgressColor = (percent: number): string => {
-    if (percent >= 90) return 'bg-red-500';
-    if (percent >= 70) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
-
   const getPeriodEndDate = (dateStr: string): string => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-IN', {
@@ -125,12 +117,47 @@ export default function UsageDashboard() {
   const { usage, limitsExceeded, plan, periodEnd } = data;
   const hasAnyLimitExceeded = Object.values(limitsExceeded).some(Boolean);
 
+  const usageItems = [
+    {
+      icon: <Video className="h-4 w-4 text-blue-500" />,
+      label: 'Videos',
+      value: `${usage.videos.used}/${usage.videos.limit}`,
+      percent: usage.videos.percent,
+      exceeded: limitsExceeded.videos,
+      sub: 'This month',
+    },
+    {
+      icon: <Tv className="h-4 w-4 text-red-500" />,
+      label: 'Channels',
+      value: `${usage.channels.used}/${usage.channels.limit}`,
+      percent: usage.channels.percent,
+      exceeded: limitsExceeded.channels,
+      sub: 'Connected',
+    },
+    {
+      icon: <HardDrive className="h-4 w-4 text-purple-500" />,
+      label: 'Storage',
+      value: `${formatStorage(usage.storage.usedMB)}/${formatStorage(usage.storage.limitMB)}`,
+      percent: usage.storage.percent,
+      exceeded: limitsExceeded.storage,
+      sub: 'Used',
+    },
+    {
+      icon: <Sparkles className="h-4 w-4 text-yellow-500" />,
+      label: 'AI Credits',
+      value: `${usage.aiCredits.used}/${usage.aiCredits.limit}`,
+      percent: usage.aiCredits.percent,
+      exceeded: limitsExceeded.aiCredits,
+      sub: `${usage.aiCredits.limit - usage.aiCredits.used} left`,
+    },
+  ];
+
   return (
-    <div className="space-y-4">
-      {/* Plan Header */}
+    <div className="space-y-3">
+      {/* Plan header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge variant={plan.name === 'free' ? 'secondary' : 'default'} className="text-sm">
+          <Badge variant={plan.name === 'free' ? 'secondary' : 'default'} className="text-xs">
             {plan.displayName}
           </Badge>
           {hasAnyLimitExceeded && (
@@ -140,137 +167,52 @@ export default function UsageDashboard() {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
-          Resets: {getPeriodEndDate(periodEnd)}
-        </div>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          Resets {getPeriodEndDate(periodEnd)}
+        </span>
       </div>
 
-      {/* Usage Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        {/* Videos */}
-        <Card className={limitsExceeded.videos ? 'border-red-300' : ''}>
-          <CardHeader className="pb-2">
+      {/* Usage grid — 2 cols on mobile, 4 on lg */}
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+        {usageItems.map((item) => (
+          <div
+            key={item.label}
+            className={`p-3 rounded-xl border bg-card space-y-2 ${item.exceeded ? 'border-red-300' : 'border-border/50'}`}
+          >
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Video className="h-4 w-4 text-blue-500" />
-                Videos
-              </CardTitle>
-              {limitsExceeded.videos && (
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              )}
+              <div className="flex items-center gap-1.5 text-xs font-medium">
+                {item.icon}
+                {item.label}
+              </div>
+              {item.exceeded && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${getUsageColor(usage.videos.percent)}`}>
-              {usage.videos.used}/{usage.videos.limit}
+            <div className={`text-lg font-bold leading-none ${getUsageColor(item.percent)}`}>
+              {item.value}
             </div>
-            <Progress 
-              value={Math.min(usage.videos.percent, 100)} 
-              className="h-2 mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">This month</p>
-          </CardContent>
-        </Card>
-
-        {/* Channels */}
-        <Card className={limitsExceeded.channels ? 'border-red-300' : ''}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Youtube className="h-4 w-4 text-red-500" />
-                Channels
-              </CardTitle>
-              {limitsExceeded.channels && (
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${getUsageColor(usage.channels.percent)}`}>
-              {usage.channels.used}/{usage.channels.limit}
-            </div>
-            <Progress 
-              value={Math.min(usage.channels.percent, 100)} 
-              className="h-2 mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Connected</p>
-          </CardContent>
-        </Card>
-
-        {/* Storage */}
-        <Card className={limitsExceeded.storage ? 'border-red-300' : ''}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <HardDrive className="h-4 w-4 text-purple-500" />
-                Storage
-              </CardTitle>
-              {limitsExceeded.storage && (
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${getUsageColor(usage.storage.percent)}`}>
-              {formatStorage(usage.storage.usedMB)}/{formatStorage(usage.storage.limitMB)}
-            </div>
-            <Progress 
-              value={Math.min(usage.storage.percent, 100)} 
-              className="h-2 mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Used</p>
-          </CardContent>
-        </Card>
-
-        {/* AI Credits */}
-        <Card className={limitsExceeded.aiCredits ? 'border-red-300' : ''}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-yellow-500" />
-                AI Credits
-              </CardTitle>
-              {limitsExceeded.aiCredits && (
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${getUsageColor(usage.aiCredits.percent)}`}>
-              {usage.aiCredits.used}/{usage.aiCredits.limit}
-            </div>
-            <Progress 
-              value={Math.min(usage.aiCredits.percent, 100)} 
-              className="h-2 mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Remaining: {usage.aiCredits.limit - usage.aiCredits.used}</p>
-          </CardContent>
-        </Card>
+            <Progress value={Math.min(item.percent, 100)} className="h-1.5" />
+            <p className="text-[10px] text-muted-foreground">{item.sub}</p>
+          </div>
+        ))}
       </div>
 
       {/* Upgrade CTA */}
       {plan.name === 'free' && (
-        <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-0">
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-semibold text-lg">Upgrade to Pro</h3>
-                <p className="text-white/80 text-sm">
-                  Get 100 videos/month, 5GB storage, and 100 AI credits
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => router.push('/pricing')}
-                className="bg-white text-indigo-600 hover:bg-white/90"
-              >
-                View Plans
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+          <div>
+            <p className="font-semibold text-sm">Upgrade to Pro</p>
+            <p className="text-white/80 text-xs">100 videos · 5GB · 100 AI credits</p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => router.push('/pricing')}
+            className="bg-white text-indigo-600 hover:bg-white/90 flex-shrink-0 h-9"
+          >
+            View Plans
+            <ChevronRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
+        </div>
       )}
     </div>
   );

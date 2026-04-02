@@ -11,6 +11,8 @@ import {
   Zap,
   Crown,
   Sparkles,
+  Rocket,
+  Star,
   Loader2,
   ArrowLeft,
 } from 'lucide-react';
@@ -270,6 +272,10 @@ export default function PricingPage() {
     switch (planName) {
       case 'free':
         return <Sparkles className="h-6 w-6" />;
+      case 'starter':
+        return <Star className="h-6 w-6" />;
+      case 'basic':
+        return <Rocket className="h-6 w-6" />;
       case 'pro':
         return <Zap className="h-6 w-6" />;
       case 'premium':
@@ -283,6 +289,10 @@ export default function PricingPage() {
     switch (planName) {
       case 'free':
         return 'from-gray-500 to-gray-600';
+      case 'starter':
+        return 'from-teal-400 to-cyan-500';
+      case 'basic':
+        return 'from-green-500 to-emerald-600';
       case 'pro':
         return 'from-blue-500 to-indigo-600';
       case 'premium':
@@ -294,84 +304,79 @@ export default function PricingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:py-12">
-        {/* Header */}
-        <div className="text-center mb-8 sm:mb-12">
-          <Button
-            variant="ghost"
-            onClick={() => router.push('/')}
-            className="mb-4 sm:mb-6"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Button>
-          <h1 className="text-3xl sm:text-4xl font-bold mb-3 sm:mb-4">
-            Choose Your Plan
-          </h1>
-          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
-            Start for free and upgrade as you grow. All plans include core YouTube automation features.
-          </p>
+    <div className="max-w-6xl mx-auto space-y-6 py-2">
+      {/* Page Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div>
+          <h1 className="text-lg font-bold leading-tight">Choose Your Plan</h1>
+          <p className="text-xs text-muted-foreground">Upgrade as you grow</p>
         </div>
+      </div>
 
-        {/* Billing Toggle */}
-        <div className="flex items-center justify-center gap-4 mb-8 sm:mb-12">
-          <Label htmlFor="billing-toggle" className={billingPeriod === 'monthly' ? 'font-semibold' : 'text-muted-foreground'}>
-            Monthly
+      {/* Billing Toggle */}
+      <div className="flex items-center justify-center gap-3 py-2">
+        <Label htmlFor="billing-toggle" className={billingPeriod === 'monthly' ? 'font-semibold text-sm' : 'text-muted-foreground text-sm'}>
+          Monthly
+        </Label>
+        <Switch
+          id="billing-toggle"
+          checked={billingPeriod === 'yearly'}
+          onCheckedChange={(checked) => setBillingPeriod(checked ? 'yearly' : 'monthly')}
+        />
+        <div className="flex items-center gap-2">
+          <Label htmlFor="billing-toggle" className={billingPeriod === 'yearly' ? 'font-semibold text-sm' : 'text-muted-foreground text-sm'}>
+            Yearly
           </Label>
-          <Switch
-            id="billing-toggle"
-            checked={billingPeriod === 'yearly'}
-            onCheckedChange={(checked) => setBillingPeriod(checked ? 'yearly' : 'monthly')}
-          />
-          <div className="flex items-center gap-2">
-            <Label htmlFor="billing-toggle" className={billingPeriod === 'yearly' ? 'font-semibold' : 'text-muted-foreground'}>
-              Yearly
-            </Label>
-            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-              Save up to 25%
-            </Badge>
-          </div>
+          <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-xs">
+            Save 25%
+          </Badge>
         </div>
+      </div>
 
-        {/* Plans Grid */}
-        {plans.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">No plans available.</p>
-            <Button onClick={loadPlans}>Retry</Button>
-          </div>
-        ) : (
-          <div className="grid gap-6 sm:gap-8 md:grid-cols-3 max-w-6xl mx-auto px-4">
-            {plans.map((plan) => {
-              const isCurrentPlan = plan.name === currentPlan;
-              const price = billingPeriod === 'monthly' 
-                ? formatPrice(plan.priceINR)
-                : formatPrice(plan.yearlyPriceINR);
-              const isProcessing = processingPlan === plan.name;
+      {/* Plans — stacked on mobile, side-by-side on md+ */}
+      {plans.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-4">No plans available.</p>
+          <Button onClick={loadPlans}>Retry</Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 sm:gap-4">
+          {plans.map((plan) => {
+            const isCurrentPlan = plan.name === currentPlan;
+            const price = billingPeriod === 'monthly'
+              ? formatPrice(plan.priceINR)
+              : formatPrice(plan.yearlyPriceINR);
+            const isProcessing = processingPlan === plan.name;
 
-              return (
-                <Card
-                  key={plan.id}
-                  className={`relative overflow-hidden transition-all duration-300 ${
-                    plan.name === 'pro' 
-                      ? 'border-2 border-indigo-500 shadow-xl scale-105 z-10' 
-                      : 'border hover:shadow-lg'
-                  } ${isCurrentPlan ? 'ring-2 ring-green-500' : ''}`}
-                >
+            return (
+              <Card
+                key={plan.id}
+                className={`relative overflow-hidden transition-all duration-200 ${
+                  plan.name === 'pro'
+                    ? 'border-2 border-indigo-500 shadow-lg'
+                    : 'border hover:shadow-md'
+                } ${isCurrentPlan ? 'ring-2 ring-green-500' : ''}`}
+              >
                   {plan.name === 'pro' && (
-                    <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-center py-1 text-sm font-medium">
+                    <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-center py-1 text-xs font-medium">
                       Most Popular
                     </div>
                   )}
                   
-                  <CardHeader className={plan.name === 'pro' ? 'pt-8' : ''}>
+                  <CardHeader className={`${plan.name === 'pro' ? 'pt-8' : ''} pb-3`}>
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getPlanGradient(plan.name)} text-white flex items-center justify-center mb-4`}>
                       {getPlanIcon(plan.name)}
                     </div>
@@ -407,7 +412,7 @@ export default function PricingPage() {
                   <CardFooter>
                     <Button
                       className="w-full"
-                      variant={plan.name === 'pro' ? 'default' : 'outline'}
+                      variant={plan.name === 'pro' || plan.name === 'premium' ? 'default' : 'outline'}
                       onClick={() => handleSelectPlan(plan)}
                       disabled={isProcessing || isCurrentPlan}
                     >
@@ -434,25 +439,24 @@ export default function PricingPage() {
           </div>
         )}
 
-        {/* Trust Section */}
-        <div className="mt-12 sm:mt-16 text-center px-4">
-          <p className="text-sm text-muted-foreground">
-            All plans include a 7-day free trial. Cancel anytime. No questions asked.
-          </p>
-          <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              Secure payments via Razorpay
-            </div>
-            <div className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              GST Invoice included
-            </div>
-            <div className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              24/7 Support
-            </div>
-          </div>
+      {/* Trust Section */}
+      <div className="text-center py-2 pb-4">
+        <p className="text-xs text-muted-foreground">
+          7-day free trial · Cancel anytime · No questions asked
+        </p>
+        <div className="flex flex-wrap justify-center gap-4 mt-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Check className="h-3.5 w-3.5 text-green-500" />
+            Secure payments
+          </span>
+          <span className="flex items-center gap-1">
+            <Check className="h-3.5 w-3.5 text-green-500" />
+            GST Invoice
+          </span>
+          <span className="flex items-center gap-1">
+            <Check className="h-3.5 w-3.5 text-green-500" />
+            24/7 Support
+          </span>
         </div>
       </div>
     </div>

@@ -213,34 +213,32 @@ export default function SettingsPage() {
 
   if (loading || status === 'loading') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-30 glass border-b border-border/50 shadow-soft">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Settings className="h-5 w-5 text-primary" />
+    <div className="max-w-2xl mx-auto space-y-5">
+      {/* Page Header */}
+      <div className="flex items-center gap-3 pt-1">
+        <Link
+          href="/dashboard"
+          className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Settings className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Settings</h1>
-            <p className="text-muted-foreground text-sm">Manage your account settings and preferences</p>
+            <h1 className="text-lg font-bold leading-tight">Settings</h1>
+            <p className="text-muted-foreground text-xs">Account settings and preferences</p>
           </div>
         </div>
+      </div>
 
         {/* Profile Section */}
         <Card className="border-border/50 shadow-soft">
@@ -561,12 +559,12 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Save Button */}
-        <div className="sticky bottom-4 flex justify-end">
-          <Button 
-            onClick={handleSaveSettings} 
+        {/* Save Button — fixed above bottom nav on mobile */}
+        <div className="sticky bottom-20 md:bottom-4 flex justify-end">
+          <Button
+            onClick={handleSaveSettings}
             disabled={saving}
-            className="gradient-primary text-white shadow-lg shadow-primary/25"
+            className="gradient-primary text-white shadow-lg shadow-primary/25 h-11 px-6"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -576,7 +574,6 @@ export default function SettingsPage() {
             Save All Settings
           </Button>
         </div>
-      </main>
     </div>
   );
 }

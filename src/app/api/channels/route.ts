@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getNextUploadTime } from '@/lib/utils-shared';
+import { getUserPlanAndUsage, checkChannelLimit } from '@/lib/plan-limits';
 
 // GET - List all channels for current user
 export async function GET(request: NextRequest) {
@@ -70,19 +71,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already has max channels (based on plan)
-    const userChannels = await db.channel.count({
-      where: { userId: session.user.id },
-    });
-
-    // TODO: Get max channels from user's subscription plan
-    const maxChannels = 3; // Default limit
-
-    if (userChannels >= maxChannels) {
-      return NextResponse.json(
-        { error: `Maximum ${maxChannels} channels allowed. Upgrade your plan for more.` },
-        { status: 403 }
-      );
+    // Check channel limit against user's plan
+    try {
+      const { limits, usage } = await getUserPlanAndUsage(session.user.id);
+      const channelCheck = checkChannelLimit(limits, usage);
+      if (!channelCheck.allowed) {
+        return NextResponse.json({ error: channelCheck.message, limitExceeded: 'channels' }, { status: 403 });
+      }
+    } catch {
+      // Fallback: hardcoded free limit if no subscription found
+      const userChannels = await db.channel.count({ where: { userId: session.user.id } });
+      if (userChannels >= 1) {
+        return NextResponse.json(
+          { error: 'Channel limit reached. Upgrade your plan to connect more channels.' },
+          { status: 403 }
+        );
+      }
     }
 
     const channel = await db.channel.create({

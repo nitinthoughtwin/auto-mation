@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { refreshAccessToken } from '@/lib/youtube';
 import { uploadToGoogleDrive } from '@/lib/google-drive';
+import { getUserPlanAndUsage, checkVideoLimit, checkStorageLimit } from '@/lib/plan-limits';
 
 // Configure for large file handling
 export const runtime = 'nodejs';
@@ -37,9 +40,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify channel exists
-    const channel = await db.channel.findUnique({
-      where: { id: channelId },
+    // Verify channel exists and belongs to authenticated user
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const channel = await db.channel.findFirst({
+      where: { id: channelId, userId: session.user.id },
     });
 
     if (!channel) {
@@ -47,6 +55,27 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Channel not found' },
         { status: 404 }
       );
+    }
+
+    // Enforce plan limits
+    try {
+      const { limits, usage } = await getUserPlanAndUsage(session.user.id);
+
+      // Check video count limit
+      const videoCheck = checkVideoLimit(limits, usage, files.length);
+      if (!videoCheck.allowed) {
+        return NextResponse.json({ success: false, error: videoCheck.message, limitExceeded: 'videos' }, { status: 403 });
+      }
+
+      // Check per-file size and total storage
+      for (const file of files) {
+        const storageCheck = checkStorageLimit(limits, usage, file.size);
+        if (!storageCheck.allowed) {
+          return NextResponse.json({ success: false, error: storageCheck.message, limitExceeded: 'storage' }, { status: 403 });
+        }
+      }
+    } catch {
+      // If no subscription found, proceed — free tier still gets some access
     }
 
     // Refresh access token

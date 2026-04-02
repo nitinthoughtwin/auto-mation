@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,13 +56,16 @@ import {
   Wand2,
   Settings,
   FolderOpen,
+  AlertCircle,
+  Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatFileSize, formatDate, formatNextUpload } from '@/lib/utils-shared';
+import { formatFileSize, formatDate, formatNextUpload, getNextUploadTime } from '@/lib/utils-shared';
 import DriveVideoBrowser from '@/components/DriveVideoBrowser';
 import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 import VideoLibraryBrowser from '@/components/VideoLibraryBrowser';
 import UsageDashboard from '@/components/UsageDashboard';
+import SetupRoadmap from '@/components/SetupRoadmap';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -242,9 +246,68 @@ const api = {
 };
 
 // ============================================
+// PILL TOGGLE — replaces Switch for better mobile look
+// ============================================
+const PillToggle = ({
+  checked,
+  onCheckedChange,
+  id,
+}: {
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  id?: string;
+}) => (
+  <button
+  id={id}
+  type="button"
+  role="switch"
+  aria-checked={checked}
+  onClick={() => onCheckedChange(!checked)}
+  className={`relative inline-flex items-center h-6 w-11 sm:h-7 sm:w-14 p-1 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+    checked ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+  }`}
+>
+  <span
+    className={`inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
+      checked ? 'translate-x-5 sm:translate-x-7' : 'translate-x-0'
+    }`}
+  />
+</button>
+);
+
+// ============================================
+// HELPERS
+// ============================================
+const FREQ_HOURS: Record<string, number> = {
+  every6h: 6,
+  every12h: 12,
+  daily: 24,
+  alternate: 48,
+  every3days: 72,
+  weekly: 168,
+  biweekly: 336,
+};
+
+const getScheduledUploadDate = (
+  channel: { uploadTime: string; frequency: string; lastUploadDate: string | null },
+  queueIndex: number
+): Date => {
+  const base = getNextUploadTime(channel);
+  const hours = FREQ_HOURS[channel.frequency] ?? 24;
+  return new Date(base.getTime() + queueIndex * hours * 60 * 60 * 1000);
+};
+
+const getQueueDaysRemaining = (channel: { queuedVideos?: number; frequency: string }): number => {
+  const count = channel.queuedVideos ?? 0;
+  const hours = FREQ_HOURS[channel.frequency] ?? 24;
+  return Math.round((count * hours) / 24);
+};
+
+// ============================================
 // MAIN COMPONENT
 // ============================================
 export default function YouTubeAutomationDashboard() {
+  const router = useRouter();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -301,13 +364,30 @@ export default function YouTubeAutomationDashboard() {
   const [deleteConfirmChannel, setDeleteConfirmChannel] = useState<Channel | null>(null);
   const [deleteConfirmVideo, setDeleteConfirmVideo] = useState<Video | null>(null);
 
+  // Plan / usage state
+  const [usagePlan, setUsagePlan] = useState<{
+    plan: { name: string; displayName: string };
+    usage: {
+      videos: { used: number; limit: number };
+      channels: { used: number; limit: number };
+      storage: { usedMB: number; limitMB: number };
+      aiCredits: { used: number; limit: number };
+    };
+    limitsExceeded: { videos: boolean; channels: boolean; storage: boolean; aiCredits: boolean };
+    periodEnd?: string;
+  } | null>(null);
+
   // ============================================
   // CALLBACKS & EFFECTS
   // ============================================
   const loadChannels = useCallback(async () => {
     try {
-      const data = await api.channels.list();
-      setChannels(data.channels || []);
+      const [channelData, usageData] = await Promise.all([
+        api.channels.list(),
+        fetch('/api/usage').then(r => r.ok ? r.json() : null),
+      ]);
+      setChannels(channelData.channels || []);
+      if (usageData) setUsagePlan(usageData);
     } catch (error) {
       toast.error('Failed to Load Channels', {
         description: 'Could not fetch your channels. Please refresh the page.',
@@ -989,8 +1069,40 @@ export default function YouTubeAutomationDashboard() {
         </Card>
       </div>
 
+      {/* Setup Roadmap — shown until all 3 steps complete */}
+      <SetupRoadmap
+        channels={channels}
+        totalQueuedVideos={channels.reduce((sum, c) => sum + (c.queuedVideos || 0), 0)}
+        onConnectChannel={connectChannel}
+        onOpenVideoLibrary={() => setShowVideoLibrary(true)}
+        onManageChannel={(ch) => openChannelDetail(ch as unknown as Channel)}
+      />
+
       {/* Usage Dashboard */}
       <UsageDashboard />
+
+      {/* Plan limit warnings */}
+      {usagePlan && (usagePlan.limitsExceeded.videos || usagePlan.limitsExceeded.channels || usagePlan.limitsExceeded.storage || usagePlan.limitsExceeded.aiCredits) && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 border border-red-200 dark:border-red-800">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+              {usagePlan.plan.displayName} plan limit reached
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">
+              {[
+                usagePlan.limitsExceeded.videos && `Videos (${usagePlan.usage.videos.used}/${usagePlan.usage.videos.limit})`,
+                usagePlan.limitsExceeded.channels && `Channels (${usagePlan.usage.channels.used}/${usagePlan.usage.channels.limit})`,
+                usagePlan.limitsExceeded.storage && `Storage`,
+                usagePlan.limitsExceeded.aiCredits && `AI Credits (${usagePlan.usage.aiCredits.used}/${usagePlan.usage.aiCredits.limit})`,
+              ].filter(Boolean).join(' · ')} exceeded. Upgrade to continue.
+            </p>
+          </div>
+          <Button size="sm" className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex-shrink-0" onClick={() => router.push('/pricing')}>
+            Upgrade
+          </Button>
+        </div>
+      )}
 
       {/* Channels Table */}
       <Card className="border-border/50 shadow-soft">
@@ -1018,94 +1130,200 @@ export default function YouTubeAutomationDashboard() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto -mx-3 sm:mx-0">
-              <Table className="min-w-[700px] sm:min-w-0">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Channel Name</TableHead>
-                    <TableHead>Upload Time</TableHead>
-                    <TableHead>Frequency</TableHead>
-                    <TableHead>Queued</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {channels.map((channel) => (
-                    <TableRow key={channel.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {channel.platform === 'instagram' ? (
-                            <Instagram className="h-4 w-4 text-pink-500" />
-                          ) : channel.platform === 'facebook' ? (
-                            <Facebook className="h-4 w-4 text-blue-500" />
-                          ) : (
-                            <Youtube className="h-4 w-4 text-red-500" />
-                          )}
-                          {channel.name}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {channel.uploadTime}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {channel.frequency}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={channel.queuedVideos && channel.queuedVideos > 0 ? 'default' : 'secondary'}>
-                          {channel.queuedVideos || 0} videos
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {togglingChannelId === channel.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                          ) : (
-                            <Switch
-                              checked={channel.isActive}
-                              onCheckedChange={() => toggleChannelActive(channel)}
-                            />
-                          )}
-                          <span className={`hidden sm:inline ${channel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
-                            {channel.isActive ? 'Active' : 'Paused'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openChannelDetail(channel)}
-                          >
-                            <Settings className="h-4 w-4 mr-1" />
-                            Manage
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setDeleteConfirmChannel(channel)}
-                            disabled={deletingChannelId === channel.id}
-                          >
-                            {deletingChannelId === channel.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableCell>
+            <>
+              {/* Mobile card list */}
+              <div className="flex flex-col gap-3 md:hidden">
+                {channels.map((channel) => (
+                  <div
+                    key={channel.id}
+                    className={`flex flex-col gap-3 p-4 rounded-xl border bg-card ${
+                      (channel.queuedVideos || 0) === 0
+                        ? 'border-amber-300 dark:border-amber-700'
+                        : (channel.queuedVideos || 0) < 3
+                        ? 'border-yellow-300 dark:border-yellow-700'
+                        : 'border-border/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {channel.platform === 'instagram' ? (
+                          <Instagram className="h-4 w-4 text-pink-500 flex-shrink-0" />
+                        ) : channel.platform === 'facebook' ? (
+                          <Facebook className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        ) : (
+                          <Youtube className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        )}
+                        <span className="font-medium truncate">{channel.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {togglingChannelId === channel.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          <PillToggle
+                            checked={channel.isActive}
+                            onCheckedChange={() => toggleChannelActive(channel)}
+                          />
+                        )}
+                        <span className={`text-xs font-medium ${channel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
+                          {channel.isActive ? 'Active' : 'Paused'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {channel.uploadTime}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {channel.frequency}
+                      </span>
+                      <Badge
+                        variant={(channel.queuedVideos || 0) === 0 ? 'destructive' : (channel.queuedVideos || 0) < 3 ? 'outline' : 'default'}
+                        className={`text-xs ${(channel.queuedVideos || 0) < 3 && (channel.queuedVideos || 0) > 0 ? 'border-yellow-400 text-yellow-700 dark:text-yellow-400' : ''}`}
+                      >
+                        {channel.queuedVideos || 0} queued
+                      </Badge>
+                    </div>
+                    {/* Queue health message */}
+                    {(channel.queuedVideos || 0) === 0 && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
+                        <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="text-xs font-medium">Queue empty — add videos to resume uploads</span>
+                      </div>
+                    )}
+                    {(channel.queuedVideos || 0) > 0 && (channel.queuedVideos || 0) < 3 && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400">
+                        <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="text-xs font-medium">Only {channel.queuedVideos} video{channel.queuedVideos === 1 ? '' : 's'} left — add more soon</span>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-10"
+                        onClick={() => openChannelDetail(channel)}
+                      >
+                        <Settings className="h-4 w-4 mr-1.5" />
+                        Manage
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="h-10 px-3"
+                        onClick={() => setDeleteConfirmChannel(channel)}
+                        disabled={deletingChannelId === channel.id}
+                      >
+                        {deletingChannelId === channel.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Channel Name</TableHead>
+                      <TableHead>Upload Time</TableHead>
+                      <TableHead>Frequency</TableHead>
+                      <TableHead>Queued</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {channels.map((channel) => (
+                      <TableRow key={channel.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {channel.platform === 'instagram' ? (
+                              <Instagram className="h-4 w-4 text-pink-500" />
+                            ) : channel.platform === 'facebook' ? (
+                              <Facebook className="h-4 w-4 text-blue-500" />
+                            ) : (
+                              <Youtube className="h-4 w-4 text-red-500" />
+                            )}
+                            {channel.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {channel.uploadTime}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {channel.frequency}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Badge
+                              variant={(channel.queuedVideos || 0) === 0 ? 'destructive' : (channel.queuedVideos || 0) < 3 ? 'outline' : 'default'}
+                              className={`text-xs ${(channel.queuedVideos || 0) < 3 && (channel.queuedVideos || 0) > 0 ? 'border-yellow-400 text-yellow-700' : ''}`}
+                            >
+                              {channel.queuedVideos || 0} videos
+                            </Badge>
+                            {(channel.queuedVideos || 0) < 3 && (
+                              <AlertCircle className={`h-3.5 w-3.5 ${(channel.queuedVideos || 0) === 0 ? 'text-red-500' : 'text-yellow-500'}`} />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {togglingChannelId === channel.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : (
+                              <Switch
+                                checked={channel.isActive}
+                                onCheckedChange={() => toggleChannelActive(channel)}
+                              />
+                            )}
+                            <span className={channel.isActive ? 'text-green-600' : 'text-muted-foreground'}>
+                              {channel.isActive ? 'Active' : 'Paused'}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openChannelDetail(channel)}
+                            >
+                              <Settings className="h-4 w-4 mr-1" />
+                              Manage
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setDeleteConfirmChannel(channel)}
+                              disabled={deletingChannelId === channel.id}
+                            >
+                              {deletingChannelId === channel.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -1194,12 +1412,12 @@ export default function YouTubeAutomationDashboard() {
               {togglingChannelId === selectedChannel.id ? (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : (
-                <Switch
+                <PillToggle
                   checked={selectedChannel.isActive}
                   onCheckedChange={() => toggleChannelActive(selectedChannel)}
                 />
               )}
-              <span className={`text-sm ${selectedChannel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
+              <span className={`text-sm font-medium ${selectedChannel.isActive ? 'text-green-600' : 'text-muted-foreground'}`}>
                 {selectedChannel.isActive ? 'Active' : 'Paused'}
               </span>
             </div>
@@ -1239,6 +1457,47 @@ export default function YouTubeAutomationDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Queue expiry warning — uses actual loaded queuedVideos, not stale selectedChannel.queuedVideos */}
+        {(() => {
+          const days = Math.round(
+            (queuedVideos.length * (FREQ_HOURS[selectedChannel.frequency] ?? 24)) / 24
+          );
+          if (queuedVideos.length === 0) return (
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-700">
+              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400">Queue is empty — uploads are paused</p>
+                <p className="text-xs text-red-600 dark:text-red-500">Add videos from the library to resume your schedule.</p>
+              </div>
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white flex-shrink-0" onClick={() => setShowVideoLibrary(true)}>
+                Add Videos
+              </Button>
+            </div>
+          );
+          if (days <= 3) return (
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-orange-300 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-700">
+              <AlertCircle className="h-5 w-5 text-orange-500 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">Queue runs out in ~{days} day{days !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-orange-600 dark:text-orange-500">Only {queuedVideos.length} video{queuedVideos.length !== 1 ? 's' : ''} left. Add more to avoid gaps.</p>
+              </div>
+              <Button size="sm" className="bg-gradient-to-r from-purple-600 to-blue-600 text-white flex-shrink-0" onClick={() => setShowVideoLibrary(true)}>
+                Add More
+              </Button>
+            </div>
+          );
+          if (days <= 7) return (
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-700">
+              <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Queue lasts ~{days} days</p>
+                <p className="text-xs text-yellow-600 dark:text-yellow-500">Consider adding more videos to keep your schedule running.</p>
+              </div>
+            </div>
+          );
+          return null;
+        })()}
 
         {/* Tabs */}
         <Tabs defaultValue="upload" className="space-y-4">
@@ -1352,11 +1611,43 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                 )}
 
+                {/* Plan limit upgrade nudge — shown when video limit exceeded or files selected over limit */}
+                {usagePlan?.limitsExceeded.videos && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-200 dark:border-indigo-800">
+                    <AlertCircle className="h-4 w-4 text-indigo-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">Video limit reached</p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                        You've used {usagePlan.usage.videos.used}/{usagePlan.usage.videos.limit} videos on the {usagePlan.plan.displayName} plan this month.
+                      </p>
+                    </div>
+                    <Button size="sm" className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex-shrink-0" onClick={() => router.push('/pricing')}>
+                      Upgrade Plan
+                    </Button>
+                  </div>
+                )}
+                {!usagePlan?.limitsExceeded.videos && usagePlan && uploadFiles && uploadFiles.length > 0 &&
+                  (usagePlan.usage.videos.used + uploadFiles.length > usagePlan.usage.videos.limit) && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 border border-orange-200 dark:border-orange-800">
+                    <AlertCircle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Upload will exceed plan limit</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-400">
+                        Uploading {uploadFiles.length} video{uploadFiles.length !== 1 ? 's' : ''} will exceed your {usagePlan.plan.displayName} limit of {usagePlan.usage.videos.limit}.
+                        Only {usagePlan.usage.videos.limit - usagePlan.usage.videos.used} slot{usagePlan.usage.videos.limit - usagePlan.usage.videos.used !== 1 ? 's' : ''} remaining.
+                      </p>
+                    </div>
+                    <Button size="sm" className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex-shrink-0" onClick={() => router.push('/pricing')}>
+                      Upgrade
+                    </Button>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     onClick={uploadVideos}
-                    disabled={!uploadFiles || uploadFiles.length === 0 || uploading}
+                    disabled={!uploadFiles || uploadFiles.length === 0 || uploading || (usagePlan?.limitsExceeded.videos ?? false)}
                     className="btn-press"
                   >
                     {uploading ? (
@@ -1409,14 +1700,19 @@ export default function YouTubeAutomationDashboard() {
                           : 'Select All'}
                       </Button>
                       <Button
-                        onClick={generateAITitles}
-                        disabled={generatingAI || selectedVideoIds.size === 0}
-                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white btn-press"
+                        onClick={usagePlan?.limitsExceeded.aiCredits ? () => router.push('/pricing') : generateAITitles}
+                        disabled={generatingAI || (selectedVideoIds.size === 0 && !usagePlan?.limitsExceeded.aiCredits)}
+                        className={`btn-press ${usagePlan?.limitsExceeded.aiCredits ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'} text-white`}
                       >
                         {generatingAI ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Generating...
+                          </>
+                        ) : usagePlan?.limitsExceeded.aiCredits ? (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Upgrade for AI
                           </>
                         ) : (
                           <>
@@ -1466,14 +1762,99 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-3 sm:p-6">
+              <CardContent className="p-3 sm:p-6 space-y-4">
+                {/* AI credits / upgrade nudge */}
+                {usagePlan?.limitsExceeded.aiCredits && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800">
+                    <Sparkles className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-purple-700 dark:text-purple-300">AI credits exhausted</p>
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
+                        You've used all {usagePlan.usage.aiCredits.limit} AI credits on {usagePlan.plan.displayName}. Upgrade for more.
+                      </p>
+                    </div>
+                    <Button size="sm" className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex-shrink-0" onClick={() => router.push('/pricing')}>
+                      Upgrade
+                    </Button>
+                  </div>
+                )}
+                {/* Queue status alerts */}
                 {queuedVideos.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <FileVideo className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p className="text-sm">No videos in queue</p>
-                    <p className="text-xs">Upload videos to get started</p>
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center mb-4">
+                      <FileVideo className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <h3 className="font-bold text-base text-amber-800 dark:text-amber-300 mb-1">
+                      Queue is empty — uploads are paused
+                    </h3>
+                    {selectedChannel && (
+                      <p className="text-sm text-amber-700 dark:text-amber-400 mb-1">
+                        <span className="font-semibold">0 videos</span> queued for <span className="font-semibold">{selectedChannel.name}</span>.
+                      </p>
+                    )}
+                    {selectedChannel?.lastUploadDate && (
+                      <p className="text-xs text-amber-600 dark:text-amber-500 mb-4">
+                        Last upload was on{' '}
+                        {new Date(selectedChannel.lastUploadDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.
+                        {' '}Next upload was due{' '}
+                        {(() => {
+                          const due = getNextUploadTime(selectedChannel);
+                          return due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' at ' + due.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                        })()}.
+                      </p>
+                    )}
+                    {!selectedChannel?.lastUploadDate && (
+                      <p className="text-sm text-amber-700 dark:text-amber-400 mb-4 max-w-xs">
+                        No videos have been uploaded yet. Add videos to start your schedule.
+                      </p>
+                    )}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                        onClick={() => setShowVideoLibrary(true)}
+                      >
+                        <FolderOpen className="mr-2 h-4 w-4" />
+                        Browse Video Library
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                        onClick={() => {
+                          const tabEl = document.querySelector('[data-value="upload"]') as HTMLElement;
+                          tabEl?.click();
+                        }}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Videos
+                      </Button>
+                    </div>
                   </div>
                 ) : (
+                  <>
+                    {/* Low-queue warning banner — only when fewer than 3 videos */}
+                    {queuedVideos.length < 3 && (
+                      <div className="flex items-start gap-3 p-3 rounded-xl border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-700">
+                        <div className="w-8 h-8 rounded-lg bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center flex-shrink-0">
+                          <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
+                            Only {queuedVideos.length} video{queuedVideos.length > 1 ? 's' : ''} left in queue
+                          </p>
+                          <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-0.5">
+                            Add more videos to keep your upload schedule running without gaps.
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-gradient-to-r from-purple-600 to-blue-600 text-white h-8 px-3 flex-shrink-0"
+                          onClick={() => setShowVideoLibrary(true)}
+                        >
+                          <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+                          Add More
+                        </Button>
+                      </div>
+                    )}
                   <div className="overflow-x-auto -mx-3 sm:mx-0">
                     <Table className="min-w-[750px] sm:min-w-0">
                       <TableHeader>
@@ -1490,27 +1871,53 @@ export default function YouTubeAutomationDashboard() {
                           <TableHead>Thumbnail</TableHead>
                           <TableHead>Title</TableHead>
                           <TableHead>Type</TableHead>
-                          <TableHead className="hidden sm:table-cell">Size</TableHead>
-                          <TableHead className="hidden md:table-cell">Added</TableHead>
+                          <TableHead className="hidden sm:table-cell">Scheduled Upload</TableHead>
+                          <TableHead className="hidden md:table-cell">Size</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {queuedVideos.map((video, index) => (
+                        {queuedVideos.map((video, index) => {
+                          // Calculate remaining upload quota for this billing period
+                          const videosUsed = usagePlan?.usage?.videos?.used ?? 0;
+                          const videosLimit = usagePlan?.usage?.videos?.limit ?? Infinity;
+                          const periodEnd = usagePlan?.periodEnd ? new Date(usagePlan.periodEnd) : null;
+                          const liveChannel = {
+                            uploadTime: editSettings.uploadTime || selectedChannel!.uploadTime,
+                            frequency: editSettings.frequency || selectedChannel!.frequency,
+                            lastUploadDate: selectedChannel!.lastUploadDate,
+                          };
+                          const scheduledDate = getScheduledUploadDate(liveChannel, index);
+                          // Disabled if: (1) this video would exceed monthly limit, OR (2) scheduled after period end
+                          const exceedsLimit = videosUsed + index >= videosLimit;
+                          const afterPeriodEnd = periodEnd ? scheduledDate > periodEnd : false;
+                          const isDisabled = exceedsLimit || afterPeriodEnd;
+                          const disabledReason = exceedsLimit
+                            ? `Monthly limit reached (${videosLimit} videos/${usagePlan?.plan?.displayName ?? 'plan'})`
+                            : afterPeriodEnd
+                            ? 'Subscription expires before this upload'
+                            : '';
+
+                          return (
                           <TableRow
                             key={video.id}
-                            className={`${index === 0 ? 'bg-green-50 dark:bg-green-950' : ''} ${selectedVideoIds.has(video.id) ? 'bg-purple-50 dark:bg-purple-950/50' : ''}`}
+                            className={`${index === 0 && !isDisabled ? 'bg-green-50 dark:bg-green-950' : ''} ${isDisabled ? 'opacity-50 bg-gray-50 dark:bg-gray-900/50' : ''} ${selectedVideoIds.has(video.id) && !isDisabled ? 'bg-purple-50 dark:bg-purple-950/50' : ''}`}
                           >
                             <TableCell>
                               <input
                                 type="checkbox"
                                 checked={selectedVideoIds.has(video.id)}
-                                onChange={() => toggleVideoSelection(video.id)}
-                                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                onChange={() => !isDisabled && toggleVideoSelection(video.id)}
+                                disabled={isDisabled}
+                                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer disabled:cursor-not-allowed"
                               />
                             </TableCell>
                             <TableCell>
-                              {index === 0 ? (
+                              {isDisabled ? (
+                                <span title={disabledReason}>
+                                  <Lock className="h-4 w-4 text-muted-foreground" />
+                                </span>
+                              ) : index === 0 ? (
                                 <Badge className="bg-green-600">Next</Badge>
                               ) : (
                                 <span className="text-muted-foreground text-sm">{index + 1}</span>
@@ -1529,6 +1936,13 @@ export default function YouTubeAutomationDashboard() {
                                     referrerPolicy="no-referrer"
                                   />
                                 </div>
+                              ) : getVideoType(video) === 'shorts' ? (
+                                <div className="w-10 h-14 rounded overflow-hidden bg-gradient-to-b from-purple-600 via-pink-500 to-red-500 flex flex-col items-center justify-center gap-0.5 flex-shrink-0">
+                                  <span className="text-white text-[7px] font-black leading-none">#SHORTS</span>
+                                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                                    <Play className="h-3 w-3 text-white ml-0.5" />
+                                  </div>
+                                </div>
                               ) : (
                                 <div className="w-16 h-10 bg-muted rounded flex items-center justify-center">
                                   <FileVideo className="h-4 w-4 text-muted-foreground" />
@@ -1538,7 +1952,11 @@ export default function YouTubeAutomationDashboard() {
                             <TableCell>
                               <div className="min-w-0">
                                 <p className="font-medium text-sm truncate max-w-[200px]">{video.title}</p>
-                                {video.tags && (
+                                {isDisabled ? (
+                                  <p className="text-xs text-orange-500 truncate max-w-[200px] flex items-center gap-1">
+                                    <Lock className="h-3 w-3 inline" /> {disabledReason}
+                                  </p>
+                                ) : video.tags && (
                                   <p className="text-xs text-muted-foreground truncate max-w-[200px] hidden sm:block">
                                     Tags: {video.tags}
                                   </p>
@@ -1550,32 +1968,65 @@ export default function YouTubeAutomationDashboard() {
                                 {getVideoType(video) === 'shorts' ? 'Shorts' : 'Video'}
                               </Badge>
                             </TableCell>
-                            <TableCell className="hidden sm:table-cell text-sm">
-                              {formatFileSize(video.fileSize)}
+                            <TableCell className="hidden sm:table-cell">
+                              {selectedChannel ? (() => {
+                                // Use editSettings so dates update live when frequency/time changes
+                                const liveChannel = {
+                                  uploadTime: editSettings.uploadTime || selectedChannel.uploadTime,
+                                  frequency: editSettings.frequency || selectedChannel.frequency,
+                                  lastUploadDate: selectedChannel.lastUploadDate,
+                                };
+                                const d = getScheduledUploadDate(liveChannel, index);
+                                const isNext = index === 0;
+                                return (
+                                  <div>
+                                    <p className={`text-sm font-medium ${isNext ? 'text-green-600 dark:text-green-400' : ''}`}>
+                                      {isNext && <span className="text-xs mr-1">→</span>}
+                                      {d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+                                  </div>
+                                );
+                              })() : '-'}
                             </TableCell>
                             <TableCell className="hidden md:table-cell text-sm">
-                              {formatDate(video.createdAt)}
+                              {formatFileSize(video.fileSize)}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setPreviewVideo(video)}
-                                  title="Preview Video"
-                                >
-                                  <Play className="h-4 w-4" />
-                                  <span className="hidden sm:inline ml-1">Preview</span>
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openEditVideo(video)}
-                                  title="Edit Video"
-                                >
-                                  <Settings className="h-4 w-4" />
-                                  <span className="hidden sm:inline ml-1">Edit</span>
-                                </Button>
+                                {isDisabled ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => router.push('/pricing')}
+                                    title="Upgrade plan to unlock"
+                                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                                  >
+                                    <Lock className="h-4 w-4" />
+                                    <span className="hidden sm:inline ml-1">Upgrade</span>
+                                  </Button>
+                                ) : (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setPreviewVideo(video)}
+                                      title="Preview Video"
+                                    >
+                                      <Play className="h-4 w-4" />
+                                      <span className="hidden sm:inline ml-1">Preview</span>
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openEditVideo(video)}
+                                      title="Edit Video"
+                                    >
+                                      <Settings className="h-4 w-4" />
+                                      <span className="hidden sm:inline ml-1">Edit</span>
+                                    </Button>
+                                  </>
+                                )}
                                 <Button
                                   variant="destructive"
                                   size="sm"
@@ -1587,10 +2038,12 @@ export default function YouTubeAutomationDashboard() {
                               </div>
                             </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -1644,14 +2097,14 @@ export default function YouTubeAutomationDashboard() {
 
                 {/* Random Delay Section */}
                 <div className="space-y-4 p-4 rounded-lg border">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
                       <Label htmlFor="randomDelay">Random Delay</Label>
                       <p className="text-sm text-muted-foreground">
                         Add a random delay before each upload to appear more natural
                       </p>
                     </div>
-                    <Switch
+                    <PillToggle
                       id="randomDelay"
                       checked={editSettings.randomDelayEnabled}
                       onCheckedChange={(value) => setEditSettings({ ...editSettings, randomDelayEnabled: value })}
@@ -1686,12 +2139,18 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                   <div className="text-left sm:text-right">
                     <p className="text-sm font-medium">Next Scheduled Upload</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedChannel.nextUploadTime
-                        ? formatNextUpload(new Date(selectedChannel.nextUploadTime))
-                        : 'Calculating...'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">±15 min random delay applied</p>
+                    {(() => {
+                      const next = getNextUploadTime(selectedChannel);
+                      return (
+                        <>
+                          <p className="text-sm text-muted-foreground">
+                            {next.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}{' '}
+                            {next.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{formatNextUpload(next)} • ±15 min delay</p>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 

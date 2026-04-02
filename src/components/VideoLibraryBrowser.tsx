@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -111,9 +110,9 @@ const VideoThumbnail = ({ video, isSelected, onClick, onPreview }: {
   return (
     <div
       className={`relative aspect-video bg-muted rounded-lg overflow-hidden cursor-pointer transition-all touch-manipulation ${
-        isSelected ? 'ring-3 ring-blue-500 ring-offset-2' : ''
+        isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
       }`}
-      onClick={onClick}
+      onClick={onPreview}
     >
       {/* Loading skeleton */}
       {imageLoading && thumbnailSrc && (
@@ -145,27 +144,28 @@ const VideoThumbnail = ({ video, isSelected, onClick, onPreview }: {
         </div>
       )}
 
-      {/* Play button overlay */}
+      {/* Play icon hint (center, subtle) */}
+      <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/20 transition-colors pointer-events-none">
+        <div className="w-9 h-9 rounded-full bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <Play className="h-4 w-4 text-white ml-0.5" />
+        </div>
+      </div>
+
+      {/* Circle select button — always visible top-left */}
       <button
-        className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 active:opacity-100 transition-opacity"
+        className={`absolute top-2 left-2 w-7 h-7 rounded-full border-2 flex items-center justify-center shadow transition-all touch-manipulation z-10 ${
+          isSelected
+            ? 'bg-blue-500 border-blue-500'
+            : 'bg-black/40 border-white/70 hover:bg-black/60'
+        }`}
         onClick={(e) => {
           e.stopPropagation();
-          onPreview();
+          onClick();
         }}
+        title={isSelected ? 'Deselect' : 'Select'}
       >
-        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-          <Play className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 ml-0.5" />
-        </div>
+        {isSelected && <CheckCircle2 className="h-4 w-4 text-white" />}
       </button>
-
-      {/* Selection badge */}
-      {isSelected && (
-        <div className="absolute top-2 left-2">
-          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-md">
-            <CheckCircle2 className="h-4 w-4 text-white" />
-          </div>
-        </div>
-      )}
 
       {/* Status badges */}
       <div className="absolute bottom-2 right-2 flex gap-1">
