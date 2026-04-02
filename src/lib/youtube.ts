@@ -44,8 +44,15 @@ export async function getTokensFromCode(code: string) {
   return tokens;
 }
 
-// Get YouTube channel info
+// Get YouTube channel info (returns first/default channel)
 export async function getChannelInfo(accessToken: string, refreshToken: string) {
+  const channels = await getAllChannels(accessToken, refreshToken);
+  if (!channels.length) throw new Error('No channel found');
+  return channels[0];
+}
+
+// Get ALL YouTube channels for the authenticated Google account
+export async function getAllChannels(accessToken: string, refreshToken: string) {
   const oauth2Client = createOAuth2Client();
   oauth2Client.setCredentials({
     access_token: accessToken,
@@ -58,21 +65,20 @@ export async function getChannelInfo(accessToken: string, refreshToken: string) 
     const response = await youtube.channels.list({
       part: ['snippet', 'contentDetails'],
       mine: true,
+      maxResults: 50,
     });
 
-    const channel = response.data.items?.[0];
-    if (!channel) {
-      throw new Error('No channel found');
-    }
+    const items = response.data.items || [];
+    if (!items.length) throw new Error('No channel found');
 
-    return {
-      id: channel.id,
-      title: channel.snippet?.title,
-      description: channel.snippet?.description,
-      thumbnail: channel.snippet?.thumbnails?.default?.url,
-    };
+    return items.map(ch => ({
+      id: ch.id!,
+      title: ch.snippet?.title || 'Unknown Channel',
+      description: ch.snippet?.description || '',
+      thumbnail: ch.snippet?.thumbnails?.default?.url || null,
+    }));
   } catch (error) {
-    console.error('Error fetching channel info:', error);
+    console.error('Error fetching channels:', error);
     throw error;
   }
 }
