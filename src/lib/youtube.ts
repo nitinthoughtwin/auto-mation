@@ -25,10 +25,7 @@ export function getAuthUrl(state?: string) {
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly',
-    // drive.file is NOT included here — it is requested separately only when
-    // the user accesses Google Drive features. Including it in the YouTube
-    // channel auth causes "service unavailable" errors on accounts that have
-    // Drive restricted or on brand-channel-owned Google accounts.
+    'https://www.googleapis.com/auth/drive.file', // needed to upload/store videos on Google Drive
   ];
 
   return oauth2Client.generateAuthUrl({
