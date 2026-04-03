@@ -40,9 +40,9 @@ export async function uploadFile(
   throw new Error('For Vercel Blob, use client-side upload with @vercel/blob/client');
 }
 
-// Delete file from storage (supports Blob, R2, and Google Drive)
+// Delete file from storage (supports R2, Blob, and Google Drive)
 export async function deleteFile(
-  url: string, 
+  url: string,
   driveConfig?: { accessToken: string; refreshToken: string }
 ): Promise<boolean> {
   try {
@@ -52,34 +52,25 @@ export async function deleteFile(
         console.warn('Drive config required to delete Google Drive files');
         return false;
       }
-      
       const match = url.match(/id=([a-zA-Z0-9_-]+)/);
-      if (!match) {
-        console.warn('Could not extract file ID from Drive URL');
-        return false;
-      }
-      
+      if (!match) return false;
       const { deleteFromDrive } = await import('../drive');
       const result = await deleteFromDrive(driveConfig.accessToken, driveConfig.refreshToken, match[1]);
       return result.success;
     }
-    
-    // R2 URL
-    if (url.includes(R2_PUBLIC_URL || 'r2.cloudflarestorage.com')) {
-      const key = url.split('/').slice(-2).join('/');
-      const command = new DeleteObjectCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: key,
-      });
-      await r2Client.send(command);
+
+    // Cloudflare R2 URL — extract key by stripping the public base URL
+    if (R2_PUBLIC_URL && url.startsWith(R2_PUBLIC_URL)) {
+      const key = url.slice(R2_PUBLIC_URL.length + 1); // strip leading slash
+      await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
       return true;
     }
-    
+
     // Vercel Blob URL
     const { del } = await import('@vercel/blob');
     await del(url);
     return true;
-    
+
   } catch (error) {
     console.error('Failed to delete file:', error);
     return false;

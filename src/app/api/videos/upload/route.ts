@@ -2,20 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { refreshAccessToken } from '@/lib/youtube';
-import { uploadToGoogleDrive } from '@/lib/google-drive';
 import { getUserPlanAndUsage, checkVideoLimit, checkStorageLimit } from '@/lib/plan-limits';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-// Configure for large file handling
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-// POST - Bulk video upload to Google Drive
+const r2 = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+  },
+});
+
+// Upload video to Cloudflare R2
+async function storeVideo(file: File, channelId: string): Promise<string> {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const key = `videos/${channelId}/${Date.now()}-${safeName}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  await r2.send(new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+    Body: buffer,
+    ContentType: file.type,
+  }));
+
+  return `${process.env.R2_PUBLIC_URL}/${key}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== Video Upload to Google Drive ===');
-    
+    console.log('=== Video Upload ===');
+
     const formData = await request.formData();
     const channelId = formData.get('channelId') as string;
     const defaultTitle = formData.get('defaultTitle') as string;
@@ -23,24 +45,13 @@ export async function POST(request: NextRequest) {
     const defaultTags = formData.get('defaultTags') as string;
     const files = formData.getAll('files') as File[];
 
-    console.log('Channel ID:', channelId);
-    console.log('Files count:', files?.length || 0);
-
     if (!channelId) {
-      return NextResponse.json(
-        { success: false, error: 'Channel ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'Channel ID is required' }, { status: 400 });
     }
-
     if (!files || files.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'No files uploaded' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'No files uploaded' }, { status: 400 });
     }
 
-    // Verify channel exists and belongs to authenticated user
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -49,25 +60,17 @@ export async function POST(request: NextRequest) {
     const channel = await db.channel.findFirst({
       where: { id: channelId, userId: session.user.id },
     });
-
     if (!channel) {
-      return NextResponse.json(
-        { success: false, error: 'Channel not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: 'Channel not found' }, { status: 404 });
     }
 
     // Enforce plan limits
     try {
       const { limits, usage } = await getUserPlanAndUsage(session.user.id);
-
-      // Check video count limit
       const videoCheck = checkVideoLimit(limits, usage, files.length);
       if (!videoCheck.allowed) {
         return NextResponse.json({ success: false, error: videoCheck.message, limitExceeded: 'videos' }, { status: 403 });
       }
-
-      // Check per-file size and total storage
       for (const file of files) {
         const storageCheck = checkStorageLimit(limits, usage, file.size);
         if (!storageCheck.allowed) {
@@ -75,66 +78,36 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch {
-      // If no subscription found, proceed — free tier still gets some access
+      // No subscription — free tier, proceed
     }
 
-    // Refresh access token
-    let accessToken = channel.accessToken;
-    let refreshToken = channel.refreshToken;
-    
-    try {
-      const tokens = await refreshAccessToken(channel.refreshToken);
-      accessToken = tokens.accessToken;
-      refreshToken = tokens.refreshToken;
-      
-      await db.channel.update({
-        where: { id: channelId },
-        data: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        },
-      });
-      console.log('Access token refreshed');
-    } catch (e) {
-      console.log('Using existing token');
-    }
-
-    const uploadedVideos = [];
+    const uploadedVideos: { id: string; title: string; status: string }[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      
-      console.log(`Uploading file ${i + 1}/${files.length}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+      const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+      console.log(`Uploading ${i + 1}/${files.length}: ${file.name} (${sizeMB} MB)`);
 
-      // Upload to Google Drive
-      const driveResult = await uploadToGoogleDrive(
-        accessToken,
-        refreshToken,
-        file,
-        'youtube-uploads'
-      );
+      const url = await storeVideo(file, channelId);
+      console.log('Stored at:', url);
 
-      console.log('Google Drive upload result:', driveResult);
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+      const title = defaultTitle
+        ? `${defaultTitle}${files.length > 1 ? ` (${i + 1})` : ''}`
+        : ext ? file.name.slice(0, -(ext.length + 1)) : file.name;
 
-      // Generate title - use default or filename
-      const fileExtension = file.name.split('.').pop() || '';
-      const title = defaultTitle 
-        ? `${defaultTitle} ${files.length > 1 ? `(${i + 1})` : ''}`
-        : file.name.replace(`.${fileExtension}`, '');
-
-      // Create video record in database with all Drive info
       const video = await db.video.create({
         data: {
           channelId,
           title,
           description: defaultDescription || '',
           tags: defaultTags || '',
-          fileName: driveResult.url, // Full Google Drive URL for download
+          fileName: url,
           originalName: file.name,
           fileSize: file.size,
           mimeType: file.type,
-          driveFileId: driveResult.id, // Google Drive file ID
-          driveWebViewLink: `https://drive.google.com/file/d/${driveResult.id}/view`,
+          driveFileId: null,
+          driveWebViewLink: null,
           status: 'queued',
         },
       });
@@ -143,16 +116,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`=== Upload Complete: ${uploadedVideos.length} videos ===`);
-
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: `${uploadedVideos.length} video(s) uploaded successfully`,
       videos: uploadedVideos,
     });
+
   } catch (error: any) {
-    console.error('=== Upload FAILED ===');
-    console.error('Error:', error.message);
-    
+    console.error('=== Upload FAILED ===', error.message);
     return NextResponse.json(
       { success: false, error: error.message || 'Failed to upload videos' },
       { status: 500 }

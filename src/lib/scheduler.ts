@@ -563,8 +563,8 @@ export async function processScheduledUploads(): Promise<{
 
           // Delete from storage to save space
           try {
-            const fileId = extractFileIdFromUrl(video.fileName) || video.fileName;
-            await deleteFile(fileId, {
+            // Pass the full URL — deleteFile handles Vercel Blob, R2, and Google Drive URLs
+            await deleteFile(video.fileName, {
               accessToken,
               refreshToken: channel.refreshToken,
             });
