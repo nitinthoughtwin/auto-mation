@@ -7,13 +7,14 @@ import { YouTubeConnector } from '@/components/youtube-connector';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
+import {
+  CheckCircle,
+  XCircle,
+  Loader2,
   ArrowLeft,
   Youtube,
-  HelpCircle
+  HelpCircle,
+  Plus,
 } from 'lucide-react';
 
 interface Channel {
@@ -33,50 +34,63 @@ function ConnectYouTubeContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
-  const [channel, setChannel] = useState<Channel | null>(null);
+
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [planLimit, setPlanLimit] = useState<number>(1);
+  const [isConnecting, setIsConnecting] = useState(false);
+
   const successParam = searchParams.get('success');
   const nameParam = searchParams.get('name');
   const errorParam = searchParams.get('error');
 
-  // Fetch existing channel
-  useEffect(() => {
-    async function fetchChannel() {
-      if (status !== 'authenticated') return;
-      
-      try {
-        const response = await fetch('/api/channels');
-        const data = await response.json();
-        
-        if (data.channels && data.channels.length > 0) {
-          setChannel(data.channels[0]);
-        }
-      } catch (error) {
-        console.error('Failed to fetch channel:', error);
-      } finally {
-        setIsLoading(false);
+  const refreshChannels = async () => {
+    try {
+      const [channelRes, usageRes] = await Promise.all([
+        fetch('/api/channels'),
+        fetch('/api/usage'),
+      ]);
+      const channelData = await channelRes.json();
+      setChannels(channelData.channels || []);
+      if (usageRes.ok) {
+        const usageData = await usageRes.json();
+        setPlanLimit(usageData.usage?.channels?.limit ?? 1);
       }
+    } catch (error) {
+      console.error('Failed to fetch channels:', error);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    fetchChannel();
+  // Fetch existing channels + plan limit
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    refreshChannels();
   }, [status]);
 
-  // Handle success from OAuth callback
+  // Handle success from OAuth callback — refresh list
   useEffect(() => {
     if (successParam && nameParam) {
-      // Refresh channel data
-      fetch('/api/channels')
-        .then(res => res.json())
-        .then(data => {
-          if (data.channels && data.channels.length > 0) {
-            setChannel(data.channels[0]);
-          }
-        })
-        .catch(console.error);
+      refreshChannels();
     }
   }, [successParam, nameParam]);
+
+  const handleAddChannel = async () => {
+    setIsConnecting(true);
+    try {
+      const res = await fetch('/api/auth/youtube');
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      setIsConnecting(false);
+    }
+  };
+
+  // Keep backward compat: single channel reference for YouTubeConnector
+  const channel = channels[0] ?? null;
 
   if (status === 'loading' || isLoading) {
     return (
@@ -158,14 +172,65 @@ function ConnectYouTubeContent() {
 
         {/* Main Content */}
         <div className="grid gap-6 md:grid-cols-3">
-          {/* YouTube Connector */}
-          <div className="md:col-span-2">
+          {/* YouTube Connector + additional channels */}
+          <div className="md:col-span-2 space-y-4">
             <YouTubeConnector
               userId={session?.user?.id || ''}
               existingChannel={channel}
-              onChannelConnected={setChannel}
-              onChannelDisconnected={() => setChannel(null)}
+              onChannelConnected={(ch) => setChannels(prev => {
+                const idx = prev.findIndex(c => c.id === ch.id);
+                if (idx >= 0) { const next = [...prev]; next[idx] = ch; return next; }
+                return [...prev, ch];
+              })}
+              onChannelDisconnected={() => setChannels(prev => prev.filter(c => c.id !== channel?.id))}
             />
+
+            {/* Additional connected channels */}
+            {channels.slice(1).map(ch => (
+              <YouTubeConnector
+                key={ch.id}
+                userId={session?.user?.id || ''}
+                existingChannel={ch}
+                onChannelConnected={(updated) => setChannels(prev => {
+                  const idx = prev.findIndex(c => c.id === updated.id);
+                  if (idx >= 0) { const next = [...prev]; next[idx] = updated; return next; }
+                  return prev;
+                })}
+                onChannelDisconnected={() => setChannels(prev => prev.filter(c => c.id !== ch.id))}
+              />
+            ))}
+
+            {/* Connect Another Channel button */}
+            {channels.length > 0 && channels.length < planLimit && (
+              <Button
+                variant="outline"
+                className="w-full border-dashed gap-2"
+                onClick={handleAddChannel}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Connect Another Channel
+                <span className="text-xs text-muted-foreground ml-1">
+                  ({channels.length}/{planLimit} connected)
+                </span>
+              </Button>
+            )}
+
+            {/* At limit — show upgrade prompt */}
+            {channels.length > 0 && channels.length >= planLimit && (
+              <Button
+                variant="outline"
+                className="w-full border-dashed gap-2 text-muted-foreground"
+                onClick={() => window.location.href = '/pricing'}
+              >
+                <Plus className="h-4 w-4" />
+                Connect More Channels — Upgrade Plan
+              </Button>
+            )}
           </div>
 
           {/* Help & Info */}
