@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokensFromCode, getAllChannels } from '@/lib/youtube';
 import { db } from '@/lib/db';
-import { signSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
+import { savePendingSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,9 +10,8 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const stateParam = searchParams.get('state');
 
-    // Handle OAuth errors
     if (error) {
-      console.error('YouTube OAuth error:', error);
+      console.error('[YouTube OAuth] Error from Google:', error);
       return NextResponse.redirect(
         new URL(`/connect-youtube?error=${encodeURIComponent(error)}`, request.url)
       );
@@ -46,7 +45,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get ALL channels for this Google account
-    console.log('[YouTube OAuth] Fetching all channels...');
+    console.log('[YouTube OAuth] Fetching channels...');
     let channels: Awaited<ReturnType<typeof getAllChannels>>;
     try {
       channels = await getAllChannels(tokens.access_token, tokens.refresh_token || '');
@@ -63,7 +62,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // If only one channel — connect directly (original flow)
+    // Single channel — connect directly
     if (channels.length === 1) {
       return connectChannel({
         channelInfo: channels[0],
@@ -74,10 +73,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Multiple channels — store pending session cookie and redirect to channel picker
-    console.log(`[YouTube OAuth] Found ${channels.length} channels, redirecting to picker`);
+    // Multiple channels — save session to Redis, pass ID via cookie
+    console.log(`[YouTube OAuth] ${channels.length} channels found, redirecting to picker`);
 
-    const sessionToken = signSession({
+    const sessionId = await savePendingSession({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || '',
       channels,
@@ -86,23 +85,23 @@ export async function GET(request: NextRequest) {
 
     const selectUrl = new URL('/connect-youtube/select', request.url);
     const response = NextResponse.redirect(selectUrl);
-    response.cookies.set(PENDING_SESSION_COOKIE, sessionToken, {
+    response.cookies.set(PENDING_SESSION_COOKIE, sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 600, // 10 minutes
+      maxAge: 600,
       path: '/',
     });
     return response;
   } catch (error: any) {
     console.error('[YouTube OAuth] Callback error:', error);
     return NextResponse.redirect(
-      new URL(`/connect-youtube?error=${encodeURIComponent(error.message || 'Unknown error')}`, request.url)
+      new URL(`/connect-youtube?error=${encodeURIComponent(error.message || 'callback_error')}`, request.url)
     );
   }
 }
 
-// Shared logic: upsert a channel in DB and redirect to success
+// Shared: upsert a YouTube channel and redirect to success
 export async function connectChannel({
   channelInfo,
   accessToken,
@@ -116,13 +115,11 @@ export async function connectChannel({
   userId: string | null;
   request: NextRequest;
 }) {
-  // Check if channel already exists
   const existingChannel = await db.channel.findUnique({
     where: { youtubeChannelId: channelInfo.id },
   });
 
   if (existingChannel) {
-    // Different user trying to claim the same channel
     if (userId && existingChannel.userId && existingChannel.userId !== userId) {
       return NextResponse.redirect(
         new URL(
@@ -132,7 +129,6 @@ export async function connectChannel({
       );
     }
 
-    // Update tokens for existing channel
     const updated = await db.channel.update({
       where: { id: existingChannel.id },
       data: {
@@ -144,7 +140,6 @@ export async function connectChannel({
       },
     });
 
-    console.log('[YouTube OAuth] Channel updated:', updated.id);
     return NextResponse.redirect(
       new URL(
         `/connect-youtube?success=${updated.id}&name=${encodeURIComponent(updated.name)}`,
@@ -153,7 +148,6 @@ export async function connectChannel({
     );
   }
 
-  // Create new channel
   const channel = await db.channel.create({
     data: {
       userId,
@@ -167,7 +161,6 @@ export async function connectChannel({
     },
   });
 
-  console.log('[YouTube OAuth] New channel created:', channel.id);
   return NextResponse.redirect(
     new URL(
       `/connect-youtube?success=${channel.id}&name=${encodeURIComponent(channel.name)}`,

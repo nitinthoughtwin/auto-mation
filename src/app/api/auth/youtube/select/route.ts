@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { verifySession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
+import { getPendingSession, deletePendingSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
 import { db } from '@/lib/db';
 import { getUserPlanAndUsage, checkChannelLimit } from '@/lib/plan-limits';
 
@@ -18,19 +18,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'channelId is required' }, { status: 400 });
     }
 
-    // Read and verify the pending session cookie
+    // Read session ID from cookie
     const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get(PENDING_SESSION_COOKIE);
-    if (!sessionCookie?.value) {
+    const sessionId = cookieStore.get(PENDING_SESSION_COOKIE)?.value;
+    if (!sessionId) {
       return NextResponse.json({ error: 'No pending session. Please reconnect via OAuth.' }, { status: 400 });
     }
 
-    const pendingSession = verifySession(sessionCookie.value);
+    const pendingSession = await getPendingSession(sessionId);
     if (!pendingSession) {
       return NextResponse.json({ error: 'Session expired. Please reconnect via OAuth.' }, { status: 401 });
     }
 
-    // Validate the requested channelId is in the pending session
+    // Validate selected channelId is in the session
     const channelInfo = pendingSession.channels.find(ch => ch.id === channelId);
     if (!channelInfo) {
       return NextResponse.json({ error: 'Invalid channel selection' }, { status: 400 });
@@ -44,11 +44,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: channelCheck.message, limitExceeded: 'channels' }, { status: 403 });
       }
     } catch {
-      // No subscription — apply free tier limit
       const existingCount = await db.channel.count({ where: { userId: session.user.id } });
       if (existingCount >= 1) {
         return NextResponse.json(
-          { error: 'Free plan allows 1 channel. Upgrade to connect more.' , limitExceeded: 'channels' },
+          { error: 'Free plan allows 1 channel. Upgrade to connect more.', limitExceeded: 'channels' },
           { status: 403 }
         );
       }
@@ -63,7 +62,6 @@ export async function POST(request: NextRequest) {
     });
 
     let resultChannel;
-
     if (existingChannel) {
       if (existingChannel.userId && existingChannel.userId !== userId) {
         return NextResponse.json(
@@ -71,7 +69,6 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-
       resultChannel = await db.channel.update({
         where: { id: existingChannel.id },
         data: {
@@ -97,7 +94,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Clear the pending session cookie
+    // Clean up Redis session
+    await deletePendingSession(sessionId);
+
     const response = NextResponse.json({
       success: true,
       channelId: resultChannel.id,

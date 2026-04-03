@@ -1,12 +1,11 @@
 import 'server-only';
-import crypto from 'crypto';
+import { Redis } from 'ioredis';
 
-export const PENDING_SESSION_COOKIE = 'yt_pending_session';
-const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const REDIS_URL = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
+const TTL_SECONDS = 600; // 10 minutes
+const KEY_PREFIX = 'yt_pending:';
 
-function getSecret(): string {
-  return process.env.NEXTAUTH_SECRET || 'fallback-dev-secret-change-in-production';
-}
+export const PENDING_SESSION_COOKIE = 'yt_pending_id';
 
 export interface PendingChannelSession {
   accessToken: string;
@@ -18,40 +17,55 @@ export interface PendingChannelSession {
     thumbnail: string | null;
   }>;
   userId: string | null;
-  exp: number;
 }
 
-export function signSession(payload: Omit<PendingChannelSession, 'exp'>): string {
-  const data: PendingChannelSession = { ...payload, exp: Date.now() + SESSION_TTL_MS };
-  const encoded = Buffer.from(JSON.stringify(data)).toString('base64url');
-  const sig = crypto
-    .createHmac('sha256', getSecret())
-    .update(encoded)
-    .digest('base64url');
-  return `${encoded}.${sig}`;
+function getRedis(): Redis {
+  if (!REDIS_URL) throw new Error('Redis not configured');
+  return new Redis(REDIS_URL, {
+    maxRetriesPerRequest: 1,
+    enableReadyCheck: false,
+    lazyConnect: false,
+  });
 }
 
-export function verifySession(token: string): PendingChannelSession | null {
-  const dotIndex = token.lastIndexOf('.');
-  if (dotIndex === -1) return null;
+export async function savePendingSession(data: PendingChannelSession): Promise<string> {
+  // Generate a random session ID (32 hex chars)
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  const sessionId = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
 
-  const encoded = token.slice(0, dotIndex);
-  const sig = token.slice(dotIndex + 1);
-
-  const expectedSig = crypto
-    .createHmac('sha256', getSecret())
-    .update(encoded)
-    .digest('base64url');
-
-  if (sig !== expectedSig) return null;
-
+  const redis = getRedis();
   try {
-    const payload: PendingChannelSession = JSON.parse(
-      Buffer.from(encoded, 'base64url').toString()
+    await redis.set(
+      KEY_PREFIX + sessionId,
+      JSON.stringify(data),
+      'EX',
+      TTL_SECONDS
     );
-    if (payload.exp < Date.now()) return null; // expired
-    return payload;
+  } finally {
+    redis.disconnect();
+  }
+  return sessionId;
+}
+
+export async function getPendingSession(sessionId: string): Promise<PendingChannelSession | null> {
+  const redis = getRedis();
+  try {
+    const raw = await redis.get(KEY_PREFIX + sessionId);
+    if (!raw) return null;
+    return JSON.parse(raw) as PendingChannelSession;
   } catch {
     return null;
+  } finally {
+    redis.disconnect();
+  }
+}
+
+export async function deletePendingSession(sessionId: string): Promise<void> {
+  const redis = getRedis();
+  try {
+    await redis.del(KEY_PREFIX + sessionId);
+  } finally {
+    redis.disconnect();
   }
 }

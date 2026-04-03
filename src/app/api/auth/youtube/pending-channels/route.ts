@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifySession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
+import { getPendingSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
 
-// Returns the list of channels from the pending OAuth session cookie
-// Tokens are NOT exposed — only channel metadata for display
 export async function GET(_request: NextRequest) {
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(PENDING_SESSION_COOKIE);
+  const sessionId = cookieStore.get(PENDING_SESSION_COOKIE)?.value;
 
-  if (!sessionCookie?.value) {
+  if (!sessionId) {
     return NextResponse.json({ error: 'No pending session' }, { status: 404 });
   }
 
-  const session = verifySession(sessionCookie.value);
+  const session = await getPendingSession(sessionId);
   if (!session) {
     return NextResponse.json({ error: 'Session expired or invalid' }, { status: 401 });
   }
