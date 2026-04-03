@@ -25,15 +25,20 @@ export function getAuthUrl(state?: string) {
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly',
-    'https://www.googleapis.com/auth/drive.file', // Google Drive access
+    // drive.file is NOT included here — it is requested separately only when
+    // the user accesses Google Drive features. Including it in the YouTube
+    // channel auth causes "service unavailable" errors on accounts that have
+    // Drive restricted or on brand-channel-owned Google accounts.
   ];
 
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
-    include_granted_scopes: true,
+    // include_granted_scopes removed — merging scopes from a prior session of
+    // a different Google account causes "service unavailable" when the second
+    // account doesn't hold those same prior grants.
     state: state || '',
-    prompt: 'consent', // 'select_account' removed — brand channel identities can't authenticate directly via OAuth and cause "service unavailable" errors. The main Google account already returns all managed channels (including brand channels) via channels.list({ mine: true }).
+    prompt: 'consent',
   });
 }
 
