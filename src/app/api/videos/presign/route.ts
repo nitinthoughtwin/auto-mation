@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
           new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
             Key: key,
-            ContentType: file.type,
+            // Do NOT sign ContentType — avoids 403 signature mismatch when browser sends the header
           }),
-          { expiresIn: 3600 } // 1 hour
+          { expiresIn: 3600 }
         );
         return {
           key,

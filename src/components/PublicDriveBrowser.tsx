@@ -490,11 +490,11 @@ export default function PublicDriveBrowser({
                   <div
                     key={video.id}
                     className={`cursor-pointer border rounded-lg overflow-hidden transition-all ${
-                      selectedVideos.has(video.id) 
-                        ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950' 
+                      selectedVideos.has(video.id)
+                        ? 'ring-2 ring-green-500'
                         : 'hover:shadow-md'
                     }`}
-                    onClick={() => toggleVideo(video.id)}
+                    onClick={() => setPreviewVideo(video)}
                   >
                     <div className="aspect-video bg-muted relative group">
                       {video.thumbnailUrl || video.thumbnailLink ? (
@@ -509,31 +509,34 @@ export default function PublicDriveBrowser({
                       ) : (
                         <DefaultThumbnail />
                       )}
-                      
-                      {/* Play Button */}
+
+                      {/* Play overlay on hover */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none">
+                        <div className="w-10 h-10 rounded-full bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Play className="h-5 w-5 text-white ml-0.5" />
+                        </div>
+                      </div>
+
+                      {/* Circle select button — always visible top-left */}
                       <button
-                        className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className={`absolute top-2 left-2 w-7 h-7 rounded-full border-2 flex items-center justify-center shadow transition-all touch-manipulation z-10 ${
+                          selectedVideos.has(video.id)
+                            ? 'bg-green-500 border-green-500'
+                            : 'bg-black/40 border-white/70 hover:bg-black/60'
+                        }`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPreviewVideo(video);
+                          toggleVideo(video.id);
                         }}
+                        title={selectedVideos.has(video.id) ? 'Deselect' : 'Select'}
                       >
-                        <div className="w-12 h-12 rounded-full bg-white/95 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                          <Play className="h-6 w-6 text-green-600 ml-1" />
-                        </div>
+                        {selectedVideos.has(video.id) && <CheckCircle2 className="h-4 w-4 text-white" />}
                       </button>
 
-                      {/* Selection Check */}
-                      {selectedVideos.has(video.id) && (
-                        <div className="absolute top-1.5 left-1.5">
-                          <CheckCircle2 className="h-5 w-5 text-green-500 bg-white rounded-full" />
-                        </div>
-                      )}
-
                       {/* File Size */}
-                      <Badge 
-                        variant="secondary" 
-                        className="absolute bottom-1.5 right-1.5 text-[10px] sm:text-xs bg-black/70 text-white"
+                      <Badge
+                        variant="secondary"
+                        className="absolute bottom-1.5 right-1.5 text-[10px] sm:text-xs bg-black/70 text-white border-0"
                       >
                         {formatSize(video.size)}
                       </Badge>

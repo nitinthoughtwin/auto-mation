@@ -93,6 +93,11 @@ const getThumbnailUrl = (fileIdOrUrl: string | null): string | null => {
 
 const getVideoUrl = (fileIdOrUrl: string | null): string | null => {
   if (!fileIdOrUrl) return null;
+  // R2 / direct video URL — play natively
+  if (fileIdOrUrl.startsWith('http') && !fileIdOrUrl.includes('drive.google.com')) {
+    return fileIdOrUrl;
+  }
+  // Google Drive file ID or URL → embed preview
   let fileId: string | null = null;
   if (fileIdOrUrl.startsWith('http')) {
     const match1 = fileIdOrUrl.match(/[?&]id=([^&]+)/);
@@ -106,6 +111,11 @@ const getVideoUrl = (fileIdOrUrl: string | null): string | null => {
   }
   if (!fileId) return null;
   return `https://drive.google.com/file/d/${fileId}/preview`;
+};
+
+const isDriveUrl = (url: string | null): boolean => {
+  if (!url) return false;
+  return url.includes('drive.google.com');
 };
 
 const getDriveLink = (fileIdOrUrl: string | null): string | null => {
@@ -2299,12 +2309,21 @@ export default function YouTubeAutomationDashboard() {
               {/* Video Player */}
               <div className="aspect-video bg-black rounded-lg overflow-hidden">
                 {previewVideo && getVideoUrl(previewVideo.fileName) && (
-                  <iframe
-                    src={getVideoUrl(previewVideo.fileName) || ''}
-                    className="w-full h-full"
-                    allow="autoplay; fullscreen"
-                    allowFullScreen
-                  />
+                  isDriveUrl(previewVideo.fileName) ? (
+                    <iframe
+                      src={getVideoUrl(previewVideo.fileName) || ''}
+                      className="w-full h-full"
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      src={getVideoUrl(previewVideo.fileName) || ''}
+                      controls
+                      className="w-full h-full"
+                      preload="metadata"
+                    />
+                  )
                 )}
               </div>
 
@@ -2332,18 +2351,31 @@ export default function YouTubeAutomationDashboard() {
                 </div>
               </div>
 
-              {/* Open in Drive Link */}
-              {previewVideo && getDriveLink(previewVideo.fileName) && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1 btn-press"
-                    onClick={() => window.open(getDriveLink(previewVideo.fileName) || '', '_blank')}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Open in Google Drive
-                  </Button>
-                </div>
+              {/* Open in Drive / direct link */}
+              {previewVideo && (
+                isDriveUrl(previewVideo.fileName) && getDriveLink(previewVideo.fileName) ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1 btn-press"
+                      onClick={() => window.open(getDriveLink(previewVideo.fileName) || '', '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open in Google Drive
+                    </Button>
+                  </div>
+                ) : previewVideo.fileName?.startsWith('http') ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1 btn-press"
+                      onClick={() => window.open(previewVideo.fileName || '', '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open Video
+                    </Button>
+                  </div>
+                ) : null
               )}
             </div>
             <DialogFooter>

@@ -213,21 +213,17 @@ export default function SetupRoadmap({
 
               {/* Step content */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className={`text-sm font-semibold leading-tight ${step.done ? 'line-through text-muted-foreground' : ''}`}>
-                      {step.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                      {step.description}
-                    </p>
+                <p className={`text-sm font-semibold leading-tight ${step.done ? 'line-through text-muted-foreground' : ''}`}>
+                  {step.title}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                  {step.description}
+                </p>
+                {step.cta && (
+                  <div className="mt-2">
+                    {step.cta}
                   </div>
-                  {step.cta && (
-                    <div className="flex-shrink-0 mt-0.5">
-                      {step.cta}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           ))}
