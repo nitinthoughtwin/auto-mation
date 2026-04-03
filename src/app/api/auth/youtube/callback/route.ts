@@ -1,90 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokensFromCode, getAllChannels } from '@/lib/youtube';
-import { savePendingSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
-import { connectChannel } from '@/lib/youtube-connect';
+import { db } from '@/lib/db';
+import { signSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
+
+function redirectError(base: string, msg: string) {
+  return NextResponse.redirect(`${base}/connect-youtube?error=${encodeURIComponent(msg)}`);
+}
+
+function redirectSuccess(base: string, id: string, name: string) {
+  return NextResponse.redirect(`${base}/connect-youtube?success=${id}&name=${encodeURIComponent(name)}`);
+}
+
+function getBase(request: NextRequest) {
+  // Use NEXTAUTH_URL if set (avoids proxy/header issues in production)
+  return process.env.NEXTAUTH_URL?.replace(/\/$/, '') || new URL(request.url).origin;
+}
 
 export async function GET(request: NextRequest) {
+  const base = getBase(request);
+
   try {
-    const searchParams = request.nextUrl.searchParams;
+    const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
-    const error = searchParams.get('error');
+    const oauthError = searchParams.get('error');
     const stateParam = searchParams.get('state');
 
-    if (error) {
-      console.error('[YouTube OAuth] Error from Google:', error);
-      return NextResponse.redirect(
-        new URL(`/connect-youtube?error=${encodeURIComponent(error)}`, request.url)
-      );
+    if (oauthError) {
+      return redirectError(base, oauthError);
     }
-
     if (!code) {
-      return NextResponse.redirect(
-        new URL('/connect-youtube?error=no_code', request.url)
-      );
+      return redirectError(base, 'no_code');
     }
 
-    // Parse state to get userId
+    // Parse userId from state
     let userId: string | null = null;
     if (stateParam) {
       try {
-        const state = JSON.parse(decodeURIComponent(stateParam));
-        userId = state.userId;
+        userId = JSON.parse(decodeURIComponent(stateParam)).userId ?? null;
       } catch {
-        // Invalid state — continue without userId
+        try {
+          userId = JSON.parse(stateParam).userId ?? null;
+        } catch { /* ignore */ }
       }
     }
 
     // Exchange code for tokens
-    console.log('[YouTube OAuth] Exchanging code for tokens...');
-    const tokens = await getTokensFromCode(code);
+    let tokens: Awaited<ReturnType<typeof getTokensFromCode>>;
+    try {
+      tokens = await getTokensFromCode(code);
+    } catch (e: any) {
+      console.error('[YT Callback] Token exchange failed:', e.message);
+      return redirectError(base, 'token_exchange_failed');
+    }
 
     if (!tokens.access_token) {
-      return NextResponse.redirect(
-        new URL('/connect-youtube?error=missing_access_token', request.url)
-      );
+      return redirectError(base, 'missing_access_token');
     }
 
     // Fetch all channels for this Google account
-    console.log('[YouTube OAuth] Fetching channels...');
     let channels: Awaited<ReturnType<typeof getAllChannels>>;
     try {
       channels = await getAllChannels(tokens.access_token, tokens.refresh_token || '');
-    } catch (err: any) {
-      console.error('[YouTube OAuth] Failed to fetch channels:', err.message);
-      return NextResponse.redirect(
-        new URL('/connect-youtube?error=no_channel_found', request.url)
-      );
+    } catch (e: any) {
+      console.error('[YT Callback] getAllChannels failed:', e.message);
+      return redirectError(base, 'no_channel_found');
     }
 
     if (!channels.length) {
-      return NextResponse.redirect(
-        new URL('/connect-youtube?error=no_channel_found', request.url)
-      );
+      return redirectError(base, 'no_channel_found');
     }
 
-    // Single channel — connect directly, no picker needed
+    // Single channel — connect directly
     if (channels.length === 1) {
-      return connectChannel({
+      return await upsertChannel({
+        base,
         channelInfo: channels[0],
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || '',
         userId,
-        request,
       });
     }
 
-    // Multiple channels — store in Redis and redirect to picker
-    console.log(`[YouTube OAuth] ${channels.length} channels found, redirecting to picker`);
-
-    const sessionId = await savePendingSession({
+    // Multiple channels — sign a cookie and redirect to picker
+    const signed = signSession({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || '',
       channels,
       userId,
     });
 
-    const response = NextResponse.redirect(new URL('/connect-youtube/select', request.url));
-    response.cookies.set(PENDING_SESSION_COOKIE, sessionId, {
+    const response = NextResponse.redirect(`${base}/connect-youtube/select`);
+    response.cookies.set(PENDING_SESSION_COOKIE, signed, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -93,10 +99,64 @@ export async function GET(request: NextRequest) {
     });
     return response;
 
-  } catch (error: any) {
-    console.error('[YouTube OAuth] Callback error:', error);
-    return NextResponse.redirect(
-      new URL(`/connect-youtube?error=${encodeURIComponent(error.message || 'callback_error')}`, request.url)
-    );
+  } catch (e: any) {
+    console.error('[YT Callback] Unhandled error:', e);
+    return redirectError(base, e.message || 'unknown_error');
+  }
+}
+
+// Upsert a channel in DB — returns a redirect response
+async function upsertChannel({
+  base,
+  channelInfo,
+  accessToken,
+  refreshToken,
+  userId,
+}: {
+  base: string;
+  channelInfo: { id: string; title: string; description: string; thumbnail: string | null };
+  accessToken: string;
+  refreshToken: string;
+  userId: string | null;
+}) {
+  try {
+    const existing = await db.channel.findUnique({
+      where: { youtubeChannelId: channelInfo.id },
+    });
+
+    if (existing) {
+      if (userId && existing.userId && existing.userId !== userId) {
+        return redirectError(base, 'This YouTube channel is already connected to another account!');
+      }
+      const updated = await db.channel.update({
+        where: { id: existing.id },
+        data: {
+          name: channelInfo.title || existing.name,
+          accessToken,
+          refreshToken: refreshToken || existing.refreshToken,
+          userId: userId || existing.userId,
+          isActive: true,
+        },
+      });
+      return redirectSuccess(base, updated.id, updated.name);
+    }
+
+    const created = await db.channel.create({
+      data: {
+        userId,
+        name: channelInfo.title || 'Unknown Channel',
+        youtubeChannelId: channelInfo.id,
+        accessToken,
+        refreshToken,
+        uploadTime: '18:00',
+        frequency: 'daily',
+        isActive: true,
+      },
+    });
+    return redirectSuccess(base, created.id, created.name);
+
+  } catch (e: any) {
+    console.error('[YT Callback] upsertChannel failed:', e.message);
+    return redirectError(base, e.message || 'db_error');
   }
 }

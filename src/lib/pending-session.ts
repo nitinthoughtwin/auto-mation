@@ -1,12 +1,7 @@
 import 'server-only';
-import { randomBytes } from 'crypto';
-import { Redis } from 'ioredis';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
-const REDIS_URL = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
-const TTL_SECONDS = 600; // 10 minutes
-const KEY_PREFIX = 'yt_pending:';
-
-export const PENDING_SESSION_COOKIE = 'yt_pending_id';
+export const PENDING_SESSION_COOKIE = 'yt_pending';
 
 export interface PendingChannelSession {
   accessToken: string;
@@ -20,50 +15,27 @@ export interface PendingChannelSession {
   userId: string | null;
 }
 
-function getRedis(): Redis {
-  if (!REDIS_URL) throw new Error('Redis not configured');
-  return new Redis(REDIS_URL, {
-    maxRetriesPerRequest: 1,
-    enableReadyCheck: false,
-    lazyConnect: false,
-  });
+function secret(): Buffer {
+  const s = process.env.NEXTAUTH_SECRET || 'dev-secret-change-me';
+  return Buffer.from(s);
 }
 
-export async function savePendingSession(data: PendingChannelSession): Promise<string> {
-  const sessionId = randomBytes(16).toString('hex');
-
-  const redis = getRedis();
-  try {
-    await redis.set(
-      KEY_PREFIX + sessionId,
-      JSON.stringify(data),
-      'EX',
-      TTL_SECONDS
-    );
-  } finally {
-    redis.disconnect();
-  }
-  return sessionId;
+export function signSession(data: PendingChannelSession): string {
+  const payload = Buffer.from(JSON.stringify(data)).toString('base64');
+  const sig = createHmac('sha256', secret()).update(payload).digest('base64');
+  return `${payload}.${sig}`;
 }
 
-export async function getPendingSession(sessionId: string): Promise<PendingChannelSession | null> {
-  const redis = getRedis();
+export function verifySession(token: string): PendingChannelSession | null {
   try {
-    const raw = await redis.get(KEY_PREFIX + sessionId);
-    if (!raw) return null;
-    return JSON.parse(raw) as PendingChannelSession;
+    const dot = token.lastIndexOf('.');
+    if (dot === -1) return null;
+    const payload = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    const expected = createHmac('sha256', secret()).update(payload).digest('base64');
+    if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    return JSON.parse(Buffer.from(payload, 'base64').toString()) as PendingChannelSession;
   } catch {
     return null;
-  } finally {
-    redis.disconnect();
-  }
-}
-
-export async function deletePendingSession(sessionId: string): Promise<void> {
-  const redis = getRedis();
-  try {
-    await redis.del(KEY_PREFIX + sessionId);
-  } finally {
-    redis.disconnect();
   }
 }

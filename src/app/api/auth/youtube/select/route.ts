@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getPendingSession, deletePendingSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
+import { verifySession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
 import { db } from '@/lib/db';
 import { getUserPlanAndUsage, checkChannelLimit } from '@/lib/plan-limits';
 
@@ -13,39 +13,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { channelId } = await request.json();
+    const body = await request.json();
+    const channelId: string = body?.channelId;
     if (!channelId) {
       return NextResponse.json({ error: 'channelId is required' }, { status: 400 });
     }
 
-    // Read session ID from cookie
+    // Verify pending session cookie
     const cookieStore = await cookies();
-    const sessionId = cookieStore.get(PENDING_SESSION_COOKIE)?.value;
-    if (!sessionId) {
+    const token = cookieStore.get(PENDING_SESSION_COOKIE)?.value;
+    if (!token) {
       return NextResponse.json({ error: 'No pending session. Please reconnect via OAuth.' }, { status: 400 });
     }
-
-    const pendingSession = await getPendingSession(sessionId);
-    if (!pendingSession) {
+    const pending = verifySession(token);
+    if (!pending) {
       return NextResponse.json({ error: 'Session expired. Please reconnect via OAuth.' }, { status: 401 });
     }
 
-    // Validate selected channelId is in the session
-    const channelInfo = pendingSession.channels.find(ch => ch.id === channelId);
+    const channelInfo = pending.channels.find(ch => ch.id === channelId);
     if (!channelInfo) {
       return NextResponse.json({ error: 'Invalid channel selection' }, { status: 400 });
     }
 
-    // Check channel plan limits
+    // Check plan channel limits
     try {
       const { limits, usage } = await getUserPlanAndUsage(session.user.id);
-      const channelCheck = checkChannelLimit(limits, usage);
-      if (!channelCheck.allowed) {
-        return NextResponse.json({ error: channelCheck.message, limitExceeded: 'channels' }, { status: 403 });
+      const check = checkChannelLimit(limits, usage);
+      if (!check.allowed) {
+        return NextResponse.json({ error: check.message, limitExceeded: 'channels' }, { status: 403 });
       }
     } catch {
-      const existingCount = await db.channel.count({ where: { userId: session.user.id } });
-      if (existingCount >= 1) {
+      const count = await db.channel.count({ where: { userId: session.user.id } });
+      if (count >= 1) {
         return NextResponse.json(
           { error: 'Free plan allows 1 channel. Upgrade to connect more.', limitExceeded: 'channels' },
           { status: 403 }
@@ -53,34 +52,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { accessToken, refreshToken } = pendingSession;
+    const { accessToken, refreshToken } = pending;
     const userId = session.user.id;
 
     // Upsert channel
-    const existingChannel = await db.channel.findUnique({
-      where: { youtubeChannelId: channelInfo.id },
-    });
+    const existing = await db.channel.findUnique({ where: { youtubeChannelId: channelInfo.id } });
 
-    let resultChannel;
-    if (existingChannel) {
-      if (existingChannel.userId && existingChannel.userId !== userId) {
+    let result;
+    if (existing) {
+      if (existing.userId && existing.userId !== userId) {
         return NextResponse.json(
           { error: 'This YouTube channel is already connected to another account' },
           { status: 409 }
         );
       }
-      resultChannel = await db.channel.update({
-        where: { id: existingChannel.id },
+      result = await db.channel.update({
+        where: { id: existing.id },
         data: {
           name: channelInfo.title,
           accessToken,
-          refreshToken: refreshToken || existingChannel.refreshToken,
+          refreshToken: refreshToken || existing.refreshToken,
           userId,
           isActive: true,
         },
       });
     } else {
-      resultChannel = await db.channel.create({
+      result = await db.channel.create({
         data: {
           userId,
           name: channelInfo.title,
@@ -94,21 +91,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Clean up Redis session
-    await deletePendingSession(sessionId);
-
+    // Clear cookie
     const response = NextResponse.json({
       success: true,
-      channelId: resultChannel.id,
-      channelName: resultChannel.name,
+      channelId: result.id,
+      channelName: result.name,
     });
     response.cookies.set(PENDING_SESSION_COOKIE, '', { maxAge: 0, path: '/' });
     return response;
-  } catch (error: any) {
-    console.error('[YouTube Select] Error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to connect channel' },
-      { status: 500 }
-    );
+
+  } catch (e: any) {
+    console.error('[YT Select] Error:', e);
+    return NextResponse.json({ error: e.message || 'Failed to connect channel' }, { status: 500 });
   }
 }
