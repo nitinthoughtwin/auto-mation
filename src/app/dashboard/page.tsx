@@ -646,27 +646,67 @@ export default function YouTubeAutomationDashboard() {
         }
       }
 
-      // Upload all video files via /api/videos/upload → R2
-      const formData = new FormData();
-      formData.append('channelId', selectedChannel.id);
-      if (defaultTitle) formData.append('defaultTitle', defaultTitle);
-      if (defaultDescription) formData.append('defaultDescription', defaultDescription);
-      if (defaultTags) formData.append('defaultTags', defaultTags);
+      // Step 1: Get presigned PUT URLs from R2 for each video file
+      const filesMeta = Array.from(uploadFiles).map((f) => ({ name: f.name, type: f.type, size: f.size }));
       for (let i = 0; i < uploadFiles.length; i++) {
-        formData.append('files', uploadFiles[i]);
-        setUploadProgress((prev) => ({ ...prev, [uploadFiles[i].name]: 10 }));
+        setUploadProgress((prev) => ({ ...prev, [uploadFiles[i].name]: 5 }));
       }
 
-      const uploadRes = await fetch('/api/videos/upload', { method: 'POST', body: formData });
-      const uploadData = await uploadRes.json();
-      if (!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
+      const presignRes = await fetch('/api/videos/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId: selectedChannel.id, files: filesMeta }),
+      });
+      const presignData = await presignRes.json();
+      if (!presignRes.ok) throw new Error(presignData.error || 'Failed to get upload URLs');
+
+      // Step 2: Upload each file directly to R2 via presigned PUT URL
+      const createdVideos: { id: string; title: string; status: string }[] = [];
+      for (let i = 0; i < uploadFiles.length; i++) {
+        const file = uploadFiles[i];
+        const slot = presignData.presigned[i];
+        setUploadProgress((prev) => ({ ...prev, [file.name]: 30 }));
+
+        const putRes = await fetch(slot.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!putRes.ok) throw new Error(`Failed to upload ${file.name} to storage`);
+        setUploadProgress((prev) => ({ ...prev, [file.name]: 70 }));
+
+        // Step 3: Create DB record for this video
+        const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+        const title = defaultTitle
+          ? `${defaultTitle}${uploadFiles.length > 1 ? ` (${i + 1})` : ''}`
+          : ext ? file.name.slice(0, -(ext.length + 1)) : file.name;
+
+        const createRes = await fetch('/api/videos/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channelId: selectedChannel.id,
+            publicUrl: slot.publicUrl,
+            originalName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            title,
+            description: defaultDescription || '',
+            tags: defaultTags || '',
+          }),
+        });
+        const createData = await createRes.json();
+        if (!createData.success) throw new Error(createData.error || 'Failed to create video record');
+        createdVideos.push(createData.video);
+        setUploadProgress((prev) => ({ ...prev, [file.name]: 100 }));
+      }
 
       // Attach thumbnails to created video records if provided
-      if (thumbnailData.length > 0 && uploadData.videos?.length > 0) {
-        for (let i = 0; i < uploadData.videos.length; i++) {
+      if (thumbnailData.length > 0 && createdVideos.length > 0) {
+        for (let i = 0; i < createdVideos.length; i++) {
           const thumb = thumbnailData.length === 1 ? thumbnailData[0] : thumbnailData[i];
           if (!thumb) continue;
-          await fetch(`/api/videos/${uploadData.videos[i].id}`, {
+          await fetch(`/api/videos/${createdVideos[i].id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -678,13 +718,9 @@ export default function YouTubeAutomationDashboard() {
         }
       }
 
-      for (let i = 0; i < uploadFiles.length; i++) {
-        setUploadProgress((prev) => ({ ...prev, [uploadFiles[i].name]: 100 }));
-      }
-
       toast.dismiss(loadingToast);
       toast.success('Videos Uploaded Successfully', {
-        description: `${uploadData.videos?.length || uploadFiles.length} video(s) added to queue.`,
+        description: `${createdVideos.length} video(s) added to queue.`,
       });
       setUploadFiles(null);
       setThumbnailFiles(null);

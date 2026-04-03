@@ -1,80 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-// POST - Create video record after file upload to Google Drive
+// POST - Create video record after direct-to-R2 upload via presigned URL
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { 
-      channelId, 
-      blobUrl,
-      fileId, // Google Drive file ID
-      originalName, 
-      fileSize, 
-      mimeType, 
-      title, 
-      description, 
+    const {
+      channelId,
+      publicUrl,     // R2 public URL (from presign flow)
+      originalName,
+      fileSize,
+      mimeType,
+      title,
+      description,
       tags,
-      thumbnailUrl,
-      thumbnailFileId,
-      thumbnailOriginalName,
-      thumbnailSize
     } = body;
-
-    console.log('=== Creating Video Record ===');
-    console.log('Channel ID:', channelId);
-    console.log('File ID:', fileId);
-    console.log('Title:', title);
 
     if (!channelId) {
       return NextResponse.json({ error: 'Channel ID is required' }, { status: 400 });
     }
-
-    if (!fileId) {
-      return NextResponse.json({ error: 'File ID is required' }, { status: 400 });
+    if (!publicUrl) {
+      return NextResponse.json({ error: 'publicUrl is required' }, { status: 400 });
     }
 
-    // Verify channel exists
-    const channel = await db.channel.findUnique({
-      where: { id: channelId },
-    });
-
+    const channel = await db.channel.findUnique({ where: { id: channelId } });
     if (!channel) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    // Create video record with Google Drive file ID
+    const ext = originalName?.includes('.') ? originalName.split('.').pop() : '';
+    const resolvedTitle = title || (ext ? originalName.slice(0, -(ext.length + 1)) : originalName) || 'Untitled';
+
     const video = await db.video.create({
       data: {
         channelId,
-        title: title || originalName || 'Untitled',
+        title: resolvedTitle,
         description: description || '',
         tags: tags || '',
-        fileName: fileId, // Google Drive file ID
-        originalName,
-        fileSize,
-        mimeType,
-        driveFileId: fileId, // Store Google Drive file ID
-        driveWebViewLink: `https://drive.google.com/file/d/${fileId}/view`,
-        thumbnailName: thumbnailUrl || null,
-        thumbnailOriginalName: thumbnailOriginalName || null,
-        thumbnailSize: thumbnailSize || null,
-        thumbnailDriveId: thumbnailFileId || null,
+        fileName: publicUrl,
+        originalName: originalName || null,
+        fileSize: fileSize || null,
+        mimeType: mimeType || null,
+        driveFileId: null,
+        driveWebViewLink: null,
         status: 'queued',
       },
     });
 
-    console.log('Video created:', video.id);
-
-    return NextResponse.json({ 
-      success: true,
-      video 
-    });
+    return NextResponse.json({ success: true, video });
   } catch (error: any) {
     console.error('Error creating video:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to create video' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || 'Failed to create video' }, { status: 500 });
   }
 }
