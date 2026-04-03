@@ -33,7 +33,7 @@ export function getAuthUrl(state?: string) {
     scope: scopes,
     include_granted_scopes: true,
     state: state || '',
-    prompt: 'consent select_account', // Show account/channel selector + get refresh token
+    prompt: 'consent', // 'select_account' removed — brand channel identities can't authenticate directly via OAuth and cause "service unavailable" errors. The main Google account already returns all managed channels (including brand channels) via channels.list({ mine: true }).
   });
 }
 
