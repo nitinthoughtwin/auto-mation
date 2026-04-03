@@ -1,4 +1,5 @@
 import 'server-only';
+import { randomBytes } from 'crypto';
 import { Redis } from 'ioredis';
 
 const REDIS_URL = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
@@ -29,10 +30,7 @@ function getRedis(): Redis {
 }
 
 export async function savePendingSession(data: PendingChannelSession): Promise<string> {
-  // Generate a random session ID (32 hex chars)
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  const sessionId = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+  const sessionId = randomBytes(16).toString('hex');
 
   const redis = getRedis();
   try {

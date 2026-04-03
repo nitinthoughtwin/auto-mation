@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokensFromCode, getAllChannels } from '@/lib/youtube';
-import { db } from '@/lib/db';
 import { savePendingSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
+import { connectChannel } from '@/lib/youtube-connect';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,10 +27,10 @@ export async function GET(request: NextRequest) {
     let userId: string | null = null;
     if (stateParam) {
       try {
-        const state = JSON.parse(stateParam);
+        const state = JSON.parse(decodeURIComponent(stateParam));
         userId = state.userId;
       } catch {
-        // Invalid state, continue without userId
+        // Invalid state — continue without userId
       }
     }
 
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get ALL channels for this Google account
+    // Fetch all channels for this Google account
     console.log('[YouTube OAuth] Fetching channels...');
     let channels: Awaited<ReturnType<typeof getAllChannels>>;
     try {
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Single channel — connect directly
+    // Single channel — connect directly, no picker needed
     if (channels.length === 1) {
       return connectChannel({
         channelInfo: channels[0],
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Multiple channels — save session to Redis, pass ID via cookie
+    // Multiple channels — store in Redis and redirect to picker
     console.log(`[YouTube OAuth] ${channels.length} channels found, redirecting to picker`);
 
     const sessionId = await savePendingSession({
@@ -83,8 +83,7 @@ export async function GET(request: NextRequest) {
       userId,
     });
 
-    const selectUrl = new URL('/connect-youtube/select', request.url);
-    const response = NextResponse.redirect(selectUrl);
+    const response = NextResponse.redirect(new URL('/connect-youtube/select', request.url));
     response.cookies.set(PENDING_SESSION_COOKIE, sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -93,78 +92,11 @@ export async function GET(request: NextRequest) {
       path: '/',
     });
     return response;
+
   } catch (error: any) {
     console.error('[YouTube OAuth] Callback error:', error);
     return NextResponse.redirect(
       new URL(`/connect-youtube?error=${encodeURIComponent(error.message || 'callback_error')}`, request.url)
     );
   }
-}
-
-// Shared: upsert a YouTube channel and redirect to success
-export async function connectChannel({
-  channelInfo,
-  accessToken,
-  refreshToken,
-  userId,
-  request,
-}: {
-  channelInfo: { id: string; title: string; description: string; thumbnail: string | null };
-  accessToken: string;
-  refreshToken: string;
-  userId: string | null;
-  request: NextRequest;
-}) {
-  const existingChannel = await db.channel.findUnique({
-    where: { youtubeChannelId: channelInfo.id },
-  });
-
-  if (existingChannel) {
-    if (userId && existingChannel.userId && existingChannel.userId !== userId) {
-      return NextResponse.redirect(
-        new URL(
-          `/connect-youtube?error=${encodeURIComponent('This YouTube channel is already connected to another account!')}`,
-          request.url
-        )
-      );
-    }
-
-    const updated = await db.channel.update({
-      where: { id: existingChannel.id },
-      data: {
-        name: channelInfo.title || existingChannel.name,
-        accessToken,
-        refreshToken: refreshToken || existingChannel.refreshToken,
-        userId: userId || existingChannel.userId,
-        isActive: true,
-      },
-    });
-
-    return NextResponse.redirect(
-      new URL(
-        `/connect-youtube?success=${updated.id}&name=${encodeURIComponent(updated.name)}`,
-        request.url
-      )
-    );
-  }
-
-  const channel = await db.channel.create({
-    data: {
-      userId,
-      name: channelInfo.title || 'Unknown Channel',
-      youtubeChannelId: channelInfo.id,
-      accessToken,
-      refreshToken,
-      uploadTime: '18:00',
-      frequency: 'daily',
-      isActive: true,
-    },
-  });
-
-  return NextResponse.redirect(
-    new URL(
-      `/connect-youtube?success=${channel.id}&name=${encodeURIComponent(channel.name)}`,
-      request.url
-    )
-  );
 }
