@@ -616,56 +616,6 @@ export default function YouTubeAutomationDashboard() {
     setUploadFiles(e.target.files);
   };
 
-  const directUploadToGoogleDrive = async (
-    file: File,
-    accessToken: string
-  ): Promise<{ id: string; url: string; name: string }> => {
-    const timestamp = Date.now();
-    const cleanName = file.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-    const fileName = `${timestamp}-${cleanName}`;
-    const metadata = {
-      name: fileName,
-      mimeType: file.type || 'application/octet-stream',
-    };
-    const initRes = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(metadata),
-      }
-    );
-    if (!initRes.ok) throw new Error('Failed to initialize upload');
-    const uploadUrl = initRes.headers.get('Location');
-    if (!uploadUrl) throw new Error('No upload URL received');
-    const uploadRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-      },
-      body: file,
-    });
-    if (!uploadRes.ok) throw new Error('Upload failed');
-    const result = await uploadRes.json();
-    const fileId = result.id;
-    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-    });
-    return {
-      id: fileId,
-      url: `https://drive.google.com/uc?export=download&id=${fileId}`,
-      name: fileName,
-    };
-  };
-
   const uploadVideos = async () => {
     if (!selectedChannel || !uploadFiles || uploadFiles.length === 0) {
       toast.error('No Files Selected', { description: 'Please select video files.' });
@@ -676,118 +626,73 @@ export default function YouTubeAutomationDashboard() {
     const loadingToast = toast.loading('Uploading Videos', {
       description: `Processing ${uploadFiles.length} file(s)...`,
     });
-    const uploadedVideos: {
-      blobUrl: string;
-      fileId: string;
-      originalName: string;
-      fileSize: number;
-      mimeType: string;
-      thumbnailUrl?: string;
-      thumbnailFileId?: string;
-      thumbnailOriginalName?: string;
-      thumbnailSize?: number;
-    }[] = [];
-    const errors: string[] = [];
 
     try {
-      const tokenRes = await fetch(`/api/token?channelId=${selectedChannel.id}`);
-      const tokenData = await tokenRes.json();
-      if (!tokenData.success) throw new Error(tokenData.error || 'Failed to get upload credentials');
-      const accessToken = tokenData.accessToken;
-
-      // Upload thumbnails
-      const thumbnailData: { url: string; fileId: string; name: string; size: number }[] = [];
+      // Upload thumbnails first via /api/blob/upload → R2
+      const thumbnailData: { url: string; name: string; size: number }[] = [];
       if (thumbnailFiles && thumbnailFiles.length > 0) {
         for (let i = 0; i < thumbnailFiles.length; i++) {
           const thumbFile = thumbnailFiles[i];
-          try {
-            setUploadProgress((prev) => ({ ...prev, [`thumb-${thumbFile.name}`]: 50 }));
-            const result = await directUploadToGoogleDrive(thumbFile, accessToken);
-            thumbnailData.push({ url: result.url, fileId: result.id, name: thumbFile.name, size: thumbFile.size });
-            setUploadProgress((prev) => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
-          } catch (error: any) {
-            errors.push(`Thumbnail ${thumbFile.name}: ${error.message}`);
-          }
+          setUploadProgress((prev) => ({ ...prev, [`thumb-${thumbFile.name}`]: 50 }));
+          const fd = new FormData();
+          fd.append('file', thumbFile);
+          fd.append('folder', 'thumbnails');
+          fd.append('channelId', selectedChannel.id);
+          const res = await fetch('/api/blob/upload', { method: 'POST', body: fd });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Thumbnail upload failed');
+          thumbnailData.push({ url: data.url, name: thumbFile.name, size: thumbFile.size });
+          setUploadProgress((prev) => ({ ...prev, [`thumb-${thumbFile.name}`]: 100 }));
         }
       }
 
-      // Upload videos
+      // Upload all video files via /api/videos/upload → R2
+      const formData = new FormData();
+      formData.append('channelId', selectedChannel.id);
+      if (defaultTitle) formData.append('defaultTitle', defaultTitle);
+      if (defaultDescription) formData.append('defaultDescription', defaultDescription);
+      if (defaultTags) formData.append('defaultTags', defaultTags);
       for (let i = 0; i < uploadFiles.length; i++) {
-        const file = uploadFiles[i];
-        try {
-          setUploadProgress((prev) => ({ ...prev, [file.name]: 10 }));
-          const result = await directUploadToGoogleDrive(file, accessToken);
-          setUploadProgress((prev) => ({ ...prev, [file.name]: 100 }));
-          let thumbData: { url?: string; fileId?: string; name?: string; size?: number } = {};
-          if (thumbnailData.length > 0) {
-            if (thumbnailData.length === 1) {
-              thumbData = thumbnailData[0];
-            } else if (i < thumbnailData.length) {
-              thumbData = thumbnailData[i];
-            }
-          }
-          uploadedVideos.push({
-            blobUrl: result.url,
-            fileId: result.id,
-            originalName: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            thumbnailUrl: thumbData.url,
-            thumbnailFileId: thumbData.fileId,
-            thumbnailOriginalName: thumbData.name,
-            thumbnailSize: thumbData.size,
+        formData.append('files', uploadFiles[i]);
+        setUploadProgress((prev) => ({ ...prev, [uploadFiles[i].name]: 10 }));
+      }
+
+      const uploadRes = await fetch('/api/videos/upload', { method: 'POST', body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
+
+      // Attach thumbnails to created video records if provided
+      if (thumbnailData.length > 0 && uploadData.videos?.length > 0) {
+        for (let i = 0; i < uploadData.videos.length; i++) {
+          const thumb = thumbnailData.length === 1 ? thumbnailData[0] : thumbnailData[i];
+          if (!thumb) continue;
+          await fetch(`/api/videos/${uploadData.videos[i].id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              thumbnailName: thumb.url,
+              thumbnailOriginalName: thumb.name,
+              thumbnailSize: thumb.size,
+            }),
           });
-        } catch (error: any) {
-          errors.push(`${file.name}: ${error.message || 'Upload failed'}`);
         }
       }
 
-      // Create video records
-      for (const video of uploadedVideos) {
-        const fileExtension = video.originalName.includes('.')
-          ? '.' + video.originalName.split('.').pop()
-          : '';
-        const title = defaultTitle
-          ? `${defaultTitle} ${uploadedVideos.length > 1 ? `(${uploadedVideos.indexOf(video) + 1})` : ''}`
-          : video.originalName.replace(fileExtension, '');
-        await fetch('/api/videos/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channelId: selectedChannel.id,
-            blobUrl: video.blobUrl,
-            fileId: video.fileId,
-            originalName: video.originalName,
-            fileSize: video.fileSize,
-            mimeType: video.mimeType,
-            title,
-            description: defaultDescription,
-            tags: defaultTags,
-            thumbnailUrl: video.thumbnailUrl,
-            thumbnailFileId: video.thumbnailFileId,
-            thumbnailOriginalName: video.thumbnailOriginalName,
-            thumbnailSize: video.thumbnailSize,
-          }),
-        });
+      for (let i = 0; i < uploadFiles.length; i++) {
+        setUploadProgress((prev) => ({ ...prev, [uploadFiles[i].name]: 100 }));
       }
 
-      if (uploadedVideos.length > 0) {
-        toast.dismiss(loadingToast);
-        toast.success('Videos Uploaded Successfully', {
-          description: `${uploadedVideos.length} video(s) added to queue.`,
-        });
-        setUploadFiles(null);
-        setThumbnailFiles(null);
-        setDefaultTitle('');
-        setDefaultDescription('');
-        setDefaultTags('');
-        loadChannelDetails(selectedChannel.id);
-        loadChannels();
-      }
-      if (errors.length > 0) {
-        toast.dismiss(loadingToast);
-        toast.error('Some Uploads Failed', { description: errors.join(', ') });
-      }
+      toast.dismiss(loadingToast);
+      toast.success('Videos Uploaded Successfully', {
+        description: `${uploadData.videos?.length || uploadFiles.length} video(s) added to queue.`,
+      });
+      setUploadFiles(null);
+      setThumbnailFiles(null);
+      setDefaultTitle('');
+      setDefaultDescription('');
+      setDefaultTags('');
+      loadChannelDetails(selectedChannel.id);
+      loadChannels();
     } catch (error: any) {
       toast.dismiss(loadingToast);
       toast.error('Upload Failed', { description: error.message });
