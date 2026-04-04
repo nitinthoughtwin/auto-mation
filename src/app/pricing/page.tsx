@@ -264,9 +264,8 @@ export default function PricingPage() {
     rzp.open();
   };
 
-  // priceINR is stored in paise — divide by 100 to display in rupees
   const formatPrice = (price: number) => {
-    return `₹${(price / 100).toLocaleString('en-IN')}`;
+    return `₹${price.toLocaleString('en-IN')}`;
   };
 
   const getPlanIcon = (planName: string) => {
