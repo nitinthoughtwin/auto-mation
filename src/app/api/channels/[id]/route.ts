@@ -129,7 +129,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, uploadTime, frequency, isActive } = body;
+    const { name, uploadTime, frequency, isActive, randomDelayMinutes } = body;
 
     const channel = await db.channel.findUnique({
       where: { id },
@@ -151,6 +151,7 @@ export async function PATCH(
         ...(uploadTime && { uploadTime }),
         ...(frequency && { frequency }),
         ...(typeof isActive === 'boolean' && { isActive }),
+        ...('randomDelayMinutes' in body && { randomDelayMinutes: randomDelayMinutes ?? null }),
       },
     });
 
