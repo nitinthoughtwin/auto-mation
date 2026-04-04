@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { extractFileIdFromUrl } from '@/lib/google-drive';
 
 // Update video details (title, description, tags, thumbnail)
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await request.json();
     const { videoId, title, description, tags, thumbnailUrl, fileId } = body;
 
@@ -14,26 +19,14 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
     }
 
-    // Check if video exists
+    // Check if video exists and belongs to this user
     const existingVideo = await db.video.findUnique({
       where: { id: videoId },
+      include: { channel: true },
     });
 
-    console.log('Existing video:', existingVideo?.id, existingVideo?.title);
-
-    if (!existingVideo) {
-      // List all videos to help debug
-      const allVideos = await db.video.findMany({
-        select: { id: true, title: true },
-        take: 10,
-      });
-      
-      return NextResponse.json({ 
-        error: 'Video not found',
-        videoId,
-        hint: 'The video may have been deleted or the ID is incorrect',
-        availableVideos: allVideos,
-      }, { status: 404 });
+    if (!existingVideo || existingVideo.channel?.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 
     // Only allow editing queued videos

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import ZAI from 'z-ai-web-dev-sdk';
 
 interface VideoInfo {
@@ -9,6 +11,9 @@ interface VideoInfo {
 // Generate unique title, description, and tags using AI
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await request.json();
     const { videos, language = 'hindi' } = body as { 
       videos: VideoInfo[]; 

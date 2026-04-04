@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { deleteFile } from '@/lib/storage/index';
 
@@ -8,12 +10,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
     const video = await db.video.findUnique({
       where: { id },
       include: { channel: true },
     });
     if (!video) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
+    if (video.channel?.userId !== session.user.id) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
     return NextResponse.json({ video });
@@ -28,14 +35,20 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
+    const video = await db.video.findUnique({ where: { id }, include: { channel: true } });
+    if (!video || video.channel?.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
     const body = await request.json();
     const { title, description, tags } = body;
-    const video = await db.video.update({
+    const updated = await db.video.update({
       where: { id },
       data: { title, description, tags },
     });
-    return NextResponse.json({ video });
+    return NextResponse.json({ video: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update video' }, { status: 500 });
   }
@@ -47,10 +60,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
+    const video = await db.video.findUnique({ where: { id }, include: { channel: true } });
+    if (!video || video.channel?.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
     const body = await request.json();
     const { thumbnailName, thumbnailOriginalName, thumbnailSize } = body;
-    const video = await db.video.update({
+    const updated = await db.video.update({
       where: { id },
       data: {
         thumbnailName: thumbnailName ?? undefined,
@@ -58,7 +77,7 @@ export async function PATCH(
         thumbnailSize: thumbnailSize ?? undefined,
       },
     });
-    return NextResponse.json({ video });
+    return NextResponse.json({ video: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update thumbnail' }, { status: 500 });
   }
@@ -70,6 +89,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
 
     const video = await db.video.findUnique({
@@ -77,6 +98,9 @@ export async function DELETE(
       include: { channel: true },
     });
     if (!video) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+    }
+    if (video.channel?.userId !== session.user.id) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
 

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import ZAI from 'z-ai-web-dev-sdk';
 import { refreshAccessToken } from '@/lib/youtube';
 import { db } from '@/lib/db';
@@ -80,6 +82,9 @@ async function uploadBufferToGoogleDrive(
 // Generate AI thumbnail for video
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await request.json();
     const { prompt, channelId, videoTitle } = body;
 
