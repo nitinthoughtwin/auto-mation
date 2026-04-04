@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
         email: true,
         role: true,
         createdAt: true,
-        subscription: {
+        subscriptions: {
+          where: { status: { in: ['active', 'trialing'] } },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
           select: {
             status: true,
             plan: {
@@ -33,7 +36,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ users });
+    // Flatten subscriptions array → single subscription object for the frontend
+    const formatted = users.map((u) => ({
+      ...u,
+      subscription: u.subscriptions[0] ?? null,
+      subscriptions: undefined,
+    }));
+
+    return NextResponse.json({ users: formatted });
   } catch (error) {
     console.error('Admin users error:', error);
     return NextResponse.json(
