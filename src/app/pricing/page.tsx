@@ -174,7 +174,7 @@ export default function PricingPage() {
   const handleDemoPayment = async (orderData: any, plan: Plan) => {
     // Show demo payment confirmation
     const confirmed = confirm(
-      `Demo Mode\n\nPlan: ${plan.displayName}\nAmount: ₹${orderData.amount.toLocaleString('en-IN')}\n\nThis is a demo payment. Click OK to simulate successful payment.`
+      `Demo Mode\n\nPlan: ${plan.displayName}\nAmount: ₹${(orderData.amount / 100).toLocaleString('en-IN')}\n\nThis is a demo payment. Click OK to simulate successful payment.`
     );
     
     if (!confirmed) {
@@ -264,8 +264,9 @@ export default function PricingPage() {
     rzp.open();
   };
 
+  // priceINR is stored in paise — divide by 100 to display in rupees
   const formatPrice = (price: number) => {
-    return `₹${price.toLocaleString('en-IN')}`;
+    return `₹${(price / 100).toLocaleString('en-IN')}`;
   };
 
   const getPlanIcon = (planName: string) => {

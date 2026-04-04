@@ -148,8 +148,9 @@ async function handleRazorpayPayment(request: NextRequest, session: { user: { id
   const totalAmount = amount + gstAmount;
 
   // Create order in Razorpay
+  // priceINR is already stored in paise, so totalAmount is already in paise — no * 100 needed
   const orderData = {
-    amount: totalAmount * 100, // Razorpay expects amount in paise
+    amount: totalAmount,
     currency: 'INR',
     receipt: `rcpt_${Date.now()}_${session.user.id.slice(0, 8)}`,
     notes: {

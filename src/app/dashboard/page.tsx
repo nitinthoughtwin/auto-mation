@@ -1451,23 +1451,24 @@ export default function YouTubeAutomationDashboard() {
         })()}
 
         {/* Tabs */}
-        <Tabs defaultValue="upload" className="space-y-4">
-          <TabsList className="w-full overflow-x-auto flex-nowrap justify-start sm:justify-center h-auto gap-1 p-1">
-            <TabsTrigger value="upload" className="text-xs sm:text-sm">
-              <Upload className="h-4 w-4 mr-1 sm:mr-2" />
-              Upload
+        <Tabs defaultValue="queue" className="space-y-4">
+          <TabsList className="w-full grid grid-cols-4 h-auto p-1">
+            <TabsTrigger value="queue" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+              <Video className="h-4 w-4 shrink-0" />
+              <span className="truncate">Queue ({queuedVideos.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="queue" className="text-xs sm:text-sm">
-              <Video className="h-4 w-4 mr-1 sm:mr-2" />
-              Queue ({queuedVideos.length})
+            <TabsTrigger value="upload" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+              <Upload className="h-4 w-4 shrink-0" />
+              <span className="hidden xs:inline truncate">Upload</span>
+              <span className="xs:hidden">Add</span>
             </TabsTrigger>
-            <TabsTrigger value="settings" className="text-xs sm:text-sm">
-              <Settings className="h-4 w-4 mr-1 sm:mr-2" />
-              Settings
+            <TabsTrigger value="settings" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+              <Settings className="h-4 w-4 shrink-0" />
+              <span className="truncate">Settings</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="text-xs sm:text-sm">
-              <Clock className="h-4 w-4 mr-1 sm:mr-2" />
-              History
+            <TabsTrigger value="history" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+              <Clock className="h-4 w-4 shrink-0" />
+              <span className="truncate">History</span>
             </TabsTrigger>
           </TabsList>
 
