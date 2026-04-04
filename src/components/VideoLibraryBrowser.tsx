@@ -61,6 +61,7 @@ interface VideoLibraryBrowserProps {
   onClose: () => void;
   channels?: Channel[];
   onVideosAdded: () => void;
+  defaultChannelId?: string;
 }
 
 // Video thumbnail component with fallback
@@ -188,7 +189,8 @@ export default function VideoLibraryBrowser({
   open,
   onClose,
   channels = [],
-  onVideosAdded
+  onVideosAdded,
+  defaultChannelId,
 }: VideoLibraryBrowserProps) {
   const [categories, setCategories] = useState<VideoCategory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -204,9 +206,10 @@ export default function VideoLibraryBrowser({
       loadCategories();
       setSelectedCategory(null);
       setSelectedVideos(new Set());
-      setSelectedChannelId(channels && channels.length > 0 ? channels[0].id : '');
+      // Use defaultChannelId if provided, otherwise fall back to first channel
+      setSelectedChannelId(defaultChannelId || (channels && channels.length > 0 ? channels[0].id : ''));
     }
-  }, [open, channels]);
+  }, [open, channels, defaultChannelId]);
 
   const loadCategories = async () => {
     setLoading(true);

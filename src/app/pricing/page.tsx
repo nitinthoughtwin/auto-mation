@@ -459,6 +459,15 @@ export default function PricingPage() {
           </span>
         </div>
       </div>
+
+      {/* Legal links — required by Razorpay */}
+      <div className="text-center mt-12 pb-8 text-sm text-muted-foreground space-x-4">
+        <a href="/privacy-policy" className="hover:underline">Privacy Policy</a>
+        <span>·</span>
+        <a href="/terms" className="hover:underline">Terms of Service</a>
+        <span>·</span>
+        <a href="/refund-policy" className="hover:underline">Refund Policy</a>
+      </div>
     </div>
   );
 }

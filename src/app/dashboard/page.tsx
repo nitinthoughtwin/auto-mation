@@ -2490,6 +2490,7 @@ export default function YouTubeAutomationDashboard() {
         open={showVideoLibrary}
         onClose={() => setShowVideoLibrary(false)}
         channels={channels}
+        defaultChannelId={selectedChannel?.id}
         onVideosAdded={() => {
           if (selectedChannel) {
             loadChannelDetails(selectedChannel.id);
