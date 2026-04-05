@@ -3,17 +3,26 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 
-// Helper to extract folder ID from Google Drive URL
+// Helper to extract folder ID from any Google Drive URL format
+// Handles desktop, mobile, shared, and tracking-param URLs
 function extractFolderId(url: string): string | null {
+  // Strip tracking params first, work with the clean path
+  let cleanUrl = url;
+  try {
+    const parsed = new URL(url);
+    cleanUrl = parsed.origin + parsed.pathname;
+  } catch {}
+
   let match;
-  match = url.match(/\/drive\/folders\/([a-zA-Z0-9_-]+)/);
+  // /drive/mobile/folders/ID or /drive/folders/ID
+  match = cleanUrl.match(/\/folders\/([a-zA-Z0-9_-]{10,})/);
   if (match) return match[1];
-  match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  // ?id=ID or &id=ID (older share links)
+  match = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
   if (match) return match[1];
-  match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(url)) {
-    return url;
+  // Raw folder ID pasted directly
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(url.trim())) {
+    return url.trim();
   }
   return null;
 }
@@ -102,15 +111,15 @@ export async function POST(request: NextRequest) {
       await db.videoCategory.delete({ where: { id: category.id } });
       
       const errorMessages: Record<string, string> = {
-        'GOOGLE_API_KEY_NOT_SET': 'Google API Key not configured. Please add GOOGLE_API_KEY to your .env file. Get one from https://console.cloud.google.com/apis/credentials',
-        'FOLDER_NOT_PUBLIC': 'Cannot access folder. Make sure it is shared publicly with "Anyone with the link can view".',
+        'GOOGLE_API_KEY_NOT_SET': 'GOOGLE_DRIVE_API_KEY is not set in environment variables.',
+        'FOLDER_NOT_PUBLIC': 'Cannot access folder. Make sure it is shared as "Anyone with the link can view" in Google Drive.',
         'FOLDER_NOT_FOUND': 'Folder not found. Please check the URL.',
         'API_ERROR': 'Google Drive API error. Please try again.',
-        'NETWORK_ERROR': 'Network error. Please check your connection.'
+        'NETWORK_ERROR': 'Network error connecting to Google Drive.',
       };
-      
+
       return NextResponse.json({
-        error: errorMessages[result.error] || 'Failed to fetch videos from folder'
+        error: errorMessages[result.error] || result.error || 'Failed to fetch videos from folder'
       }, { status: 400 });
     }
     
@@ -163,14 +172,27 @@ async function fetchVideosFromDrive(folderId: string) {
     videosUrl.searchParams.set('key', apiKey);
 
     console.log('[Drive API] Fetching videos from folder:', folderId);
-    
-    const response = await fetch(videosUrl.toString());
+
+    const response = await fetch(videosUrl.toString(), {
+      headers: {
+        'Referer': process.env.NEXTAUTH_URL || 'https://gpmart.in',
+        'Origin': process.env.NEXTAUTH_URL || 'https://gpmart.in',
+      },
+    });
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('[Drive API] Error response:', errorData);
-      
+      console.error('[Drive API] Error response:', JSON.stringify(errorData));
+      console.error('[Drive API] Status:', response.status, '| Folder:', folderId);
+      console.error('[Drive API] API key prefix:', apiKey.substring(0, 8));
+
+      if (response.status === 400) {
+        return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
+      }
       if (response.status === 403) {
+        const reason = errorData?.error?.errors?.[0]?.reason;
+        if (reason === 'keyInvalid') return { videos: [], error: 'API key is invalid or not enabled for Drive API' };
+        if (reason === 'accessNotConfigured') return { videos: [], error: 'Google Drive API is not enabled in Cloud Console' };
         return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
       }
       if (response.status === 404) {
