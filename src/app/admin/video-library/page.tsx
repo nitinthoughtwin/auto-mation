@@ -252,10 +252,15 @@ export default function AdminVideoLibraryPage() {
 
         if (res.ok) {
           toast.success('Category Created', {
-            description: `${formData.name} created with ${data.videosFetched || 0} videos fetched.`
+            description: `${formData.name} created with ${data.videosSaved ?? data.videosFetched ?? 0} videos saved.`
           });
-          loadCategories();
+          // Add the new category directly to state with correct count, then reload
+          if (data.category) {
+            setCategories(prev => [...prev, data.category]);
+          }
           setShowAddDialog(false);
+          // Reload after short delay to ensure DB consistency
+          setTimeout(() => loadCategories(), 500);
         } else {
           throw new Error(data.error || 'Failed to create category');
         }

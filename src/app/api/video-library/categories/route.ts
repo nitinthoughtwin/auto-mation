@@ -126,8 +126,9 @@ export async function POST(request: NextRequest) {
     const videos = result.videos;
 
     // Save videos to database
+    let savedCount = 0;
     if (videos.length > 0) {
-      await db.libraryVideo.createMany({
+      const result = await db.libraryVideo.createMany({
         data: videos.map(v => ({
           categoryId: category.id,
           driveFileId: v.id,
@@ -141,12 +142,20 @@ export async function POST(request: NextRequest) {
         })),
         skipDuplicates: true
       });
+      savedCount = result.count;
     }
+
+    // Re-fetch category with actual saved count
+    const categoryWithCount = await db.videoCategory.findUnique({
+      where: { id: category.id },
+      include: { _count: { select: { videos: true } } }
+    });
 
     return NextResponse.json({
       success: true,
-      category,
-      videosFetched: videos.length
+      category: { ...categoryWithCount, videoCount: categoryWithCount?._count.videos ?? savedCount },
+      videosFetched: videos.length,
+      videosSaved: savedCount,
     });
   } catch (error: any) {
     console.error('[Video Categories] Error:', error);
