@@ -125,24 +125,37 @@ export async function POST(request: NextRequest) {
     
     const videos = result.videos;
 
-    // Save videos to database
+    // Save videos to database — upsert so existing driveFileIds get updated to new category
     let savedCount = 0;
     if (videos.length > 0) {
-      const result = await db.libraryVideo.createMany({
-        data: videos.map(v => ({
-          categoryId: category.id,
-          driveFileId: v.id,
-          name: v.name,
-          mimeType: v.mimeType,
-          size: v.size,
-          thumbnailLink: v.thumbnailLink,
-          webViewLink: v.webViewLink,
-          downloadUrl: v.downloadUrl,
-          createdTime: v.createdTime ? new Date(v.createdTime) : null
-        })),
-        skipDuplicates: true
-      });
-      savedCount = result.count;
+      await Promise.all(
+        videos.map((v: { id: string; name: string; mimeType: string; size: number | null; thumbnailLink: string; webViewLink: string; downloadUrl: string; createdTime: string | null }) =>
+          db.libraryVideo.upsert({
+            where: { driveFileId: v.id },
+            create: {
+              categoryId: category.id,
+              driveFileId: v.id,
+              name: v.name,
+              mimeType: v.mimeType,
+              size: v.size,
+              thumbnailLink: v.thumbnailLink,
+              webViewLink: v.webViewLink,
+              downloadUrl: v.downloadUrl,
+              createdTime: v.createdTime ? new Date(v.createdTime) : null,
+            },
+            update: {
+              categoryId: category.id,
+              name: v.name,
+              mimeType: v.mimeType,
+              size: v.size,
+              thumbnailLink: v.thumbnailLink,
+              webViewLink: v.webViewLink,
+              downloadUrl: v.downloadUrl,
+            },
+          })
+        )
+      );
+      savedCount = videos.length;
     }
 
     // Re-fetch category with actual saved count
