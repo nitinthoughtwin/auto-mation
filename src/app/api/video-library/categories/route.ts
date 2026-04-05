@@ -91,25 +91,31 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Create category
-    const category = await db.videoCategory.create({
-      data: {
-        name,
-        description,
-        driveUrl,
-        folderId,
-        sortOrder: sortOrder || 0
-      }
-    });
+    // Create category — or reuse existing if a previous attempt partially succeeded
+    let category = await db.videoCategory.findFirst({ where: { name } });
+    if (!category) {
+      category = await db.videoCategory.create({
+        data: {
+          name,
+          description,
+          driveUrl,
+          folderId,
+          sortOrder: sortOrder || 0
+        }
+      });
+    } else {
+      // Update fields in case they changed
+      category = await db.videoCategory.update({
+        where: { id: category.id },
+        data: { description, driveUrl, folderId, sortOrder: sortOrder || category.sortOrder }
+      });
+    }
 
     // Fetch videos from the drive folder
     const result = await fetchVideosFromDrive(folderId);
-    
+
     // Check for errors
     if (result.error) {
-      // Delete the category if we can't fetch videos
-      await db.videoCategory.delete({ where: { id: category.id } });
-      
       const errorMessages: Record<string, string> = {
         'GOOGLE_API_KEY_NOT_SET': 'GOOGLE_DRIVE_API_KEY is not set in environment variables.',
         'FOLDER_NOT_PUBLIC': 'Cannot access folder. Make sure it is shared as "Anyone with the link can view" in Google Drive.',
@@ -122,18 +128,20 @@ export async function POST(request: NextRequest) {
         error: errorMessages[result.error] || result.error || 'Failed to fetch videos from folder'
       }, { status: 400 });
     }
-    
+
     const videos = result.videos;
 
-    // Save videos to database — upsert so existing driveFileIds get updated to new category
-    let savedCount = 0;
-    if (videos.length > 0) {
+    // Save videos sequentially in batches to avoid connection pool exhaustion
+    type DriveVideo = { id: string; name: string; mimeType: string; size: number | null; thumbnailLink: string; webViewLink: string; downloadUrl: string; createdTime: string | null };
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < videos.length; i += BATCH_SIZE) {
+      const batch = (videos as DriveVideo[]).slice(i, i + BATCH_SIZE);
       await Promise.all(
-        videos.map((v: { id: string; name: string; mimeType: string; size: number | null; thumbnailLink: string; webViewLink: string; downloadUrl: string; createdTime: string | null }) =>
+        batch.map((v) =>
           db.libraryVideo.upsert({
             where: { driveFileId: v.id },
             create: {
-              categoryId: category.id,
+              categoryId: category!.id,
               driveFileId: v.id,
               name: v.name,
               mimeType: v.mimeType,
@@ -144,7 +152,7 @@ export async function POST(request: NextRequest) {
               createdTime: v.createdTime ? new Date(v.createdTime) : null,
             },
             update: {
-              categoryId: category.id,
+              categoryId: category!.id,
               name: v.name,
               mimeType: v.mimeType,
               size: v.size,
@@ -155,7 +163,6 @@ export async function POST(request: NextRequest) {
           })
         )
       );
-      savedCount = videos.length;
     }
 
     // Re-fetch category with actual saved count
@@ -164,9 +171,11 @@ export async function POST(request: NextRequest) {
       include: { _count: { select: { videos: true } } }
     });
 
+    const savedCount = categoryWithCount?._count.videos ?? 0;
+
     return NextResponse.json({
       success: true,
-      category: { ...categoryWithCount, videoCount: categoryWithCount?._count.videos ?? savedCount },
+      category: { ...categoryWithCount, videoCount: savedCount },
       videosFetched: videos.length,
       videosSaved: savedCount,
     });
