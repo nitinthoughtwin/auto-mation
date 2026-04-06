@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { fetchAllVideosFromDriveFolder } from '@/lib/drive';
 
 // Helper to extract folder ID from Google Drive URL
 function extractFolderId(url: string): string | null {
@@ -16,55 +17,6 @@ function extractFolderId(url: string): string | null {
   return null;
 }
 
-// Fetch ALL videos from a public Google Drive folder using API key (paginated)
-async function fetchVideosFromDrive(folderId: string) {
-  try {
-    const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
-    if (!apiKey) return { videos: [], error: 'GOOGLE_API_KEY_NOT_SET' };
-
-    const allFiles: any[] = [];
-    let pageToken: string | undefined;
-    let pageNum = 0;
-
-    do {
-      pageNum++;
-      const videosUrl = new URL('https://www.googleapis.com/drive/v3/files');
-      videosUrl.searchParams.set('q', `'${folderId}' in parents and trashed = false and mimeType contains 'video/'`);
-      videosUrl.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime)');
-      videosUrl.searchParams.set('pageSize', '1000');
-      videosUrl.searchParams.set('key', apiKey);
-      if (pageToken) videosUrl.searchParams.set('pageToken', pageToken);
-
-      const response = await fetch(videosUrl.toString());
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 403) return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
-        if (response.status === 404) return { videos: [], error: 'FOLDER_NOT_FOUND' };
-        return { videos: [], error: errorData.error?.message || 'API_ERROR' };
-      }
-
-      const data = await response.json();
-      if (data.files) allFiles.push(...data.files);
-      pageToken = data.nextPageToken;
-
-      if (pageNum >= 50) break; // safety guard
-    } while (pageToken);
-
-    const videos = allFiles.map((file: any) => ({
-      id: file.id,
-      name: file.name,
-      mimeType: file.mimeType,
-      size: file.size ? parseInt(file.size) : null,
-      thumbnailLink: file.thumbnailLink || `https://lh3.googleusercontent.com/d/${file.id}=w200-h120-c`,
-      webViewLink: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
-      downloadUrl: `https://drive.google.com/uc?export=download&id=${file.id}`,
-      createdTime: file.createdTime,
-    }));
-    return { videos, error: null };
-  } catch (error) {
-    return { videos: [], error: 'NETWORK_ERROR' };
-  }
-}
 
 // GET - Get single category with videos
 export async function GET(
@@ -143,7 +95,7 @@ export async function PUT(
         where: { categoryId: id }
       });
 
-      const result = await fetchVideosFromDrive(folderId);
+      const result = await fetchAllVideosFromDriveFolder(folderId);
       if (result.error) {
         const errorMessages: Record<string, string> = {
           'GOOGLE_API_KEY_NOT_SET': 'Google API Key not configured.',
@@ -186,7 +138,7 @@ export async function PUT(
 
     // If just syncing without URL change
     if (sync && existingCategory.folderId) {
-      const result = await fetchVideosFromDrive(existingCategory.folderId);
+      const result = await fetchAllVideosFromDriveFolder(existingCategory.folderId);
       if (result.error) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
@@ -280,7 +232,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid Google Drive URL' }, { status: 400 });
     }
 
-    const result = await fetchVideosFromDrive(folderId);
+    const result = await fetchAllVideosFromDriveFolder(folderId);
     if (result.error) {
       const errorMessages: Record<string, string> = {
         'GOOGLE_API_KEY_NOT_SET': 'GOOGLE_DRIVE_API_KEY is not configured.',

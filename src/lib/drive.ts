@@ -293,3 +293,119 @@ function bufferToStream(buffer: Buffer) {
   stream.push(null);
   return stream;
 }
+
+// ─── Public Drive Fetch (API key) ────────────────────────────────────────────
+
+export interface PublicDriveVideo {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number | null;
+  thumbnailLink: string;
+  webViewLink: string;
+  downloadUrl: string;
+  createdTime: string | null;
+}
+
+export type FetchVideosResult =
+  | { videos: PublicDriveVideo[]; error: null }
+  | { videos: []; error: string };
+
+/**
+ * Fetch ALL video files from a public Google Drive folder, recursively
+ * traversing subfolders. Uses the GOOGLE_DRIVE_API_KEY env var.
+ *
+ * Why recursive: many shared folders contain subfolders instead of flat files.
+ * A non-recursive query returns 0 videos when all videos are in subfolders.
+ */
+export async function fetchAllVideosFromDriveFolder(
+  folderId: string,
+  apiKey?: string,
+  _depth = 0,
+): Promise<FetchVideosResult> {
+  const key = apiKey ?? process.env.GOOGLE_DRIVE_API_KEY;
+  if (!key) return { videos: [], error: 'GOOGLE_API_KEY_NOT_SET' };
+
+  // Safety: don't recurse more than 5 levels deep
+  if (_depth > 5) return { videos: [], error: null };
+
+  try {
+    // ── Step 1: fetch all direct children (folders + videos) ──────────────
+    const allItems: any[] = [];
+    let pageToken: string | undefined;
+    let pageNum = 0;
+
+    do {
+      pageNum++;
+      const url = new URL('https://www.googleapis.com/drive/v3/files');
+      url.searchParams.set('q', `'${folderId}' in parents and trashed = false`);
+      url.searchParams.set(
+        'fields',
+        'nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime)',
+      );
+      url.searchParams.set('pageSize', '1000');
+      url.searchParams.set('key', key);
+      if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+      const res = await fetch(url.toString());
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const reason = err?.error?.errors?.[0]?.reason;
+        if (res.status === 403) {
+          if (reason === 'keyInvalid') return { videos: [], error: 'API key is invalid or not enabled for Drive API' };
+          if (reason === 'accessNotConfigured') return { videos: [], error: 'Google Drive API is not enabled in Cloud Console' };
+          return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
+        }
+        if (res.status === 404) return { videos: [], error: 'FOLDER_NOT_FOUND' };
+        return { videos: [], error: err.error?.message || 'API_ERROR' };
+      }
+
+      const data = await res.json();
+      if (data.files) allItems.push(...data.files);
+      pageToken = data.nextPageToken;
+      if (pageNum >= 50) break;
+    } while (pageToken);
+
+    // ── Step 2: separate videos and subfolders ─────────────────────────────
+    const videos: PublicDriveVideo[] = [];
+    const subfolderIds: string[] = [];
+
+    for (const item of allItems) {
+      if (item.mimeType === 'application/vnd.google-apps.folder') {
+        subfolderIds.push(item.id);
+      } else if (item.mimeType?.startsWith('video/')) {
+        videos.push({
+          id: item.id,
+          name: item.name,
+          mimeType: item.mimeType,
+          size: item.size ? parseInt(item.size) : null,
+          thumbnailLink: item.thumbnailLink || `https://lh3.googleusercontent.com/d/${item.id}=w200-h120-c`,
+          webViewLink: item.webViewLink || `https://drive.google.com/file/d/${item.id}/view`,
+          downloadUrl: `https://drive.google.com/uc?export=download&id=${item.id}`,
+          createdTime: item.createdTime || null,
+        });
+      }
+    }
+
+    console.log(`[Drive] Folder ${folderId} (depth ${_depth}): ${videos.length} videos, ${subfolderIds.length} subfolders`);
+
+    // ── Step 3: recurse into subfolders in parallel (max 5 at a time) ──────
+    for (let i = 0; i < subfolderIds.length; i += 5) {
+      const batch = subfolderIds.slice(i, i + 5);
+      const results = await Promise.all(
+        batch.map(id => fetchAllVideosFromDriveFolder(id, key, _depth + 1))
+      );
+      for (const r of results) {
+        if (r.error === null) videos.push(...r.videos);
+        // ignore subfolder errors — partial results are better than nothing
+      }
+    }
+
+    console.log(`[Drive] Folder ${folderId} total (with subfolders): ${videos.length} videos`);
+    return { videos, error: null };
+
+  } catch (err: any) {
+    console.error('[Drive] fetchAllVideosFromDriveFolder error:', err);
+    return { videos: [], error: 'NETWORK_ERROR' };
+  }
+}
