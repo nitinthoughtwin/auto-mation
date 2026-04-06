@@ -16,29 +16,41 @@ function extractFolderId(url: string): string | null {
   return null;
 }
 
-// Fetch videos from a public Google Drive folder using API key
+// Fetch ALL videos from a public Google Drive folder using API key (paginated)
 async function fetchVideosFromDrive(folderId: string) {
   try {
     const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
     if (!apiKey) return { videos: [], error: 'GOOGLE_API_KEY_NOT_SET' };
 
-    const videosUrl = new URL('https://www.googleapis.com/drive/v3/files');
-    videosUrl.searchParams.set('q', `'${folderId}' in parents and trashed = false and mimeType contains 'video/'`);
-    videosUrl.searchParams.set('fields', 'files(id, name, mimeType, size, thumbnailLink, webViewLink, createdTime)');
-    videosUrl.searchParams.set('orderBy', 'createdTime desc');
-    videosUrl.searchParams.set('pageSize', '100');
-    videosUrl.searchParams.set('key', apiKey);
+    const allFiles: any[] = [];
+    let pageToken: string | undefined;
+    let pageNum = 0;
 
-    const response = await fetch(videosUrl.toString());
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (response.status === 403) return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
-      if (response.status === 404) return { videos: [], error: 'FOLDER_NOT_FOUND' };
-      return { videos: [], error: errorData.error?.message || 'API_ERROR' };
-    }
+    do {
+      pageNum++;
+      const videosUrl = new URL('https://www.googleapis.com/drive/v3/files');
+      videosUrl.searchParams.set('q', `'${folderId}' in parents and trashed = false and mimeType contains 'video/'`);
+      videosUrl.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime)');
+      videosUrl.searchParams.set('pageSize', '1000');
+      videosUrl.searchParams.set('key', apiKey);
+      if (pageToken) videosUrl.searchParams.set('pageToken', pageToken);
 
-    const data = await response.json();
-    const videos = (data.files || []).map((file: any) => ({
+      const response = await fetch(videosUrl.toString());
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 403) return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
+        if (response.status === 404) return { videos: [], error: 'FOLDER_NOT_FOUND' };
+        return { videos: [], error: errorData.error?.message || 'API_ERROR' };
+      }
+
+      const data = await response.json();
+      if (data.files) allFiles.push(...data.files);
+      pageToken = data.nextPageToken;
+
+      if (pageNum >= 50) break; // safety guard
+    } while (pageToken);
+
+    const videos = allFiles.map((file: any) => ({
       id: file.id,
       name: file.name,
       mimeType: file.mimeType,
@@ -46,7 +58,7 @@ async function fetchVideosFromDrive(folderId: string) {
       thumbnailLink: file.thumbnailLink || `https://lh3.googleusercontent.com/d/${file.id}=w200-h120-c`,
       webViewLink: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
       downloadUrl: `https://drive.google.com/uc?export=download&id=${file.id}`,
-      createdTime: file.createdTime
+      createdTime: file.createdTime,
     }));
     return { videos, error: null };
   } catch (error) {

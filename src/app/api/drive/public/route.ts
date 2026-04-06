@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { refreshAccessToken } from '@/lib/youtube';
 
-// Google Drive API key for public access (fallback)
+// Google Drive API key — required for public folder access.
+// YouTube OAuth tokens have YouTube-only scopes and CANNOT access Drive folders.
 const GOOGLE_API_KEY = process.env.GOOGLE_DRIVE_API_KEY;
 
 interface DriveItem {
@@ -21,7 +20,6 @@ interface DriveItem {
 function extractIdFromUrl(url: string): { type: 'file' | 'folder'; id: string } | null {
   const cleanUrl = url.split('?')[0];
 
-  // Folder patterns
   const folderPatterns = [
     /drive\.google\.com\/drive\/mobile\/folders\/([a-zA-Z0-9_-]+)/,
     /drive\.google\.com\/drive\/folders\/([a-zA-Z0-9_-]+)/,
@@ -30,12 +28,11 @@ function extractIdFromUrl(url: string): { type: 'file' | 'folder'; id: string } 
     /drive\.google\.com\/drive\/u\/\d+\/folders\/([a-zA-Z0-9_-]+)/,
   ];
 
-  // File patterns
   const filePatterns = [
     /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/,
   ];
 
-  // Try original URL first (for patterns with query params)
+  // Try original URL first (handles query-param patterns like open?id=)
   for (const pattern of [...folderPatterns, ...filePatterns]) {
     const match = url.match(pattern);
     if (match) {
@@ -47,59 +44,26 @@ function extractIdFromUrl(url: string): { type: 'file' | 'folder'; id: string } 
   // Try cleaned URL
   for (const pattern of folderPatterns) {
     const match = cleanUrl.match(pattern);
-    if (match) {
-      return { type: 'folder', id: match[1] };
-    }
+    if (match) return { type: 'folder', id: match[1] };
   }
-
   for (const pattern of filePatterns) {
     const match = cleanUrl.match(pattern);
-    if (match) {
-      return { type: 'file', id: match[1] };
-    }
+    if (match) return { type: 'file', id: match[1] };
   }
 
-  // If just an ID is provided (assuming folder)
-  const trimmedUrl = url.trim();
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmedUrl)) {
-    return { type: 'folder', id: trimmedUrl };
+  // Bare ID
+  const trimmed = url.trim();
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed)) {
+    return { type: 'folder', id: trimmed };
   }
 
   return null;
 }
 
-// Get channel OAuth token, refreshing if needed
-async function getChannelAccessToken(channelId: string): Promise<string | null> {
-  try {
-    const channel = await db.channel.findUnique({ where: { id: channelId } });
-    if (!channel?.accessToken || !channel?.refreshToken) return null;
-
-    try {
-      const newTokens = await refreshAccessToken(channel.refreshToken);
-      if (newTokens.accessToken) {
-        await db.channel.update({
-          where: { id: channelId },
-          data: {
-            accessToken: newTokens.accessToken,
-            ...(newTokens.refreshToken ? { refreshToken: newTokens.refreshToken } : {}),
-          },
-        });
-        return newTokens.accessToken;
-      }
-      return channel.accessToken;
-    } catch {
-      return channel.accessToken;
-    }
-  } catch {
-    return null;
-  }
-}
-
-// List ALL contents of a public folder (auto-paginate)
-// Uses OAuth token when available (more reliable), falls back to API key
-async function listFolderContents(folderId: string, accessToken?: string | null) {
-  if (!accessToken && !GOOGLE_API_KEY) {
-    throw new Error('No authentication available. Please provide a channelId or configure GOOGLE_DRIVE_API_KEY.');
+// Fetch ALL files in a folder — paginate with nextPageToken
+async function listFolderContents(folderId: string): Promise<DriveItem[]> {
+  if (!GOOGLE_API_KEY) {
+    throw new Error('GOOGLE_DRIVE_API_KEY is not configured on the server.');
   }
 
   const allFiles: DriveItem[] = [];
@@ -108,83 +72,64 @@ async function listFolderContents(folderId: string, accessToken?: string | null)
 
   do {
     pageNum++;
-
     let url = `https://www.googleapis.com/drive/v3/files?`;
     url += `q='${folderId}'+in+parents+and+trashed=false`;
     url += `&fields=nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime,modifiedTime)`;
     url += `&pageSize=1000`;
-    if (!accessToken) url += `&key=${GOOGLE_API_KEY}`;
+    url += `&key=${GOOGLE_API_KEY}`;
     if (pageToken) url += `&pageToken=${pageToken}`;
 
-    console.log(`[Drive API] Fetching page ${pageNum} using ${accessToken ? 'OAuth' : 'API key'}`);
+    console.log(`[Drive Public] Fetching page ${pageNum} for folder ${folderId}`);
 
-    const headers: Record<string, string> = accessToken
-      ? { Authorization: `Bearer ${accessToken}` }
-      : {};
-
-    const response = await fetch(url, { headers });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error?.message || 'Failed to access folder. Make sure the folder is shared publicly.');
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `Drive API error (${res.status}). Make sure the folder is shared publicly.`);
     }
 
-    const data = await response.json();
-    console.log(`[Drive API] Page ${pageNum}: ${data.files?.length || 0} files. hasMore: ${!!data.nextPageToken}`);
-
+    const data = await res.json();
     if (data.files) allFiles.push(...data.files);
     pageToken = data.nextPageToken;
+    console.log(`[Drive Public] Page ${pageNum}: ${data.files?.length ?? 0} files. nextPage: ${!!pageToken}`);
 
-    if (pageNum > 50) {
-      console.warn('[Drive API] Safety limit reached (50 pages). Stopping.');
+    if (pageNum >= 50) { // safety guard
+      console.warn('[Drive Public] Hit 50-page limit, stopping.');
       break;
     }
   } while (pageToken);
 
-  console.log(`[Drive API] Total files fetched: ${allFiles.length}`);
+  console.log(`[Drive Public] Total fetched: ${allFiles.length}`);
 
   // Sort: folders first, then by name
   allFiles.sort((a, b) => {
-    const aIsFolder = a.mimeType === 'application/vnd.google-apps.folder';
-    const bIsFolder = b.mimeType === 'application/vnd.google-apps.folder';
-    if (aIsFolder && !bIsFolder) return -1;
-    if (!aIsFolder && bIsFolder) return 1;
+    const aF = a.mimeType === 'application/vnd.google-apps.folder';
+    const bF = b.mimeType === 'application/vnd.google-apps.folder';
+    if (aF && !bF) return -1;
+    if (!aF && bF) return 1;
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
 
-  return { files: allFiles };
+  return allFiles;
 }
 
-// Get file/folder metadata
-async function getItemInfo(itemId: string, accessToken?: string | null) {
-  const headers: Record<string, string> = accessToken
-    ? { Authorization: `Bearer ${accessToken}` }
-    : {};
-
-  let url = `https://www.googleapis.com/drive/v3/files/${itemId}?fields=id,name,mimeType,size,thumbnailLink,webViewLink,createdTime,modifiedTime,parents`;
-  if (!accessToken) {
-    if (!GOOGLE_API_KEY) throw new Error('No authentication configured');
-    url += `&key=${GOOGLE_API_KEY}`;
-  }
-
-  const res = await fetch(url, { headers });
+async function getItemInfo(itemId: string): Promise<DriveItem | null> {
+  if (!GOOGLE_API_KEY) return null;
+  const url = `https://www.googleapis.com/drive/v3/files/${itemId}?fields=id,name,mimeType,size,thumbnailLink,webViewLink,createdTime,modifiedTime,parents&key=${GOOGLE_API_KEY}`;
+  const res = await fetch(url);
   if (!res.ok) return null;
   return res.json();
 }
 
-// Classify and categorize files
 function categorizeFiles(files: DriveItem[]) {
   const folders: DriveItem[] = [];
   const videos: DriveItem[] = [];
   const other: DriveItem[] = [];
 
   for (const file of files) {
-    const item: DriveItem & { thumbnailUrl: string } = {
+    const item = {
       ...file,
-      // Generate thumbnail URL client-side (don't request it from API)
-      thumbnailUrl: `https://drive.google.com/thumbnail?id=${file.id}&sz=w320`,
+      thumbnailUrl: file.thumbnailLink || `https://drive.google.com/thumbnail?id=${file.id}&sz=w320`,
     };
-
     if (file.mimeType === 'application/vnd.google-apps.folder') {
       folders.push(item);
     } else if (file.mimeType?.startsWith('video/')) {
@@ -197,24 +142,17 @@ function categorizeFiles(files: DriveItem[]) {
   return { folders, videos, other };
 }
 
-// GET - List folder contents or get file info
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
     const folderId = searchParams.get('folderId');
     const itemId = searchParams.get('itemId');
-    const channelId = searchParams.get('channelId');
 
-    // Prefer OAuth token over API key for reliable pagination
-    const accessToken = channelId ? await getChannelAccessToken(channelId) : null;
-
-    // If folderId is provided directly, list contents
     if (folderId) {
-      const data = await listFolderContents(folderId, accessToken);
-      const { folders, videos, other } = categorizeFiles(data.files || []);
-
-      const folderInfo = await getItemInfo(folderId, accessToken).catch(() => null);
+      const files = await listFolderContents(folderId);
+      const { folders, videos, other } = categorizeFiles(files);
+      const folderInfo = await getItemInfo(folderId).catch(() => null);
 
       return NextResponse.json({
         success: true,
@@ -223,38 +161,32 @@ export async function GET(request: NextRequest) {
         folders,
         videos,
         other,
-        totalFiles: (data.files || []).length,
+        totalFiles: files.length,
       });
     }
 
-    // If itemId is provided, get item info
     if (itemId) {
-      const item = await getItemInfo(itemId, accessToken);
+      const item = await getItemInfo(itemId);
+      if (!item) return NextResponse.json({ success: false, error: 'Item not found' }, { status: 404 });
       return NextResponse.json({
         success: true,
-        item: {
-          ...item,
-          thumbnailUrl: `https://drive.google.com/thumbnail?id=${item.id}&sz=w320`,
-        }
+        item: { ...item, thumbnailUrl: `https://drive.google.com/thumbnail?id=${item.id}&sz=w320` },
       });
     }
 
-    // If URL is provided, parse and process
     if (url) {
       const parsed = extractIdFromUrl(url);
-
       if (!parsed) {
         return NextResponse.json({
           success: false,
-          error: 'Invalid Google Drive URL. Please enter a valid Google Drive folder or file link.'
+          error: 'Invalid Google Drive URL. Please enter a valid folder or file link.',
         }, { status: 400 });
       }
 
       if (parsed.type === 'folder') {
-        const data = await listFolderContents(parsed.id, accessToken);
-        const { folders, videos, other } = categorizeFiles(data.files || []);
-
-        const folderInfo = await getItemInfo(parsed.id, accessToken).catch(() => null);
+        const files = await listFolderContents(parsed.id);
+        const { folders, videos, other } = categorizeFiles(files);
+        const folderInfo = await getItemInfo(parsed.id).catch(() => null);
 
         return NextResponse.json({
           success: true,
@@ -263,32 +195,23 @@ export async function GET(request: NextRequest) {
           folders,
           videos,
           other,
-          totalFiles: (data.files || []).length,
+          totalFiles: files.length,
         });
       } else {
-        const file = await getItemInfo(parsed.id, accessToken);
-
+        const file = await getItemInfo(parsed.id);
+        if (!file) return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 });
         return NextResponse.json({
           success: true,
           type: 'file',
-          file: {
-            ...file,
-            thumbnailUrl: `https://drive.google.com/thumbnail?id=${file.id}&sz=w320`,
-          }
+          file: { ...file, thumbnailUrl: `https://drive.google.com/thumbnail?id=${file.id}&sz=w320` },
         });
       }
     }
 
-    return NextResponse.json({
-      success: false,
-      error: 'Please provide a URL, folderId, or itemId'
-    }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Please provide a url, folderId, or itemId' }, { status: 400 });
 
   } catch (error: any) {
     console.error('[Drive Public] Error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Failed to access Google Drive'
-    }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message || 'Failed to access Google Drive' }, { status: 500 });
   }
 }

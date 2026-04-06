@@ -114,7 +114,7 @@ export default function PublicDriveBrowser({
     setError(null);
     
     try {
-      let fetchUrl = `/api/drive/public?folderId=${folderId}&channelId=${channelId}`;
+      let fetchUrl = `/api/drive/public?folderId=${folderId}`;
       if (append && nextPageToken) {
         fetchUrl += `&pageToken=${nextPageToken}`;
       }
@@ -163,7 +163,7 @@ export default function PublicDriveBrowser({
     setSelectedVideos(new Set());
 
     try {
-      const res = await fetch(`/api/drive/public?url=${encodeURIComponent(url)}&channelId=${channelId}`);
+      const res = await fetch(`/api/drive/public?url=${encodeURIComponent(url)}`);
       const data = await res.json();
 
       if (!data.success) {
