@@ -150,6 +150,7 @@ export default function VideoLibraryBrowser({
   const [adding, setAdding] = useState(false);
   const [generatingTitles, setGeneratingTitles] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<LibraryVideo | null>(null);
+  const [remainingSlots, setRemainingSlots] = useState<number | null>(null);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -157,8 +158,18 @@ export default function VideoLibraryBrowser({
       loadCategories();
       setSelectedCategory(null);
       setSelectedVideos(new Set());
-      // Use defaultChannelId if provided, otherwise fall back to first channel
       setSelectedChannelId(defaultChannelId || (channels && channels.length > 0 ? channels[0].id : ''));
+      // Fetch remaining video slots for this billing period
+      fetch('/api/usage')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.usage?.videos) {
+            setRemainingSlots(data.usage.videos.limit - data.usage.videos.used);
+          } else {
+            setRemainingSlots(null); // unknown — backend will enforce
+          }
+        })
+        .catch(() => setRemainingSlots(null));
     }
   }, [open, channels, defaultChannelId]);
 
@@ -223,6 +234,22 @@ export default function VideoLibraryBrowser({
         description: 'Please select at least one video to add.'
       });
       return;
+    }
+
+    // Pre-check plan limit before hitting the API
+    if (remainingSlots !== null) {
+      if (remainingSlots <= 0) {
+        toast.error('Video Limit Reached', {
+          description: 'You have used all your video slots this month. Please upgrade your plan.'
+        });
+        return;
+      }
+      if (selectedVideos.size > remainingSlots) {
+        toast.error(`Too Many Videos Selected (${selectedVideos.size})`, {
+          description: `You only have ${remainingSlots} slot${remainingSlots !== 1 ? 's' : ''} remaining this month. Please deselect some videos.`
+        });
+        return;
+      }
     }
 
     setAdding(true);
@@ -342,8 +369,13 @@ export default function VideoLibraryBrowser({
                   </Button>
                   <div className="flex items-center gap-2 flex-wrap">
                     {selectedVideos.size > 0 && (
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                      <Badge variant="secondary" className={`${remainingSlots !== null && selectedVideos.size > remainingSlots ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'}`}>
                         {selectedVideos.size} selected
+                      </Badge>
+                    )}
+                    {remainingSlots !== null && (
+                      <Badge variant="outline" className={remainingSlots <= 0 ? 'text-red-500 border-red-300' : 'text-muted-foreground'}>
+                        {remainingSlots <= 0 ? 'No slots left' : `${remainingSlots} slots left`}
                       </Badge>
                     )}
                     <Button 

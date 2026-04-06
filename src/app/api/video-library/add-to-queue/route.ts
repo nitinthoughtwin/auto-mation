@@ -40,7 +40,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: videoCheck.message, limitExceeded: 'videos' }, { status: 403 });
       }
     } catch {
-      // No subscription — allow with default behaviour
+      // No active subscription — apply free plan default (10 videos/month)
+      const FREE_LIMIT = 10;
+      const videoCountThisMonth = await db.video.count({
+        where: {
+          channel: { userId: session.user.id },
+          createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+        },
+      });
+      const remaining = FREE_LIMIT - videoCountThisMonth;
+      if (remaining <= 0) {
+        return NextResponse.json({
+          error: `Video limit reached (${videoCountThisMonth}/${FREE_LIMIT} this month on Free Plan). Upgrade your plan.`,
+          limitExceeded: 'videos'
+        }, { status: 403 });
+      }
+      if (videoIds.length > remaining) {
+        return NextResponse.json({
+          error: `Only ${remaining} slot${remaining !== 1 ? 's' : ''} remaining on Free Plan (${videoCountThisMonth}/${FREE_LIMIT} used). Select fewer videos or upgrade.`,
+          limitExceeded: 'videos'
+        }, { status: 403 });
+      }
     }
 
     // Get library videos with category info
