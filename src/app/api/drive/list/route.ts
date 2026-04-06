@@ -24,6 +24,27 @@ async function makeDriveRequest(url: string, accessToken: string) {
   });
 }
 
+// Fetch all pages from Drive API using nextPageToken
+async function fetchAllPages(baseUrl: string, accessToken: string): Promise<{ items: any[]; status: number }> {
+  const items: any[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const url = pageToken ? `${baseUrl}&pageToken=${encodeURIComponent(pageToken)}` : baseUrl;
+    const res = await makeDriveRequest(url, accessToken);
+
+    if (!res.ok) {
+      return { items, status: res.status };
+    }
+
+    const data = await res.json();
+    if (data.files) items.push(...data.files);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return { items, status: 200 };
+}
+
 // List files and folders from user's Google Drive
 export async function GET(request: NextRequest) {
   try {
@@ -57,23 +78,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query - list all folders and video files
-    let parentQuery = folderId ? `'${folderId}'` : "'root'";
-    
-    // Try to get folders and files
-    let foldersRes = await makeDriveRequest(
-      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`)}&fields=files(id,name)&orderBy=name&pageSize=100`,
-      accessToken
-    );
+    const parentQuery = folderId ? `'${folderId}'` : "'root'";
 
-    let filesRes = await makeDriveRequest(
-      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType contains 'video/'`)}&fields=files(id,name,mimeType,size,thumbnailLink,createdTime,webViewLink)&orderBy=name&pageSize=100`,
-      accessToken
-    );
+    const foldersUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`)}&fields=nextPageToken,files(id,name)&orderBy=name&pageSize=1000`;
+    const filesUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType contains 'video/'`)}&fields=nextPageToken,files(id,name,mimeType,size,thumbnailLink,createdTime,webViewLink)&orderBy=name&pageSize=1000`;
+
+    // Try to get folders and files (all pages)
+    let foldersResult = await fetchAllPages(foldersUrl, accessToken);
+    let filesResult = await fetchAllPages(filesUrl, accessToken);
 
     // If unauthorized, try to refresh token
-    if (foldersRes.status === 401 || filesRes.status === 401) {
+    if (foldersResult.status === 401 || filesResult.status === 401) {
       console.log('Token expired, refreshing...');
-      
+
       try {
         const newTokens = await refreshAccessToken(refreshToken);
         accessToken = newTokens.accessToken;
@@ -90,43 +107,30 @@ export async function GET(request: NextRequest) {
         console.log('Token refreshed successfully');
 
         // Retry with new token
-        foldersRes = await makeDriveRequest(
-          `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`)}&fields=files(id,name)&orderBy=name&pageSize=100`,
-          accessToken
-        );
-
-        filesRes = await makeDriveRequest(
-          `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`${parentQuery} in parents and trashed = false and mimeType contains 'video/'`)}&fields=files(id,name,mimeType,size,thumbnailLink,createdTime,webViewLink)&orderBy=name&pageSize=100`,
-          accessToken
-        );
+        foldersResult = await fetchAllPages(foldersUrl, accessToken);
+        filesResult = await fetchAllPages(filesUrl, accessToken);
       } catch (refreshError) {
         console.error('Failed to refresh token:', refreshError);
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: 'Google Drive access expired. Please reconnect your channel.',
-          needsReconnect: true 
+          needsReconnect: true
         }, { status: 401 });
       }
     }
 
-    if (!foldersRes.ok || !filesRes.ok) {
-      const foldersError = !foldersRes.ok ? await foldersRes.text() : null;
-      const filesError = !filesRes.ok ? await filesRes.text() : null;
-      console.error('Drive API error:', { foldersError, filesError });
-      
+    if (foldersResult.status !== 200 || filesResult.status !== 200) {
+      console.error('Drive API error:', { foldersStatus: foldersResult.status, filesStatus: filesResult.status });
       return NextResponse.json({ error: 'Failed to access Google Drive' }, { status: 500 });
     }
 
-    const foldersData = await foldersRes.json();
-    const filesData = await filesRes.json();
-
-    console.log('Drive list success:', { 
-      folders: foldersData.files?.length || 0, 
-      files: filesData.files?.length || 0 
+    console.log('Drive list success:', {
+      folders: foldersResult.items.length,
+      files: filesResult.items.length
     });
 
     return NextResponse.json({
-      folders: foldersData.files || [],
-      files: filesData.files || []
+      folders: foldersResult.items,
+      files: filesResult.items,
     });
 
   } catch (error: any) {
