@@ -26,11 +26,10 @@ import {
   Plus,
   Play,
   ChevronLeft,
-  ExternalLink,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DriveThumbnail from '@/components/VideoThumbnail';
+import VideoPreviewDialog from '@/components/VideoPreviewDialog';
 
 interface VideoCategory {
   id: string;
@@ -311,9 +310,6 @@ export default function VideoLibraryBrowser({
     }
   };
 
-  const getVideoPreviewUrl = (fileId: string) => {
-    return `https://drive.google.com/file/d/${fileId}/preview`;
-  };
 
   return (
     <>
@@ -517,73 +513,15 @@ export default function VideoLibraryBrowser({
         </DialogContent>
       </Dialog>
 
-      {/* Video Preview Dialog */}
-      <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden p-0 gap-0">
-          <DialogHeader className="p-4 border-b">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-base sm:text-lg truncate pr-4">
-                {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-              </DialogTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setPreviewVideo(null)}
-                className="h-8 w-8 flex-shrink-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </DialogHeader>
-
-          <div className="aspect-video bg-black">
-            {previewVideo && (
-              <iframe
-                src={getVideoPreviewUrl(previewVideo.driveFileId)}
-                className="w-full h-full"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-              />
-            )}
-          </div>
-
-          <div className="p-3 sm:p-4 border-t flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setPreviewVideo(null)} className="flex-1 sm:flex-none">
-              Close
-            </Button>
-            {previewVideo?.webViewLink && (
-              <Button variant="outline" asChild className="flex-1 sm:flex-none">
-                <a href={previewVideo.webViewLink} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in Drive
-                </a>
-              </Button>
-            )}
-            <Button
-              onClick={() => {
-                if (previewVideo) {
-                  toggleVideoSelection(previewVideo.id);
-                  setPreviewVideo(null);
-                }
-              }}
-              disabled={previewVideo ? selectedVideos.has(previewVideo.id) : false}
-              className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
-            >
-              {previewVideo && selectedVideos.has(previewVideo.id) ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Selected
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Select Video
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <VideoPreviewDialog
+        open={!!previewVideo}
+        onClose={() => setPreviewVideo(null)}
+        title={previewVideo?.name.replace(/\.[^/.]+$/, '') ?? ''}
+        driveFileId={previewVideo?.driveFileId}
+        externalLink={previewVideo?.webViewLink}
+        isSelected={previewVideo ? selectedVideos.has(previewVideo.id) : false}
+        onSelect={previewVideo ? () => toggleVideoSelection(previewVideo.id) : undefined}
+      />
     </>
   );
 }

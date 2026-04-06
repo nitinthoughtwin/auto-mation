@@ -13,21 +13,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Loader2, 
-  Video, 
-  CheckCircle2, 
+  Loader2,
+  Video,
+  CheckCircle2,
   Link as LinkIcon,
   RefreshCw,
   FileVideo,
   Folder,
   ChevronRight,
   Home,
-  ExternalLink,
   AlertCircle,
   Play
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DriveThumbnail from '@/components/VideoThumbnail';
+import VideoPreviewDialog from '@/components/VideoPreviewDialog';
 
 interface DriveItem {
   id: string;
@@ -314,10 +314,6 @@ export default function PublicDriveBrowser({
     return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   };
 
-  // Get video preview URL
-  const getVideoPreviewUrl = (fileId: string) => {
-    return `https://drive.google.com/file/d/${fileId}/preview`;
-  };
 
   // Default thumbnail
   const DefaultThumbnail = ({ isFolder = false }: { isFolder?: boolean }) => (
@@ -592,72 +588,16 @@ export default function PublicDriveBrowser({
         </DialogContent>
       </Dialog>
 
-      {/* Video Preview Dialog */}
-      <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-hidden p-0 gap-0">
-          <div className="bg-black aspect-video w-full relative">
-            {previewVideo && (
-              <iframe
-                src={getVideoPreviewUrl(previewVideo.id)}
-                className="w-full h-full"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-              />
-            )}
-          </div>
-          
-          <div className="p-4 bg-background">
-            <div className="mb-3">
-              <h3 className="font-medium truncate text-sm sm:text-base">
-                {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-              </h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Size: {formatSize(previewVideo?.size)}
-              </p>
-            </div>
-            
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" onClick={() => setPreviewVideo(null)} className="h-9">
-                Close
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  if (previewVideo) {
-                    window.open(`https://drive.google.com/file/d/${previewVideo.id}/view`, '_blank');
-                  }
-                }}
-                className="h-9"
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in Drive
-              </Button>
-              <Button 
-                onClick={() => {
-                  if (previewVideo) {
-                    toggleVideo(previewVideo.id);
-                    setPreviewVideo(null);
-                  }
-                }}
-                disabled={previewVideo ? selectedVideos.has(previewVideo.id) : false}
-                className="bg-green-600 hover:bg-green-700 h-9"
-              >
-                {previewVideo && selectedVideos.has(previewVideo.id) ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Selected
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Select
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <VideoPreviewDialog
+        open={!!previewVideo}
+        onClose={() => setPreviewVideo(null)}
+        title={previewVideo?.name.replace(/\.[^/.]+$/, '') ?? ''}
+        driveFileId={previewVideo?.id}
+        externalLink={previewVideo ? `https://drive.google.com/file/d/${previewVideo.id}/view` : null}
+        subtitle={previewVideo?.size ? `Size: ${formatSize(previewVideo.size)}` : undefined}
+        isSelected={previewVideo ? selectedVideos.has(previewVideo.id) : false}
+        onSelect={previewVideo ? () => toggleVideo(previewVideo.id) : undefined}
+      />
     </>
   );
 }

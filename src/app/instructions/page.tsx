@@ -6,7 +6,7 @@ import { Printer } from 'lucide-react';
 export default function InstructionsPage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      <div className="print:hidden fixed top-4 right-4 z-50">
+      <div className="print:hidden fixed top-8 right-4 z-50">
         <Button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 gap-2">
           <Printer className="h-4 w-4" />
           Save as PDF

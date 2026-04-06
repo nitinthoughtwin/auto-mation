@@ -67,6 +67,7 @@ import VideoLibraryBrowser from '@/components/VideoLibraryBrowser';
 import UsageDashboard from '@/components/UsageDashboard';
 import SetupRoadmap from '@/components/SetupRoadmap';
 import DriveThumbnail from '@/components/VideoThumbnail';
+import VideoPreviewDialog from '@/components/VideoPreviewDialog';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -2300,94 +2301,16 @@ export default function YouTubeAutomationDashboard() {
         </Dialog>
 
         {/* Video Preview Dialog */}
-        <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-          <DialogContent className="max-w-[900px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-lg truncate">{previewVideo?.title || 'Video Preview'}</DialogTitle>
-              <DialogDescription>
-                {previewVideo?.originalName} • {previewVideo?.fileSize ? formatFileSize(previewVideo.fileSize) : ''}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              {/* Video Player */}
-              <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                {previewVideo && getVideoUrl(previewVideo.fileName) && (
-                  isDriveUrl(previewVideo.fileName) ? (
-                    <iframe
-                      src={getVideoUrl(previewVideo.fileName) || ''}
-                      className="w-full h-full"
-                      allow="autoplay; fullscreen"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video
-                      src={getVideoUrl(previewVideo.fileName) || ''}
-                      controls
-                      className="w-full h-full"
-                      preload="metadata"
-                    />
-                  )
-                )}
-              </div>
-
-              {/* Video Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground text-xs">Title</p>
-                  <p className="font-medium truncate">{previewVideo?.title}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Type</p>
-                  <Badge
-                    variant={previewVideo ? (getVideoType(previewVideo) === 'shorts' ? 'default' : 'secondary') : 'secondary'}
-                  >
-                    {previewVideo ? (getVideoType(previewVideo) === 'shorts' ? 'Shorts' : 'Video') : 'Video'}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Description</p>
-                  <p className="truncate">{previewVideo?.description || 'No description'}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Tags</p>
-                  <p className="truncate">{previewVideo?.tags || 'No tags'}</p>
-                </div>
-              </div>
-
-              {/* Open in Drive / direct link */}
-              {previewVideo && (
-                isDriveUrl(previewVideo.fileName) && getDriveLink(previewVideo.fileName) ? (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1 btn-press"
-                      onClick={() => window.open(getDriveLink(previewVideo.fileName) || '', '_blank')}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Open in Google Drive
-                    </Button>
-                  </div>
-                ) : previewVideo.fileName?.startsWith('http') ? (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1 btn-press"
-                      onClick={() => window.open(previewVideo.fileName || '', '_blank')}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Open Video
-                    </Button>
-                  </div>
-                ) : null
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setPreviewVideo(null)}>
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <VideoPreviewDialog
+          open={!!previewVideo}
+          onClose={() => setPreviewVideo(null)}
+          title={previewVideo?.title || 'Video Preview'}
+          subtitle={[previewVideo?.originalName, previewVideo?.fileSize ? formatFileSize(previewVideo.fileSize) : ''].filter(Boolean).join(' • ')}
+          driveFileId={previewVideo && isDriveUrl(previewVideo.fileName) ? (previewVideo.driveFileId || null) : null}
+          directUrl={previewVideo && !isDriveUrl(previewVideo.fileName) ? getVideoUrl(previewVideo.fileName) : null}
+          externalLink={previewVideo ? (isDriveUrl(previewVideo.fileName) ? getDriveLink(previewVideo.fileName) : previewVideo.fileName?.startsWith('http') ? previewVideo.fileName : null) : null}
+          externalLinkLabel={previewVideo && isDriveUrl(previewVideo.fileName) ? 'Open in Google Drive' : 'Open Video'}
+        />
 
         {/* Drive Video Browser */}
         <DriveVideoBrowser

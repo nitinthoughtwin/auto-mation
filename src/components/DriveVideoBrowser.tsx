@@ -13,18 +13,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { 
-  FolderOpen, 
-  Video, 
-  Loader2, 
+  FolderOpen,
+  Video,
+  Loader2,
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
   HardDrive,
   Play,
-  ExternalLink,
   Home
 } from 'lucide-react';
 import { toast } from 'sonner';
+import VideoPreviewDialog from '@/components/VideoPreviewDialog';
 
 interface DriveFile {
   id: string;
@@ -210,10 +210,6 @@ export default function DriveVideoBrowser({
   // Check if file is video
   const isVideo = (mimeType: string) => mimeType?.startsWith('video/');
 
-  // Get video preview URL
-  const getVideoPreviewUrl = (fileId: string) => {
-    return `https://drive.google.com/file/d/${fileId}/preview`;
-  };
 
   // Default thumbnail component
   const DefaultThumbnail = ({ isFolder = false }: { isFolder?: boolean }) => (
@@ -394,72 +390,16 @@ export default function DriveVideoBrowser({
         </DialogContent>
       </Dialog>
 
-      {/* Video Preview Dialog */}
-      <Dialog open={!!previewVideo} onOpenChange={() => setPreviewVideo(null)}>
-        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-hidden p-0 gap-0">
-          <div className="bg-black aspect-video w-full relative">
-            {previewVideo && (
-              <iframe
-                src={getVideoPreviewUrl(previewVideo.id)}
-                className="w-full h-full"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-              />
-            )}
-          </div>
-          
-          <div className="p-4 bg-background">
-            <div className="mb-3">
-              <h3 className="font-medium truncate text-sm sm:text-base">
-                {previewVideo?.name.replace(/\.[^/.]+$/, '')}
-              </h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Size: {formatSize(previewVideo?.size)}
-              </p>
-            </div>
-            
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" onClick={() => setPreviewVideo(null)} className="h-9">
-                Close
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  if (previewVideo) {
-                    window.open(`https://drive.google.com/file/d/${previewVideo.id}/view`, '_blank');
-                  }
-                }}
-                className="h-9"
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in Drive
-              </Button>
-              <Button 
-                onClick={() => {
-                  if (previewVideo) {
-                    toggleFile(previewVideo.id);
-                    setPreviewVideo(null);
-                  }
-                }}
-                disabled={previewVideo ? selectedFiles.has(previewVideo.id) : false}
-                className="bg-blue-600 hover:bg-blue-700 h-9"
-              >
-                {previewVideo && selectedFiles.has(previewVideo.id) ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Selected
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Select
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <VideoPreviewDialog
+        open={!!previewVideo}
+        onClose={() => setPreviewVideo(null)}
+        title={previewVideo?.name.replace(/\.[^/.]+$/, '') ?? ''}
+        driveFileId={previewVideo?.id}
+        externalLink={previewVideo ? `https://drive.google.com/file/d/${previewVideo.id}/view` : null}
+        subtitle={previewVideo?.size ? `Size: ${formatSize(previewVideo.size)}` : undefined}
+        isSelected={previewVideo ? selectedFiles.has(previewVideo.id) : false}
+        onSelect={previewVideo ? () => toggleFile(previewVideo.id) : undefined}
+      />
     </>
   );
 }
