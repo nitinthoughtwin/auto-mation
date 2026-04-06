@@ -234,6 +234,107 @@ export async function PUT(
   }
 }
 
+// PATCH - Import videos from an additional Drive folder into existing category
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await db.user.findUnique({ where: { id: session.user.id } });
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { importDriveUrl } = body;
+
+    if (!importDriveUrl) {
+      return NextResponse.json({ error: 'Drive URL is required' }, { status: 400 });
+    }
+
+    const category = await db.videoCategory.findUnique({ where: { id } });
+    if (!category) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+    }
+
+    const folderId = extractFolderId(importDriveUrl);
+    if (!folderId) {
+      return NextResponse.json({ error: 'Invalid Google Drive URL' }, { status: 400 });
+    }
+
+    const result = await fetchVideosFromDrive(folderId);
+    if (result.error) {
+      const errorMessages: Record<string, string> = {
+        'GOOGLE_API_KEY_NOT_SET': 'GOOGLE_DRIVE_API_KEY is not configured.',
+        'FOLDER_NOT_PUBLIC': 'Cannot access folder. Make sure it is shared as "Anyone with the link can view".',
+        'FOLDER_NOT_FOUND': 'Folder not found. Please check the URL.',
+        'API_ERROR': 'Google Drive API error.',
+        'NETWORK_ERROR': 'Network error connecting to Google Drive.',
+      };
+      return NextResponse.json({ error: errorMessages[result.error] || result.error }, { status: 400 });
+    }
+
+    const videos = result.videos;
+    if (videos.length === 0) {
+      return NextResponse.json({ success: true, imported: 0, message: 'No videos found in this folder' });
+    }
+
+    // Upsert in batches of 5 to respect connection pool
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < videos.length; i += BATCH_SIZE) {
+      const batch = videos.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map((v: any) =>
+          db.libraryVideo.upsert({
+            where: { driveFileId: v.id },
+            create: {
+              categoryId: id,
+              driveFileId: v.id,
+              name: v.name,
+              mimeType: v.mimeType,
+              size: v.size,
+              thumbnailLink: v.thumbnailLink,
+              webViewLink: v.webViewLink,
+              downloadUrl: v.downloadUrl,
+              createdTime: v.createdTime ? new Date(v.createdTime) : null,
+            },
+            update: {
+              categoryId: id,
+              name: v.name,
+              mimeType: v.mimeType,
+              size: v.size,
+              thumbnailLink: v.thumbnailLink,
+              webViewLink: v.webViewLink,
+              downloadUrl: v.downloadUrl,
+            },
+          })
+        )
+      );
+    }
+
+    // Return actual saved count
+    const categoryWithCount = await db.videoCategory.findUnique({
+      where: { id },
+      include: { _count: { select: { videos: true } } }
+    });
+
+    return NextResponse.json({
+      success: true,
+      imported: videos.length,
+      totalVideos: categoryWithCount?._count.videos ?? 0,
+    });
+  } catch (error: any) {
+    console.error('[Video Category PATCH] Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // DELETE - Delete category and all its videos
 export async function DELETE(
   request: NextRequest,

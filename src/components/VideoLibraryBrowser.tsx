@@ -90,6 +90,7 @@ const VideoThumbnail = ({ video, isSelected, onClick, onPreview }: {
       {/* Thumbnail with loading skeleton + fallback */}
       <DriveThumbnail
         driveFileId={video.driveFileId}
+        thumbnailUrl={video.thumbnailLink}
         name={video.name}
         className="w-full h-full"
       />

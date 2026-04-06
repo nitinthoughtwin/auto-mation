@@ -66,20 +66,22 @@ export default function VideoThumbnail({
   className = 'w-full h-full',
 }: VideoThumbnailProps) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // Track which URLs have failed so we can try fallbacks in order
+  const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
 
-  // Resolve the best thumbnail source
-  const src = (() => {
-    if (thumbnailUrl && !error) return thumbnailUrl;
-    if (driveFileId && !error) return getDriveThumbnailUrl(driveFileId);
-    return null;
-  })();
+  // Build ordered list of URLs to try:
+  // 1. Stored thumbnailLink (from Drive API, e.g. lh3.googleusercontent.com/d/ID)
+  // 2. drive.google.com/thumbnail (public, works for shared files)
+  const candidates: string[] = [];
+  if (thumbnailUrl) candidates.push(thumbnailUrl);
+  if (driveFileId) candidates.push(getDriveThumbnailUrl(driveFileId));
+
+  const src = candidates.find(u => !failedUrls.has(u)) ?? null;
 
   const gradient = getGradient(name);
   const cleanName = name.replace(/\.[^/.]+$/, '').substring(0, 24);
 
-  if (!src || error) {
-    // Fallback: gradient with video icon
+  if (!src) {
     return (
       <div className={`${className} bg-gradient-to-br ${gradient} flex flex-col items-center justify-center`}>
         <Video className="h-7 w-7 text-white/80 mb-1" />
@@ -92,21 +94,20 @@ export default function VideoThumbnail({
 
   return (
     <div className={`${className} relative`}>
-      {/* Loading skeleton */}
       {loading && (
         <div className="absolute inset-0 bg-muted animate-pulse" />
       )}
+      {/* No crossOrigin or referrerPolicy — Drive CDN doesn't send CORS headers */}
       <img
+        key={src}
         src={src}
         alt={name}
         className={`w-full h-full object-cover transition-opacity duration-200 ${loading ? 'opacity-0' : 'opacity-100'}`}
         onLoad={() => setLoading(false)}
         onError={() => {
           setLoading(false);
-          setError(true);
+          setFailedUrls(prev => new Set(prev).add(src));
         }}
-        referrerPolicy="no-referrer"
-        crossOrigin="anonymous"
       />
     </div>
   );

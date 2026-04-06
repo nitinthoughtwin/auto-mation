@@ -99,6 +99,11 @@ export default function AdminVideoLibraryPage() {
   // Sync state
   const [syncingCategoryId, setSyncingCategoryId] = useState<string | null>(null);
 
+  // Import extra folder state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importDriveUrl, setImportDriveUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
@@ -302,6 +307,34 @@ export default function AdminVideoLibraryPage() {
     }
   };
 
+  const handleImportFolder = async () => {
+    if (!importDriveUrl.trim() || !selectedCategory) return;
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/video-library/categories/${selectedCategory.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importDriveUrl }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Folder Imported', {
+          description: `${data.imported} videos imported. Total: ${data.totalVideos} videos in category.`
+        });
+        setShowImportDialog(false);
+        setImportDriveUrl('');
+        loadCategoryVideos(selectedCategory.id);
+        loadCategories();
+      } else {
+        throw new Error(data.error || 'Import failed');
+      }
+    } catch (error: any) {
+      toast.error('Import Failed', { description: error.message });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleToggleActive = async (category: VideoCategory) => {
     try {
       const res = await fetch(`/api/video-library/categories/${category.id}`, {
@@ -361,17 +394,54 @@ export default function AdminVideoLibraryPage() {
                 </p>
               </div>
             </div>
-            <Button
-              onClick={() => handleSyncVideos(selectedCategory.id)}
-              disabled={syncingCategoryId === selectedCategory.id}
-            >
-              {syncingCategoryId === selectedCategory.id ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Sync Videos
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => { setImportDriveUrl(''); setShowImportDialog(true); }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Import Folder
+              </Button>
+              <Button
+                onClick={() => handleSyncVideos(selectedCategory.id)}
+                disabled={syncingCategoryId === selectedCategory.id}
+              >
+                {syncingCategoryId === selectedCategory.id ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Sync Videos
+              </Button>
+            </div>
+
+            {/* Import extra folder dialog */}
+            <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Import from Another Folder</DialogTitle>
+                  <DialogDescription>
+                    Paste a Google Drive folder link to import more videos into <strong>{selectedCategory.name}</strong>.
+                    Existing videos won't be duplicated.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <Label>Google Drive Folder URL</Label>
+                  <Input
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    value={importDriveUrl}
+                    onChange={(e) => setImportDriveUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleImportFolder()}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowImportDialog(false)}>Cancel</Button>
+                  <Button onClick={handleImportFolder} disabled={importing || !importDriveUrl.trim()}>
+                    {importing ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Importing...</> : 'Import Videos'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Drive URL */}
@@ -416,6 +486,7 @@ export default function AdminVideoLibraryPage() {
                     <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative">
                       <DriveThumbnail
                         driveFileId={video.driveFileId}
+                        thumbnailUrl={video.thumbnailLink}
                         name={video.name}
                         className="w-full h-full"
                       />
