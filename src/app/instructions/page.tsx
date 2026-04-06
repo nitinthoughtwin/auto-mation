@@ -6,7 +6,7 @@ import { Printer } from 'lucide-react';
 export default function InstructionsPage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      <div className="print:hidden fixed top-8 right-4 z-50">
+      <div className="print:hidden fixed top-4 right-8 z-50">
         <Button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 gap-2">
           <Printer className="h-4 w-4" />
           Save as PDF
@@ -47,10 +47,92 @@ export default function InstructionsPage() {
           <ol className="text-sm text-gray-600 space-y-1.5 list-decimal pl-4 mt-3">
             <li>Go to <strong>gpmart.in</strong> → Sign Up with email or Google account</li>
             <li>Click <strong>Connect YouTube Channel</strong> on dashboard</li>
-            <li>Select your Google account → Grant permissions</li>
+            <li>Select your Google account</li>
+            <li>Follow the steps below if Google shows a warning screen</li>
+            <li>Select <strong>all permissions</strong> for YouTube access → Click <strong>Continue</strong></li>
             <li>Your channel appears — click <strong>Manage</strong> to open it</li>
           </ol>
-          <Note>Connect the Google account that <strong>owns</strong> the YouTube channel</Note>
+
+          {/* Unverified App Warning */}
+          <div className="mt-4 border border-red-200 rounded-xl overflow-hidden">
+            <div className="bg-red-50 px-3 py-2 flex items-center gap-2 border-b border-red-200">
+              <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+              <span className="text-xs font-bold text-red-700">Google Warning Screen — What to do</span>
+            </div>
+            <div className="p-3 space-y-3">
+              {/* Step A */}
+              <div className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center mt-0.5">A</span>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-800">Google shows: &quot;This app isn&apos;t verified&quot;</p>
+                  <p className="text-xs text-gray-500 mt-0.5">This is normal for apps under review. The app is safe to use.</p>
+                  {/* Mock warning screen */}
+                  <div className="mt-2 bg-white border border-gray-200 rounded-lg p-3 text-center">
+                    <div className="w-8 h-8 mx-auto mb-1 rounded-full bg-yellow-100 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                    </div>
+                    <p className="text-[10px] font-bold text-gray-800">This app isn&apos;t verified</p>
+                    <p className="text-[9px] text-gray-500 mt-0.5 leading-tight">Google hasn&apos;t verified this app.<br />Only proceed if you trust the developer.</p>
+                    <div className="mt-2 flex justify-center gap-2">
+                      <span className="text-[10px] px-2 py-1 rounded border border-gray-300 text-gray-600">Back to safety</span>
+                      <span className="text-[10px] px-2 py-1 rounded text-blue-600 font-semibold underline cursor-pointer">Advanced</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step B */}
+              <div className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center mt-0.5">B</span>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-800">Click <span className="underline text-blue-600">Advanced</span> at the bottom left</p>
+                  <p className="text-xs text-gray-500 mt-0.5">A new link appears below the warning text.</p>
+                  <div className="mt-2 bg-white border border-gray-200 rounded-lg p-3">
+                    <p className="text-[9px] text-gray-500 leading-tight">Google hasn&apos;t verified this app. Only proceed if you trust the developer. <span className="text-blue-600 underline">Learn more</span></p>
+                    <p className="text-[10px] mt-2 text-blue-600 font-semibold underline">↳ Go to GPmart (unsafe)</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step C */}
+              <div className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center mt-0.5">C</span>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-800">Click <span className="text-blue-600 underline">&quot;Go to GPmart (unsafe)&quot;</span></p>
+                  <p className="text-xs text-gray-500 mt-0.5">This opens the permissions screen.</p>
+                </div>
+              </div>
+
+              {/* Step D */}
+              <div className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-bold flex items-center justify-center mt-0.5">D</span>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-800">Select <strong>all</strong> checkboxes for YouTube permissions</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Make sure every permission is checked — this allows the app to upload and manage videos on your behalf.</p>
+                  <div className="mt-2 bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
+                    {[
+                      'View your YouTube account',
+                      'Manage your YouTube videos',
+                      'View and manage your YouTube account',
+                      'See info about your YouTube channel',
+                    ].map((perm) => (
+                      <div key={perm} className="flex items-center gap-2">
+                        <div className="w-3.5 h-3.5 rounded bg-blue-600 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <span className="text-[10px] text-gray-700">{perm}</span>
+                      </div>
+                    ))}
+                    <div className="mt-2 flex justify-end">
+                      <span className="text-[10px] bg-blue-600 text-white px-3 py-1 rounded font-medium">Continue</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Note>Connect the Google account that <strong>owns</strong> the YouTube channel. The &quot;unsafe&quot; label from Google is only because the app is pending verification — your data stays private.</Note>
         </Step>
 
         {/* Step 2 */}

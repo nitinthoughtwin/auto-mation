@@ -93,7 +93,7 @@ export default function VideoPreviewDialog({
               </a>
             </Button>
           )}
-          {onSelect && (
+          {/* {onSelect && (
             <Button
               onClick={() => { onSelect(); onClose(); }}
               disabled={isSelected}
@@ -102,7 +102,7 @@ export default function VideoPreviewDialog({
               <CheckCircle2 className="h-4 w-4 mr-1.5" />
               {isSelected ? 'Selected' : 'Select Video'}
             </Button>
-          )}
+          )} */}
         </div>
       </DialogContent>
     </Dialog>
