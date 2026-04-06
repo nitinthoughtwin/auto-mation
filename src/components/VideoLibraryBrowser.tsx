@@ -198,6 +198,7 @@ export default function VideoLibraryBrowser({
   const [selectedVideos, setSelectedVideos] = useState<Set<string>>(new Set());
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [adding, setAdding] = useState(false);
+  const [generatingTitles, setGeneratingTitles] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<LibraryVideo | null>(null);
 
   // Reset state when dialog opens
@@ -289,9 +290,36 @@ export default function VideoLibraryBrowser({
       const data = await res.json();
 
       if (res.ok) {
-        toast.success('Videos Added to Queue', {
-          description: `${data.created} video(s) added successfully.`
-        });
+        // Auto-generate titles using category name as topic (before closing dialog)
+        if (data.videos?.length > 0 && selectedCategory) {
+          setGeneratingTitles(true);
+          try {
+            await fetch('/api/ai/generate-for-videos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                channelId: selectedChannelId,
+                videos: data.videos.map((v: { id: string; title: string }) => ({ id: v.id, title: v.title })),
+                topic: selectedCategory.name,
+                language: 'english',
+              })
+            });
+            toast.success('Videos Added to Queue', {
+              description: `${data.created} video(s) added with AI-generated titles.`
+            });
+          } catch {
+            toast.success('Videos Added to Queue', {
+              description: `${data.created} video(s) added successfully.`
+            });
+          } finally {
+            setGeneratingTitles(false);
+          }
+        } else {
+          toast.success('Videos Added to Queue', {
+            description: `${data.created} video(s) added successfully.`
+          });
+        }
+
         onVideosAdded();
         onClose();
       } else {
@@ -474,10 +502,15 @@ export default function VideoLibraryBrowser({
                 </Select>
                 <Button
                   onClick={handleAddToQueue}
-                  disabled={selectedVideos.size === 0 || adding || !selectedChannelId}
+                  disabled={selectedVideos.size === 0 || adding || generatingTitles || !selectedChannelId}
                   className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
                 >
-                  {adding ? (
+                  {generatingTitles ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Titles...
+                    </>
+                  ) : adding ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Adding...

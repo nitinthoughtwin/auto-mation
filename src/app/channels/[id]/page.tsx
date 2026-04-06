@@ -697,8 +697,8 @@ export default function ChannelDetailPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="every6h">Every 6 Hours</SelectItem>
-                        <SelectItem value="every12h">Every 12 Hours</SelectItem>
+                        {/* <SelectItem value="every6h">Every 6 Hours</SelectItem>
+                        <SelectItem value="every12h">Every 12 Hours</SelectItem> */}
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="alternate">Every Other Day</SelectItem>
                         <SelectItem value="every3days">Every 3 Days</SelectItem>
