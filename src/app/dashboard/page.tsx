@@ -66,6 +66,7 @@ import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 import VideoLibraryBrowser from '@/components/VideoLibraryBrowser';
 import UsageDashboard from '@/components/UsageDashboard';
 import SetupRoadmap from '@/components/SetupRoadmap';
+import DriveThumbnail from '@/components/VideoThumbnail';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -1888,15 +1889,16 @@ export default function YouTubeAutomationDashboard() {
                                     referrerPolicy="no-referrer"
                                   />
                                 </div>
-                              ) : getVideoType(video) === 'shorts' ? (
-                                <div className="w-10 h-14 rounded overflow-hidden bg-gradient-to-b from-purple-600 via-pink-500 to-red-500 flex flex-col items-center justify-center gap-0.5 flex-shrink-0">
-                                  <span className="text-white text-[7px] font-black leading-none">#SHORTS</span>
-                                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                                    <Play className="h-3 w-3 text-white ml-0.5" />
-                                  </div>
+                              ) : video.driveFileId ? (
+                                <div className="w-16 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
+                                  <DriveThumbnail
+                                    driveFileId={video.driveFileId}
+                                    name={video.title || video.originalName || ''}
+                                    className="w-full h-full"
+                                  />
                                 </div>
                               ) : (
-                                <div className="w-16 h-10 bg-muted rounded flex items-center justify-center">
+                                <div className="w-16 h-10 bg-muted rounded flex items-center justify-center flex-shrink-0">
                                   <FileVideo className="h-4 w-4 text-muted-foreground" />
                                 </div>
                               )}

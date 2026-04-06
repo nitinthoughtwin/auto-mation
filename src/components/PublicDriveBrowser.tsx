@@ -27,6 +27,7 @@ import {
   Play
 } from 'lucide-react';
 import { toast } from 'sonner';
+import DriveThumbnail from '@/components/VideoThumbnail';
 
 interface DriveItem {
   id: string;
@@ -497,18 +498,12 @@ export default function PublicDriveBrowser({
                     onClick={() => setPreviewVideo(video)}
                   >
                     <div className="aspect-video bg-muted relative group">
-                      {video.thumbnailUrl || video.thumbnailLink ? (
-                        <img
-                          src={video.thumbnailUrl || video.thumbnailLink || ''}
-                          alt={video.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <DefaultThumbnail />
-                      )}
+                      <DriveThumbnail
+                        driveFileId={video.id}
+                        thumbnailUrl={video.thumbnailUrl || video.thumbnailLink}
+                        name={video.name}
+                        className="w-full h-full"
+                      />
 
                       {/* Play overlay on hover */}
                       <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none">

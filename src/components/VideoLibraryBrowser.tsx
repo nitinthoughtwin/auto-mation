@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import DriveThumbnail from '@/components/VideoThumbnail';
 
 interface VideoCategory {
   id: string;
@@ -64,50 +65,21 @@ interface VideoLibraryBrowserProps {
   defaultChannelId?: string;
 }
 
-// Video thumbnail component with fallback
+const formatFileSize = (bytes: number | null) => {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+};
+
+// Video card with selection, preview, and thumbnail
 const VideoThumbnail = ({ video, isSelected, onClick, onPreview }: {
   video: LibraryVideo;
   isSelected: boolean;
   onClick: () => void;
   onPreview: () => void;
 }) => {
-  const [imageError, setImageError] = useState(false);
-  const [imageLoading, setImageLoading] = useState(true);
-
-  // Generate thumbnail URL - use Google Drive thumbnail API
-  const getThumbnailSrc = () => {
-    if (video.thumbnailLink && !imageError) {
-      return video.thumbnailLink;
-    }
-    return null;
-  };
-
-  const thumbnailSrc = getThumbnailSrc();
-
-  // Generate gradient based on video name
-  const getGradient = (name: string) => {
-    const gradients = [
-      'from-violet-500 to-purple-600',
-      'from-blue-500 to-cyan-500',
-      'from-emerald-500 to-teal-500',
-      'from-orange-500 to-red-500',
-      'from-pink-500 to-rose-500',
-      'from-indigo-500 to-blue-500',
-      'from-amber-500 to-orange-500',
-      'from-green-500 to-emerald-500',
-    ];
-    const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % gradients.length;
-    return gradients[index];
-  };
-
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return '';
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
-  };
-
   return (
     <div
       className={`relative aspect-video bg-muted rounded-lg overflow-hidden cursor-pointer transition-all touch-manipulation ${
@@ -115,35 +87,12 @@ const VideoThumbnail = ({ video, isSelected, onClick, onPreview }: {
       }`}
       onClick={onPreview}
     >
-      {/* Loading skeleton */}
-      {imageLoading && thumbnailSrc && (
-        <div className="absolute inset-0 bg-muted animate-pulse" />
-      )}
-
-      {/* Image or Fallback */}
-      {thumbnailSrc && !imageError ? (
-        <img
-          src={thumbnailSrc}
-          alt={video.name}
-          className="w-full h-full object-cover"
-          onLoad={() => setImageLoading(false)}
-          onError={() => {
-            setImageError(true);
-            setImageLoading(false);
-          }}
-          crossOrigin="anonymous"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <div className={`w-full h-full bg-gradient-to-br ${getGradient(video.name)} flex items-center justify-center`}>
-          <div className="text-center text-white p-2">
-            <Video className="h-8 w-8 sm:h-10 sm:w-10 mx-auto mb-1 opacity-90" />
-            <p className="text-xs sm:text-sm font-medium line-clamp-2 max-w-[100px] sm:max-w-[120px]">
-              {video.name.replace(/\.[^/.]+$/, '').substring(0, 20)}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Thumbnail with loading skeleton + fallback */}
+      <DriveThumbnail
+        driveFileId={video.driveFileId}
+        name={video.name}
+        className="w-full h-full"
+      />
 
       {/* Play icon hint (center, subtle) */}
       <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/20 transition-colors pointer-events-none">
@@ -359,14 +308,14 @@ export default function VideoLibraryBrowser({
                     : 'Browse pre-added videos by category'}
                 </DialogDescription>
               </div>
-              <Button
+              {/* <Button
                 variant="ghost"
                 size="icon"
                 onClick={onClose}
                 className="h-8 w-8 flex-shrink-0"
               >
                 <X className="h-4 w-4" />
-              </Button>
+              </Button> */}
             </div>
           </DialogHeader>
 
