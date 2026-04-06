@@ -185,57 +185,56 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Fetch videos from a public Google Drive folder using API key
+// Fetch ALL videos from a public Google Drive folder using API key (paginated)
 async function fetchVideosFromDrive(folderId: string) {
   try {
     const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
-    
     if (!apiKey) {
-      console.error('[Drive API] GOOGLE_API_KEY not set in environment');
+      console.error('[Drive API] GOOGLE_DRIVE_API_KEY not set');
       return { videos: [], error: 'GOOGLE_API_KEY_NOT_SET' };
     }
 
-    const videosUrl = new URL('https://www.googleapis.com/drive/v3/files');
-    videosUrl.searchParams.set('q', `'${folderId}' in parents and trashed = false and mimeType contains 'video/'`);
-    videosUrl.searchParams.set('fields', 'files(id, name, mimeType, size, thumbnailLink, webViewLink, createdTime)');
-    videosUrl.searchParams.set('orderBy', 'createdTime desc');
-    videosUrl.searchParams.set('pageSize', '100');
-    videosUrl.searchParams.set('key', apiKey);
+    const allFiles: any[] = [];
+    let pageToken: string | undefined;
+    let pageNum = 0;
 
-    console.log('[Drive API] Fetching videos from folder:', folderId);
+    do {
+      pageNum++;
+      const videosUrl = new URL('https://www.googleapis.com/drive/v3/files');
+      videosUrl.searchParams.set('q', `'${folderId}' in parents and trashed = false and mimeType contains 'video/'`);
+      videosUrl.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime)');
+      videosUrl.searchParams.set('pageSize', '1000');
+      videosUrl.searchParams.set('key', apiKey);
+      if (pageToken) videosUrl.searchParams.set('pageToken', pageToken);
 
-    const response = await fetch(videosUrl.toString(), {
-      headers: {
-        'Referer': process.env.NEXTAUTH_URL || 'https://gpmart.in',
-        'Origin': process.env.NEXTAUTH_URL || 'https://gpmart.in',
-      },
-    });
+      console.log(`[Drive API] Page ${pageNum} for folder ${folderId}`);
+      const response = await fetch(videosUrl.toString());
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[Drive API] Error response:', JSON.stringify(errorData));
-      console.error('[Drive API] Status:', response.status, '| Folder:', folderId);
-      console.error('[Drive API] API key prefix:', apiKey.substring(0, 8));
-
-      if (response.status === 400) {
-        return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[Drive API] Error:', response.status, JSON.stringify(errorData));
+        if (response.status === 400) return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
+        if (response.status === 403) {
+          const reason = errorData?.error?.errors?.[0]?.reason;
+          if (reason === 'keyInvalid') return { videos: [], error: 'API key is invalid or not enabled for Drive API' };
+          if (reason === 'accessNotConfigured') return { videos: [], error: 'Google Drive API is not enabled in Cloud Console' };
+          return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
+        }
+        if (response.status === 404) return { videos: [], error: 'FOLDER_NOT_FOUND' };
+        return { videos: [], error: errorData.error?.message || 'API_ERROR' };
       }
-      if (response.status === 403) {
-        const reason = errorData?.error?.errors?.[0]?.reason;
-        if (reason === 'keyInvalid') return { videos: [], error: 'API key is invalid or not enabled for Drive API' };
-        if (reason === 'accessNotConfigured') return { videos: [], error: 'Google Drive API is not enabled in Cloud Console' };
-        return { videos: [], error: 'FOLDER_NOT_PUBLIC' };
-      }
-      if (response.status === 404) {
-        return { videos: [], error: 'FOLDER_NOT_FOUND' };
-      }
-      return { videos: [], error: errorData.error?.message || 'API_ERROR' };
-    }
 
-    const data = await response.json();
-    console.log('[Drive API] Found', data.files?.length || 0, 'files');
+      const data = await response.json();
+      if (data.files) allFiles.push(...data.files);
+      pageToken = data.nextPageToken;
+      console.log(`[Drive API] Page ${pageNum}: ${data.files?.length ?? 0} files. nextPage: ${!!pageToken}`);
 
-    const videos = (data.files || []).map((file: any) => ({
+      if (pageNum >= 50) break; // safety guard
+    } while (pageToken);
+
+    console.log(`[Drive API] Total videos fetched: ${allFiles.length}`);
+
+    const videos = allFiles.map((file: any) => ({
       id: file.id,
       name: file.name,
       mimeType: file.mimeType,
@@ -243,7 +242,7 @@ async function fetchVideosFromDrive(folderId: string) {
       thumbnailLink: file.thumbnailLink || `https://lh3.googleusercontent.com/d/${file.id}=w200-h120-c`,
       webViewLink: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
       downloadUrl: `https://drive.google.com/uc?export=download&id=${file.id}`,
-      createdTime: file.createdTime
+      createdTime: file.createdTime,
     }));
 
     return { videos, error: null };
