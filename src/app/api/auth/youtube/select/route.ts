@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { accessToken, refreshToken } = pending;
+    const { accessToken, refreshToken, googleAccountId } = pending;
     const userId = session.user.id;
 
     // Upsert channel
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
           name: channelInfo.title,
           accessToken,
           refreshToken: refreshToken || existing.refreshToken,
+          googleAccountId: googleAccountId || existing.googleAccountId,
           userId,
           isActive: true,
         },
@@ -82,12 +83,24 @@ export async function POST(request: NextRequest) {
           userId,
           name: channelInfo.title,
           youtubeChannelId: channelInfo.id,
+          googleAccountId,
           accessToken,
           refreshToken,
           uploadTime: '18:00',
           frequency: 'daily',
           isActive: true,
         },
+      });
+    }
+
+    // Sync tokens to all other channels from the same Google account
+    if (googleAccountId && refreshToken) {
+      await db.channel.updateMany({
+        where: {
+          googleAccountId,
+          id: { not: result.id },
+        },
+        data: { accessToken, refreshToken },
       });
     }
 

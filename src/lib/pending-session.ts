@@ -13,6 +13,7 @@ export interface PendingChannelSession {
     thumbnail: string | null;
   }>;
   userId: string | null;
+  googleAccountId?: string | null;
 }
 
 function secret(): Buffer {

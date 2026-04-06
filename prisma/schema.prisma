@@ -65,6 +65,7 @@ model Channel {
   userId             String?
   name               String
   youtubeChannelId   String    @unique
+  googleAccountId    String?
   accessToken        String
   refreshToken       String
   uploadTime         String    @default("18:00")

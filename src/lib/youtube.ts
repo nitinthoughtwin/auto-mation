@@ -45,6 +45,18 @@ export async function getTokensFromCode(code: string) {
   return tokens;
 }
 
+// Get the stable Google account ID (sub) from an access token
+export async function getGoogleAccountId(accessToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.sub || null;
+  } catch {
+    return null;
+  }
+}
+
 // Get YouTube channel info (returns first/default channel)
 export async function getChannelInfo(accessToken: string, refreshToken: string) {
   const channels = await getAllChannels(accessToken, refreshToken);

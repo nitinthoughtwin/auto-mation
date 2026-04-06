@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokensFromCode, getAllChannels } from '@/lib/youtube';
+import { getTokensFromCode, getAllChannels, getGoogleAccountId } from '@/lib/youtube';
 import { db } from '@/lib/db';
 import { signSession, PENDING_SESSION_COOKIE } from '@/lib/pending-session';
 
@@ -57,6 +57,9 @@ export async function GET(request: NextRequest) {
       return redirectError(base, 'missing_access_token');
     }
 
+    // Get stable Google account ID — used to sync tokens across sibling channels
+    const googleAccountId = await getGoogleAccountId(tokens.access_token);
+
     // Fetch all channels for this Google account
     let channels: Awaited<ReturnType<typeof getAllChannels>>;
     try {
@@ -78,6 +81,7 @@ export async function GET(request: NextRequest) {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || '',
         userId,
+        googleAccountId,
       });
     }
 
@@ -87,6 +91,7 @@ export async function GET(request: NextRequest) {
       refreshToken: tokens.refresh_token || '',
       channels,
       userId,
+      googleAccountId,
     });
 
     const response = NextResponse.redirect(`${base}/connect-youtube/select`);
@@ -112,12 +117,14 @@ async function upsertChannel({
   accessToken,
   refreshToken,
   userId,
+  googleAccountId,
 }: {
   base: string;
   channelInfo: { id: string; title: string; description: string; thumbnail: string | null };
   accessToken: string;
   refreshToken: string;
   userId: string | null;
+  googleAccountId?: string | null;
 }) {
   try {
     const existing = await db.channel.findUnique({
@@ -135,9 +142,24 @@ async function upsertChannel({
           accessToken,
           refreshToken: refreshToken || existing.refreshToken,
           userId: userId || existing.userId,
+          googleAccountId: googleAccountId || existing.googleAccountId,
           isActive: true,
         },
       });
+
+      // Sync the new refresh token to all sibling channels sharing the same Google account.
+      // When Google issues a new refresh token, the old one is invalidated — so all channels
+      // connected from the same Google account must use the latest token.
+      if (googleAccountId && refreshToken) {
+        await db.channel.updateMany({
+          where: {
+            googleAccountId,
+            id: { not: updated.id },
+          },
+          data: { accessToken, refreshToken },
+        });
+      }
+
       return redirectSuccess(base, updated.id, updated.name);
     }
 
@@ -146,6 +168,7 @@ async function upsertChannel({
         userId,
         name: channelInfo.title || 'Unknown Channel',
         youtubeChannelId: channelInfo.id,
+        googleAccountId,
         accessToken,
         refreshToken,
         uploadTime: '18:00',
@@ -153,6 +176,18 @@ async function upsertChannel({
         isActive: true,
       },
     });
+
+    // Sync tokens to any existing sibling channels from same Google account
+    if (googleAccountId && refreshToken) {
+      await db.channel.updateMany({
+        where: {
+          googleAccountId,
+          id: { not: created.id },
+        },
+        data: { accessToken, refreshToken },
+      });
+    }
+
     return redirectSuccess(base, created.id, created.name);
 
   } catch (e: any) {
