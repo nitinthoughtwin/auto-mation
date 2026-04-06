@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { refreshAccessToken } from '@/lib/youtube';
 
-// Google Drive API key for public access
+// Google Drive API key for public access (fallback)
 const GOOGLE_API_KEY = process.env.GOOGLE_DRIVE_API_KEY;
 
 interface DriveItem {
@@ -66,31 +68,38 @@ function extractIdFromUrl(url: string): { type: 'file' | 'folder'; id: string } 
   return null;
 }
 
-// Helper: fetch with retry logic (handles rate limits & transient errors)
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const response = await fetch(url);
-    if (response.ok) return response;
+// Get channel OAuth token, refreshing if needed
+async function getChannelAccessToken(channelId: string): Promise<string | null> {
+  try {
+    const channel = await db.channel.findUnique({ where: { id: channelId } });
+    if (!channel?.accessToken || !channel?.refreshToken) return null;
 
-    // If rate limited (429) or server error (5xx), retry with backoff
-    if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
-      const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000; // exponential backoff + jitter
-      console.warn(`[Drive API] Attempt ${attempt} failed (${response.status}). Retrying in ${Math.round(delay)}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      continue;
+    try {
+      const newTokens = await refreshAccessToken(channel.refreshToken);
+      if (newTokens.accessToken) {
+        await db.channel.update({
+          where: { id: channelId },
+          data: {
+            accessToken: newTokens.accessToken,
+            ...(newTokens.refreshToken ? { refreshToken: newTokens.refreshToken } : {}),
+          },
+        });
+        return newTokens.accessToken;
+      }
+      return channel.accessToken;
+    } catch {
+      return channel.accessToken;
     }
-
-    // For other errors (4xx), throw immediately
-    const error = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }));
-    throw new Error(error.error?.message || `Request failed with status ${response.status}`);
+  } catch {
+    return null;
   }
-  throw new Error('Max retries exceeded');
 }
 
 // List ALL contents of a public folder (auto-paginate)
-async function listFolderContents(folderId: string) {
-  if (!GOOGLE_API_KEY) {
-    throw new Error('Google Drive API key not configured. Please add GOOGLE_DRIVE_API_KEY to your environment variables.');
+// Uses OAuth token when available (more reliable), falls back to API key
+async function listFolderContents(folderId: string, accessToken?: string | null) {
+  if (!accessToken && !GOOGLE_API_KEY) {
+    throw new Error('No authentication available. Please provide a channelId or configure GOOGLE_DRIVE_API_KEY.');
   }
 
   const allFiles: DriveItem[] = [];
@@ -100,52 +109,46 @@ async function listFolderContents(folderId: string) {
   do {
     pageNum++;
 
-    // FIX #1: Removed "orderBy=folder,name" — this causes Google Drive API to
-    // silently truncate results for large folders (doesn't paginate correctly with orderBy).
-    // Sorting is done client-side instead.
     let url = `https://www.googleapis.com/drive/v3/files?`;
     url += `q='${folderId}'+in+parents+and+trashed=false`;
-    url += `&key=${GOOGLE_API_KEY}`;
-    url += `&fields=nextPageToken,files(id,name,mimeType,size,webViewLink,createdTime,modifiedTime)`;
-    url += `&pageSize=100`;
-    // FIX #2: Reduced pageSize from 1000 to 100. Google Drive API is more reliable
-    // with smaller page sizes. Larger page sizes can cause timeouts and silent truncation
-    // for folders with many files, especially video files with large metadata.
-    if (pageToken) {
-      url += `&pageToken=${pageToken}`;
+    url += `&fields=nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime,modifiedTime)`;
+    url += `&pageSize=1000`;
+    if (!accessToken) url += `&key=${GOOGLE_API_KEY}`;
+    if (pageToken) url += `&pageToken=${pageToken}`;
+
+    console.log(`[Drive API] Fetching page ${pageNum} using ${accessToken ? 'OAuth' : 'API key'}`);
+
+    const headers: Record<string, string> = accessToken
+      ? { Authorization: `Bearer ${accessToken}` }
+      : {};
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error?.message || 'Failed to access folder. Make sure the folder is shared publicly.');
     }
 
-    console.log(`[Drive API] Fetching page ${pageNum}${pageToken ? ` (token: ${pageToken.substring(0, 20)}...)` : ''}`);
-
-    const response = await fetchWithRetry(url);
     const data = await response.json();
-
-    console.log(`[Drive API] Page ${pageNum}: received ${data.files?.length || 0} files. nextPageToken: ${data.nextPageToken ? 'yes' : 'no'}`);
+    console.log(`[Drive API] Page ${pageNum}: ${data.files?.length || 0} files. hasMore: ${!!data.nextPageToken}`);
 
     if (data.files) allFiles.push(...data.files);
     pageToken = data.nextPageToken;
 
-    // FIX #3: Safety guard — prevent infinite loops. Google Drive API should never
-    // return more than a few pages for a single folder listing, but this protects
-    // against API bugs returning the same token repeatedly.
     if (pageNum > 50) {
-      console.warn('[Drive API] Safety limit reached (50 pages). Stopping pagination.');
+      console.warn('[Drive API] Safety limit reached (50 pages). Stopping.');
       break;
     }
   } while (pageToken);
 
   console.log(`[Drive API] Total files fetched: ${allFiles.length}`);
 
-  // FIX #4: Client-side sorting (replaces the removed orderBy=folder,name)
-  // Sort folders first, then by name within each group
+  // Sort: folders first, then by name
   allFiles.sort((a, b) => {
     const aIsFolder = a.mimeType === 'application/vnd.google-apps.folder';
     const bIsFolder = b.mimeType === 'application/vnd.google-apps.folder';
-
     if (aIsFolder && !bIsFolder) return -1;
     if (!aIsFolder && bIsFolder) return 1;
-
-    // Same type — sort by name case-insensitively
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
 
@@ -153,15 +156,20 @@ async function listFolderContents(folderId: string) {
 }
 
 // Get file/folder metadata
-async function getItemInfo(itemId: string) {
-  if (!GOOGLE_API_KEY) {
-    throw new Error('Google Drive API key not configured');
+async function getItemInfo(itemId: string, accessToken?: string | null) {
+  const headers: Record<string, string> = accessToken
+    ? { Authorization: `Bearer ${accessToken}` }
+    : {};
+
+  let url = `https://www.googleapis.com/drive/v3/files/${itemId}?fields=id,name,mimeType,size,thumbnailLink,webViewLink,createdTime,modifiedTime,parents`;
+  if (!accessToken) {
+    if (!GOOGLE_API_KEY) throw new Error('No authentication configured');
+    url += `&key=${GOOGLE_API_KEY}`;
   }
 
-  const url = `https://www.googleapis.com/drive/v3/files/${itemId}?key=${GOOGLE_API_KEY}&fields=id,name,mimeType,size,webViewLink,createdTime,modifiedTime,parents`;
-
-  const response = await fetchWithRetry(url);
-  return response.json();
+  const res = await fetch(url, { headers });
+  if (!res.ok) return null;
+  return res.json();
 }
 
 // Classify and categorize files
@@ -196,19 +204,17 @@ export async function GET(request: NextRequest) {
     const url = searchParams.get('url');
     const folderId = searchParams.get('folderId');
     const itemId = searchParams.get('itemId');
+    const channelId = searchParams.get('channelId');
+
+    // Prefer OAuth token over API key for reliable pagination
+    const accessToken = channelId ? await getChannelAccessToken(channelId) : null;
 
     // If folderId is provided directly, list contents
     if (folderId) {
-      const data = await listFolderContents(folderId);
+      const data = await listFolderContents(folderId, accessToken);
       const { folders, videos, other } = categorizeFiles(data.files || []);
 
-      // Get folder info for breadcrumb
-      let folderInfo = null;
-      try {
-        folderInfo = await getItemInfo(folderId);
-      } catch {
-        // Ignore error — folder info is optional
-      }
+      const folderInfo = await getItemInfo(folderId, accessToken).catch(() => null);
 
       return NextResponse.json({
         success: true,
@@ -223,7 +229,7 @@ export async function GET(request: NextRequest) {
 
     // If itemId is provided, get item info
     if (itemId) {
-      const item = await getItemInfo(itemId);
+      const item = await getItemInfo(itemId, accessToken);
       return NextResponse.json({
         success: true,
         item: {
@@ -245,16 +251,10 @@ export async function GET(request: NextRequest) {
       }
 
       if (parsed.type === 'folder') {
-        const data = await listFolderContents(parsed.id);
+        const data = await listFolderContents(parsed.id, accessToken);
         const { folders, videos, other } = categorizeFiles(data.files || []);
 
-        // Get folder info
-        let folderInfo = null;
-        try {
-          folderInfo = await getItemInfo(parsed.id);
-        } catch {
-          // Ignore error — folder info is optional
-        }
+        const folderInfo = await getItemInfo(parsed.id, accessToken).catch(() => null);
 
         return NextResponse.json({
           success: true,
@@ -266,8 +266,7 @@ export async function GET(request: NextRequest) {
           totalFiles: (data.files || []).length,
         });
       } else {
-        // It's a file, get info
-        const file = await getItemInfo(parsed.id);
+        const file = await getItemInfo(parsed.id, accessToken);
 
         return NextResponse.json({
           success: true,
