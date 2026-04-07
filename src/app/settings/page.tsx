@@ -197,17 +197,23 @@ export default function SettingsPage() {
       const res = await fetch('/api/user/profile', {
         method: 'DELETE',
       });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        toast.success('Account deleted successfully');
-        router.push('/');
-      } else {
+
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        // Response was not JSON (e.g. HTML error page)
+        if (!res.ok) throw new Error('Something went wrong. Please try again.');
+      }
+
+      if (!res.ok) {
         throw new Error(data.error || 'Failed to delete account');
       }
+
+      toast.success('Account deleted successfully');
+      router.push('/');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete account');
+      toast.error(error.message || 'Failed to delete account. Please contact support.');
     }
   };
 
