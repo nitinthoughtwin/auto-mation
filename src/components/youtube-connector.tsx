@@ -175,7 +175,7 @@ export function YouTubeConnector({
             </div>
 
             {/* Quota Info */}
-            <Alert>
+            {/* <Alert>
               <AlertTitle className="flex items-center gap-2">
                 <Youtube className="h-4 w-4" />
                 Your YouTube Quota
@@ -199,7 +199,7 @@ export function YouTubeConnector({
                   </li>
                 </ul>
               </AlertDescription>
-            </Alert>
+            </Alert> */}
 
             {/* Actions */}
             <div className="flex gap-2">

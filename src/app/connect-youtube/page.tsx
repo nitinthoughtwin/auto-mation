@@ -235,7 +235,7 @@ function ConnectYouTubeContent() {
 
           {/* Help & Info */}
           <div className="space-y-4">
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <HelpCircle className="h-4 w-4" />
@@ -271,7 +271,7 @@ function ConnectYouTubeContent() {
                   </div>
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
 
             <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
               <CardContent className="pt-4">

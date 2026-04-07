@@ -21,6 +21,7 @@ import {
   Clock,
   Users,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -241,6 +242,13 @@ export default function LandingPage() {
               >
                 Reviews
               </a>
+              <Link
+                href="/instructions"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
+              >
+                <BookOpen className="h-4 w-4" />
+                Instructions
+              </Link>
             </div>
 
             {/* Desktop Auth Buttons */}
@@ -298,6 +306,14 @@ export default function LandingPage() {
               >
                 Reviews
               </a>
+              <Link
+                href="/instructions"
+                className="flex items-center gap-2 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <BookOpen className="h-4 w-4" />
+                Instructions
+              </Link>
               <div className="pt-3 border-t border-border flex gap-3">
                 <Link href="/login" className="flex-1">
                   <Button variant="outline" className="w-full">
@@ -701,6 +717,14 @@ export default function LandingPage() {
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Login
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/instructions"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Instructions
                   </Link>
                 </li>
               </ul>

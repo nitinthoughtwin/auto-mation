@@ -58,6 +58,7 @@ import {
   FolderOpen,
   AlertCircle,
   Lock,
+  BookOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload, getNextUploadTime } from '@/lib/utils-shared';
@@ -944,8 +945,17 @@ export default function YouTubeAutomationDashboard() {
             <p className="text-muted-foreground mt-1">Manage your channels and schedule uploads</p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {/* Instructions */}
+            <Button
+              variant="outline"
+              onClick={() => window.open('/instructions', '_blank')}
+              className="gap-2"
+            >
+              <BookOpen className="h-4 w-4" />
+              Instructions
+            </Button>
             {/* Video Library - Highlighted Button */}
-            <Button 
+            <Button
               onClick={() => setShowVideoLibrary(true)}
               className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg shadow-purple-500/25 font-semibold btn-press"
             >
