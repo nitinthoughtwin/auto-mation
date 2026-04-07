@@ -26,6 +26,7 @@ import {
   Plus,
   Play,
   ChevronLeft,
+  Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DriveThumbnail from '@/components/VideoThumbnail';
@@ -459,48 +460,54 @@ export default function VideoLibraryBrowser({
           <div className="border-t p-3 sm:p-4 flex-shrink-0 bg-background">
             {selectedCategory ? (
               // Videos footer with channel selection
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
-                  <SelectTrigger className="w-full sm:w-52">
-                    <SelectValue placeholder="Select channel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {channels && channels.length > 0 ? (
-                      channels.map((channel) => (
+              channels && channels.length > 0 ? (
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                  <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
+                    <SelectTrigger className="w-full sm:w-52">
+                      <SelectValue placeholder="Select channel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {channels.map((channel) => (
                         <SelectItem key={channel.id} value={channel.id}>
                           {channel.name}
                         </SelectItem>
-                      ))
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleAddToQueue}
+                    disabled={selectedVideos.size === 0 || adding || generatingTitles || !selectedChannelId}
+                    className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
+                  >
+                    {generatingTitles ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating Titles...
+                      </>
+                    ) : adding ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Adding...
+                      </>
                     ) : (
-                      <SelectItem value="" disabled>
-                        No channels available
-                      </SelectItem>
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add {selectedVideos.size} Video{selectedVideos.size !== 1 ? 's' : ''} to Queue
+                      </>
                     )}
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={handleAddToQueue}
-                  disabled={selectedVideos.size === 0 || adding || generatingTitles || !selectedChannelId}
-                  className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
-                >
-                  {generatingTitles ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating Titles...
-                    </>
-                  ) : adding ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add {selectedVideos.size} Video{selectedVideos.size !== 1 ? 's' : ''} to Queue
-                    </>
-                  )}
-                </Button>
-              </div>
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Link2 className="h-4 w-4 flex-shrink-0" />
+                    <span>Connect a YouTube channel to add videos to the queue</span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={onClose} asChild>
+                    <a href="/connect-youtube">Connect Channel</a>
+                  </Button>
+                </div>
+              )
             ) : (
               // Categories footer
               <div className="flex justify-end">

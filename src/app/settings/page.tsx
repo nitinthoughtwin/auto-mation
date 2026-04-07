@@ -420,7 +420,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Regional Settings */}
-        <Card className="border-border/50 shadow-soft">
+        {/* <Card className="border-border/50 shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Globe className="h-5 w-5 text-primary" />
@@ -458,7 +458,7 @@ export default function SettingsPage() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Connected Accounts */}
         <Card className="border-border/50 shadow-soft">
