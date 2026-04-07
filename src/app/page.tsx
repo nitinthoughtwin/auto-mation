@@ -76,57 +76,20 @@ const features = [
 // ============================================
 // PRICING DATA
 // ============================================
-const pricingPlans = [
-  {
-    name: 'Free',
-    price: '₹0',
-    period: 'forever',
-    description: 'Perfect for getting started',
-    features: [
-      '10 videos per month',
-      '1 YouTube channel',
-      '500MB storage',
-      'Basic scheduling',
-      'Email support',
-    ],
-    popular: false,
-    buttonText: 'Start Free',
-  },
-  {
-    name: 'Pro',
-    price: '₹499',
-    period: 'per month',
-    description: 'For growing creators',
-    features: [
-      '100 videos per month',
-      '3 YouTube channels',
-      '5GB storage',
-      'Advanced scheduling',
-      'Random delay feature',
-      'Priority support',
-      'Video analytics',
-    ],
-    popular: true,
-    buttonText: 'Get Started',
-  },
-  {
-    name: 'Premium',
-    price: '₹1,499',
-    period: 'per month',
-    description: 'For power users & agencies',
-    features: [
-      '1000 videos per month',
-      '10 YouTube channels',
-      '50GB storage',
-      'All Pro features',
-      'Multi-platform (coming soon)',
-      'API access',
-      'Dedicated support',
-    ],
-    popular: false,
-    buttonText: 'Contact Sales',
-  },
-];
+interface Plan {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string | null;
+  priceINR: number;
+  priceUSD: number;
+  maxVideosPerMonth: number;
+  maxChannels: number;
+  maxStorageMB: number;
+  aiCreditsPerMonth: number;
+  features: string[];
+  sortOrder: number;
+}
 
 // ============================================
 // TESTIMONIAL DATA
@@ -173,6 +136,14 @@ export default function LandingPage() {
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [plans, setPlans] = useState<Plan[]>([]);
+
+  useEffect(() => {
+    fetch('/api/plans')
+      .then(r => r.json())
+      .then(data => { if (data.plans) setPlans(data.plans); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -530,59 +501,83 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
-            {pricingPlans.map((plan, index) => (
-              <div
-                key={index}
-                className={`relative p-6 rounded-2xl bg-card border transition-all duration-300 ${
-                  plan.popular
-                    ? 'border-primary/50 shadow-xl shadow-primary/10 md:scale-105 md:z-10'
-                    : 'border-border/50 hover:border-primary/30 hover:shadow-soft-lg'
-                }`}
-              >
-                {/* Popular Badge */}
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 gradient-primary text-white text-xs font-semibold px-4 py-1 rounded-full shadow-lg">
-                    Most Popular
-                  </div>
-                )}
-
-                {/* Plan Header */}
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
-                  <p className="text-sm text-muted-foreground">{plan.description}</p>
-                </div>
-
-                {/* Price */}
-                <div className="mb-6">
-                  <span className="text-4xl font-bold">{plan.price}</span>
-                  <span className="text-muted-foreground ml-1">/{plan.period}</span>
-                </div>
-
-                {/* Features */}
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm">
-                      <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                {/* CTA */}
-                <Link href="/signup" className="block">
-                  <Button
-                    className={`w-full btn-press ${
-                      plan.popular
-                        ? 'gradient-primary gradient-primary-hover text-white shadow-lg shadow-primary/25'
-                        : ''
-                    }`}
-                    variant={plan.popular ? 'default' : 'outline'}
-                  >
-                    {plan.buttonText}
-                  </Button>
-                </Link>
+            {plans.length === 0 ? (
+              <div className="col-span-3 flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ))}
+            ) : plans.map((plan, index) => {
+              const isPopular = index === 1;
+              const isFree = plan.priceINR === 0;
+              const storage = plan.maxStorageMB >= 1024
+                ? `${plan.maxStorageMB / 1024}GB storage`
+                : `${plan.maxStorageMB}MB storage`;
+              const autoFeatures = [
+                `${plan.maxVideosPerMonth} videos per month`,
+                `${plan.maxChannels} YouTube channel${plan.maxChannels > 1 ? 's' : ''}`,
+                storage,
+                `${plan.aiCreditsPerMonth} AI credits`,
+              ];
+              const extraFeatures: string[] = Array.isArray(plan.features) ? plan.features : [];
+              const allFeatures = [...autoFeatures, ...extraFeatures];
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative p-6 rounded-2xl bg-card border transition-all duration-300 ${
+                    isPopular
+                      ? 'border-primary/50 shadow-xl shadow-primary/10 md:scale-105 md:z-10'
+                      : 'border-border/50 hover:border-primary/30 hover:shadow-soft-lg'
+                  }`}
+                >
+                  {/* Popular Badge */}
+                  {isPopular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 gradient-primary text-white text-xs font-semibold px-4 py-1 rounded-full shadow-lg">
+                      Most Popular
+                    </div>
+                  )}
+
+                  {/* Plan Header */}
+                  <div className="mb-6">
+                    <h3 className="text-xl font-bold mb-1">{plan.displayName}</h3>
+                    <p className="text-sm text-muted-foreground">{plan.description}</p>
+                  </div>
+
+                  {/* Price */}
+                  <div className="mb-6">
+                    <span className="text-4xl font-bold">
+                      {isFree ? 'Free' : `₹${plan.priceINR.toLocaleString('en-IN')}`}
+                    </span>
+                    {!isFree && (
+                      <span className="text-muted-foreground ml-1">/month</span>
+                    )}
+                  </div>
+
+                  {/* Features */}
+                  <ul className="space-y-3 mb-8">
+                    {allFeatures.map((feature: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2.5 text-sm">
+                        <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                        <span className="text-muted-foreground">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* CTA */}
+                  <Link href={isFree ? '/signup' : '/pricing'} className="block">
+                    <Button
+                      className={`w-full btn-press ${
+                        isPopular
+                          ? 'gradient-primary gradient-primary-hover text-white shadow-lg shadow-primary/25'
+                          : ''
+                      }`}
+                      variant={isPopular ? 'default' : 'outline'}
+                    >
+                      {isFree ? 'Start Free' : 'Get Started'}
+                    </Button>
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
