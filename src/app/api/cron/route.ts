@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processScheduledUploads } from '@/lib/scheduler';
+import Redis from 'ioredis';
+
+async function pingRedis() {
+  const url = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
+  if (!url) return;
+  const redis = new Redis(url, { maxRetriesPerRequest: 1, lazyConnect: true });
+  try {
+    await redis.ping();
+  } finally {
+    redis.disconnect();
+  }
+}
 
 // GET - Cron job endpoint for cron-job.org
 // This endpoint is called automatically by cron-job.org on a schedule
@@ -24,7 +36,10 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('🕐 Cron job triggered at:', new Date().toISOString());
-    
+
+    // Keep Redis active (prevents Upstash from archiving due to inactivity)
+    await pingRedis();
+
     // Process scheduled uploads
     const result = await processScheduledUploads();
     
