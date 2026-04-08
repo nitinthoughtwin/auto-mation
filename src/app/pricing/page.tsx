@@ -451,10 +451,6 @@ export default function PricingPage() {
           </span>
           <span className="flex items-center gap-1">
             <Check className="h-3.5 w-3.5 text-green-500" />
-            GST Invoice
-          </span>
-          <span className="flex items-center gap-1">
-            <Check className="h-3.5 w-3.5 text-green-500" />
             24/7 Support
           </span>
         </div>

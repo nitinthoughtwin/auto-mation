@@ -37,13 +37,9 @@ async function handleDemoPayment(request: NextRequest, session: { user: { id: st
   }
 
   // Calculate amount
-  const amount = billingPeriod === 'yearly'
+  const totalAmount = billingPeriod === 'yearly'
     ? plan.priceINR * 12 * (100 - (plan.yearlyDiscountPercent || 0)) / 100
     : plan.priceINR;
-
-  // Calculate GST (18%)
-  const gstAmount = Math.round(amount * 0.18);
-  const totalAmount = amount + gstAmount;
 
   // Generate demo order ID
   const demoOrderId = `demo_order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -87,8 +83,6 @@ async function handleDemoPayment(request: NextRequest, session: { user: { id: st
       currency: 'INR',
       status: 'pending',
       razorpayOrderId: demoOrderId,
-      gstAmount,
-      gstPercentage: 18.0,
       invoiceNumber,
     },
   });
@@ -139,13 +133,9 @@ async function handleRazorpayPayment(request: NextRequest, session: { user: { id
   }
 
   // Calculate amount
-  const amount = billingPeriod === 'yearly'
+  const totalAmount = billingPeriod === 'yearly'
     ? plan.priceINR * 12 * (100 - (plan.yearlyDiscountPercent || 0)) / 100
     : plan.priceINR;
-
-  // Calculate GST (18%)
-  const gstAmount = Math.round(amount * 0.18);
-  const totalAmount = amount + gstAmount;
 
   // Create order in Razorpay
   // priceINR is already stored in paise, so totalAmount is already in paise — no * 100 needed
@@ -223,8 +213,6 @@ async function handleRazorpayPayment(request: NextRequest, session: { user: { id
       currency: 'INR',
       status: 'pending',
       razorpayOrderId: order.id,
-      gstAmount,
-      gstPercentage: 18.0,
       invoiceNumber,
     },
   });
