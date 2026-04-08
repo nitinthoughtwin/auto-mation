@@ -55,9 +55,9 @@ export default function VideoPreviewDialog({
             <p className="font-semibold text-sm sm:text-base truncate">{title}</p>
             {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 flex-shrink-0">
+          {/* <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 flex-shrink-0">
             <X className="h-4 w-4" />
-          </Button>
+          </Button> */}
         </div>
 
         {/* Video — fills available space but never pushes buttons off screen */}

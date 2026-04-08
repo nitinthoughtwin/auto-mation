@@ -375,7 +375,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Notifications */}
-        <Card className="border-border/50 shadow-soft">
+        {/* <Card className="border-border/50 shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Bell className="h-5 w-5 text-primary" />
@@ -423,7 +423,7 @@ export default function SettingsPage() {
               />
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Regional Settings */}
         {/* <Card className="border-border/50 shadow-soft">
@@ -516,6 +516,31 @@ export default function SettingsPage() {
                 </div>
               </div>
               <Badge variant="outline" className="text-muted-foreground">Soon</Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Support */}
+        <Card className="border-border/50 shadow-soft">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Mail className="h-5 w-5 text-primary" />
+              Support
+            </CardTitle>
+            <CardDescription>Need help? We're here for you</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-secondary/50">
+              <div>
+                <p className="text-sm font-medium">Contact Support</p>
+                <p className="text-xs text-muted-foreground">For any queries, billing issues, or technical help</p>
+              </div>
+              <a
+                href="mailto:support@gpmart.in"
+                className="text-sm font-medium text-primary hover:underline whitespace-nowrap"
+              >
+                support@gpmart.in
+              </a>
             </div>
           </CardContent>
         </Card>

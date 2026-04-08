@@ -954,11 +954,11 @@ export default function YouTubeAutomationDashboard() {
               <BookOpen className="h-4 w-4" />
               Instructions
             </Button>
-            <Button onClick={() => {
+            {/* <Button onClick={() => {
               throw new Error("Sentry Test Error - Client");
             }}>
               Test Sentry
-            </Button>
+            </Button> */}
             {/* Video Library - Highlighted Button */}
             <Button
               onClick={() => setShowVideoLibrary(true)}
