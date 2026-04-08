@@ -1,43 +1,19 @@
-import * as Sentry from '@sentry/nextjs';
+// This file configures the initialization of Sentry on the server.
+// The config you add here will be used whenever the server handles a request.
+// https://docs.sentry.io/platforms/javascript/guides/nextjs/
+
+import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  
-  // Adjust this value in production, or use tracesSampler for greater control
-  tracesSampleRate: 0.1,
-  
-  // Setting this option to true will print useful information to the console while you're setting up Sentry.
-  debug: process.env.NODE_ENV === 'development',
-  
-  integrations: [
-    Sentry.httpIntegration(),
-    Sentry.nodeProfilingIntegration(),
-  ],
-  
-  // Profiles sample rate
-  profilesSampleRate: 0.1,
-  
-  // Filter out sensitive data
-  beforeSend(event, hint) {
-    // Remove sensitive information from request
-    if (event.request?.headers) {
-      delete event.request.headers.authorization;
-      delete event.request.headers.cookie;
-    }
-    
-    // Don't send PII
-    if (event.user) {
-      delete event.user.email;
-      delete event.user.ip_address;
-    }
-    
-    return event;
-  },
-  
-  // Ignore specific errors
-  ignoreErrors: [
-    'NotFoundException',
-    'ValidationException',
-    /Rate limit exceeded/,
-  ],
+  dsn: "https://811104de5ef8cf3158a8951a4b57550c@o4511104222822400.ingest.de.sentry.io/4511104227475536",
+
+  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
+  tracesSampleRate: 1,
+
+  // Enable logs to be sent to Sentry
+  enableLogs: true,
+
+  // Enable sending user PII (Personally Identifiable Information)
+  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
+  sendDefaultPii: true,
 });
