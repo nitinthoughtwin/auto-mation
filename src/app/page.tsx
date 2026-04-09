@@ -30,44 +30,44 @@ import Link from 'next/link';
 // ============================================
 const features = [
   {
-    icon: <Youtube className="h-6 w-6" />,
-    title: 'YouTube Integration',
-    description: 'Connect multiple YouTube channels and manage all your uploads from one unified dashboard.',
-    color: 'text-red-500',
-    bg: 'bg-red-50 dark:bg-red-950/30',
-  },
-  {
-    icon: <Calendar className="h-6 w-6" />,
-    title: 'Smart Scheduling',
-    description: 'Schedule videos at optimal times with daily, weekly, or custom frequency options.',
-    color: 'text-blue-500',
-    bg: 'bg-blue-50 dark:bg-blue-950/30',
-  },
-  {
     icon: <Upload className="h-6 w-6" />,
-    title: 'Google Drive Import',
-    description: 'Import videos directly from Google Drive. No need to download and re-upload.',
+    title: 'Bulk Import from Google Drive',
+    description: 'Bought a reels bundle? Import all videos directly from your Drive folder — no downloading, no re-uploading.',
     color: 'text-green-500',
     bg: 'bg-green-50 dark:bg-green-950/30',
   },
   {
+    icon: <Calendar className="h-6 w-6" />,
+    title: 'Auto-Schedule Uploads',
+    description: 'Set it once — daily, every 2 days, or weekly. Your videos go live automatically at the right time.',
+    color: 'text-blue-500',
+    bg: 'bg-blue-50 dark:bg-blue-950/30',
+  },
+  {
     icon: <Sparkles className="h-6 w-6" />,
-    title: 'AI-Powered Titles',
-    description: 'Generate titles, descriptions, and tags using AI. Save hours of manual work.',
+    title: 'AI Titles & Descriptions',
+    description: 'Generate SEO-friendly titles, descriptions, and tags using AI. No more writing the same thing over and over.',
     color: 'text-purple-500',
     bg: 'bg-purple-50 dark:bg-purple-950/30',
   },
   {
-    icon: <Shield className="h-6 w-6" />,
-    title: 'Secure & Reliable',
-    description: 'Enterprise-grade security with 99.9% uptime. Your data is always safe.',
+    icon: <Youtube className="h-6 w-6" />,
+    title: 'Multiple YouTube Channels',
+    description: 'Manage all your YouTube channels from one dashboard. Scale from 1 channel to many without extra effort.',
+    color: 'text-red-500',
+    bg: 'bg-red-50 dark:bg-red-950/30',
+  },
+  {
+    icon: <Zap className="h-6 w-6" />,
+    title: 'Zero Manual Work',
+    description: 'Once your queue is full and schedule is set, the system handles everything — you just watch the views come in.',
     color: 'text-teal-500',
     bg: 'bg-teal-50 dark:bg-teal-950/30',
   },
   {
     icon: <Globe className="h-6 w-6" />,
-    title: 'Multi-Platform',
-    description: 'Coming soon: Upload to Instagram, Facebook, and more platforms simultaneously.',
+    title: 'Multi-Platform (Coming Soon)',
+    description: 'Upload the same reels to Instagram and Facebook automatically. One bundle, multiple income streams.',
     color: 'text-orange-500',
     bg: 'bg-orange-50 dark:bg-orange-950/30',
   },
@@ -96,23 +96,23 @@ interface Plan {
 // ============================================
 const testimonials = [
   {
-    name: 'Rajesh Kumar',
-    role: 'Tech YouTuber',
-    content: 'GPMart Studio saved me 10+ hours every week. The scheduling feature is a game-changer!',
+    name: 'Rahul Verma',
+    role: 'YouTube Automation Creator',
+    content: 'I bought a reels bundle and uploaded 90 videos in one go. GPMart Studio scheduled them automatically — I earned my first ₹5,000 from YouTube without recording a single video!',
     rating: 5,
-    avatar: 'RK',
+    avatar: 'RV',
   },
   {
     name: 'Priya Sharma',
-    role: 'Content Creator',
-    content: 'Finally, a tool that handles all my YouTube uploads. The AI title generation is amazing!',
+    role: 'New Creator, 3 Channels',
+    content: 'I had no idea how to start on YouTube. This tool made it so simple — connect Drive, pick videos, set schedule. Done. My channels are growing every day on autopilot.',
     rating: 5,
     avatar: 'PS',
   },
   {
     name: 'Amit Patel',
-    role: 'Digital Marketer',
-    content: 'Managing 5 YouTube channels was a nightmare. Now it takes just minutes. Highly recommended!',
+    role: 'Reels Bundle Reseller',
+    content: 'Managing 5 YouTube channels was a nightmare. Now I just dump the bundle into Drive and GPMart does the rest. Best investment for my YouTube automation business!',
     rating: 5,
     avatar: 'AP',
   },
@@ -317,20 +317,20 @@ export default function LandingPage() {
           <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-6 animate-fade-in">
             <Zap className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-primary">
-              Automate your YouTube workflow
+              Turn reels bundles into YouTube income
             </span>
           </div>
 
           {/* Heading */}
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            Upload Videos on
-            <span className="block mt-2 text-gradient">Autopilot</span>
+            Start Earning from
+            <span className="block mt-2 text-gradient">YouTube Today</span>
           </h1>
 
           {/* Subheading */}
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            Schedule YouTube uploads, manage multiple channels, and grow your
-            audience — all from one powerful dashboard.
+            Buy a reels bundle, import from Google Drive, set a schedule — and let
+            GPMart Studio upload to YouTube automatically every single day.
           </p>
 
           {/* CTA Buttons */}
@@ -340,18 +340,18 @@ export default function LandingPage() {
                 size="lg"
                 className="w-full gradient-primary gradient-primary-hover text-white shadow-xl shadow-primary/25 btn-press h-12 px-8 text-base"
               >
-                Start Free Trial
+                Start for Free
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/login" className="w-full sm:w-auto">
+            <Link href="/instructions" className="w-full sm:w-auto">
               <Button
                 size="lg"
                 variant="outline"
                 className="w-full h-12 px-8 text-base"
               >
-                <Play className="mr-2 h-4 w-4" />
-                Watch Demo
+                <BookOpen className="mr-2 h-4 w-4" />
+                How It Works
               </Button>
             </Link>
           </div>
@@ -398,12 +398,12 @@ export default function LandingPage() {
           {/* Section Header */}
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Everything You Need to{' '}
-              <span className="text-gradient">Grow</span>
+              Built for{' '}
+              <span className="text-gradient">YouTube Automation</span>
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Powerful features designed for content creators, marketers, and
-              agencies.
+              Everything a new creator or reels bundle buyer needs to build a
+              profitable YouTube channel — without recording a single video.
             </p>
           </div>
 
@@ -449,18 +449,18 @@ export default function LandingPage() {
             {[
               {
                 step: '1',
-                title: 'Connect',
-                description: 'Link your YouTube channels and Google Drive in seconds.',
+                title: 'Connect Your Channel',
+                description: 'Sign up and connect your YouTube channel and Google Drive in under 2 minutes.',
               },
               {
                 step: '2',
-                title: 'Upload',
-                description: 'Add videos from your Drive or upload directly to the platform.',
+                title: 'Import Your Bundle',
+                description: 'Import your reels bundle directly from Google Drive — no downloading needed.',
               },
               {
                 step: '3',
-                title: 'Schedule',
-                description: 'Set your schedule and let GPMart Studio handle the rest.',
+                title: 'Earn on Autopilot',
+                description: 'Set your upload schedule and relax. Videos go live automatically every day.',
               },
             ].map((item, index) => (
               <div
@@ -648,11 +648,11 @@ export default function LandingPage() {
             </div>
 
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
-              Ready to Save 10+ Hours Every Week?
+              Your YouTube Channel Won't Grow Itself
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto mb-8">
-              Join 500+ creators who are automating their YouTube workflow with
-              GPMart Studio.
+              Stop uploading manually. Start earning passively. Join hundreds of creators
+              already running YouTube on autopilot with GPMart Studio.
             </p>
             <Link href="/signup">
               <Button

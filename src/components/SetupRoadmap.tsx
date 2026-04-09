@@ -63,7 +63,7 @@ export default function SetupRoadmap({
       title: 'Connect a YouTube Channel',
       description: step1Done
         ? `${channels.length} channel${channels.length > 1 ? 's' : ''} connected`
-        : 'Link your YouTube channel to start managing uploads.',
+        : 'Link your YouTube channel — takes less than 2 minutes.',
       cta: !step1Done && (
         <Button
           size="sm"
@@ -85,8 +85,8 @@ export default function SetupRoadmap({
       description: step2Done
         ? `${totalQueuedVideos} videos in queue — you're ready!`
         : totalQueuedVideos > 0
-        ? `Only ${totalQueuedVideos} video${totalQueuedVideos > 1 ? 's' : ''} in queue — add ${MIN_QUEUE_THRESHOLD - totalQueuedVideos} more to reach the minimum.`
-        : 'Browse the video library and add at least 3 videos to your queue.',
+        ? `Only ${totalQueuedVideos} video${totalQueuedVideos > 1 ? 's' : ''} in queue — add ${MIN_QUEUE_THRESHOLD - totalQueuedVideos} more to get started.`
+        : 'Import your reels bundle from Google Drive or browse the video library.',
       cta: !step2Done && (
         <Button
           size="sm"
@@ -107,8 +107,8 @@ export default function SetupRoadmap({
       iconBg: 'bg-green-50 dark:bg-green-950/40',
       title: 'Set Schedule & Activate',
       description: step3Done
-        ? 'Schedule is active — uploads will run automatically.'
-        : 'Open your channel settings, set an upload frequency, and activate.',
+        ? 'Schedule is active — your channel is earning on autopilot!'
+        : 'Set how often to upload and activate. Your videos will go live automatically.',
       cta: !step3Done && channels.length > 0 && (
         <Button
           size="sm"
@@ -149,10 +149,10 @@ export default function SetupRoadmap({
             </div>
           </div>
           <div>
-            <h2 className="font-bold text-base leading-tight">Getting Started</h2>
+            <h2 className="font-bold text-base leading-tight">Start Earning from YouTube</h2>
             <p className="text-xs text-muted-foreground">
               {stepsComplete === 0
-                ? 'Complete these steps to start uploading'
+                ? '3 quick steps to get your channel running on autopilot'
                 : stepsComplete === 1
                 ? '1 of 3 done — keep going!'
                 : '2 of 3 done — almost there!'}
