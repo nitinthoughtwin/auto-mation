@@ -252,7 +252,7 @@ const api = {
       return res.json();
     },
     logs: async () => {
-      const res = await fetch('/api/scheduler');
+      const res = await fetch('/api/scheduler/logs');
       return res.json();
     },
   },
