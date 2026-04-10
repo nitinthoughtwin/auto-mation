@@ -565,6 +565,21 @@ export default function YouTubeAutomationDashboard() {
 
   const updateChannelSettings = async () => {
     if (!selectedChannel) return;
+
+    // Validate upload time is at least 30 minutes from now
+    if (editSettings.uploadTime) {
+      const now = new Date();
+      const [h, m] = editSettings.uploadTime.split(':').map(Number);
+      const selectedMinutes = h * 60 + m;
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      const diff = selectedMinutes - nowMinutes;
+      const effectiveDiff = diff < 0 ? diff + 1440 : diff;
+      if (effectiveDiff < 30) {
+        toast.error('Upload time must be at least 30 minutes from now');
+        return;
+      }
+    }
+
     setSavingSettings(true);
     try {
       await api.channels.update(selectedChannel.id, {
@@ -2036,10 +2051,26 @@ export default function YouTubeAutomationDashboard() {
                       id="uploadTime"
                       type="time"
                       value={editSettings.uploadTime}
-                      onChange={(e) => setEditSettings({ ...editSettings, uploadTime: e.target.value })}
+                      onChange={(e) => {
+                        const selected = e.target.value; // "HH:MM"
+                        if (selected) {
+                          const now = new Date();
+                          const [h, m] = selected.split(':').map(Number);
+                          const selectedMinutes = h * 60 + m;
+                          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                          const diff = selectedMinutes - nowMinutes;
+                          // Handle midnight wrap: if selected time is earlier today, it means tomorrow
+                          const effectiveDiff = diff < 0 ? diff + 1440 : diff;
+                          if (effectiveDiff < 30) {
+                            toast.error('Upload time must be at least 30 minutes from now');
+                            return;
+                          }
+                        }
+                        setEditSettings({ ...editSettings, uploadTime: selected });
+                      }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Videos will upload within ±15 min of this time randomly
+                      Set at least 30 minutes from current time • Videos upload within ±15 min of this time
                     </p>
                   </div>
                   <div className="space-y-2">
