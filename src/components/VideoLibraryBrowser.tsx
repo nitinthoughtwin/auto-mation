@@ -36,6 +36,7 @@ interface VideoCategory {
   id: string;
   name: string;
   description: string | null;
+  thumbnailUrl: string | null;
   videos: LibraryVideo[];
 }
 
@@ -429,23 +430,28 @@ export default function VideoLibraryBrowser({
                         className="cursor-pointer hover:shadow-md hover:border-primary/50 transition-all overflow-hidden"
                         onClick={() => handleOpenCategory(category)}
                       >
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
-                              <FolderOpen className="h-5 w-5 text-yellow-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-sm sm:text-base truncate">
-                                {category.name}
-                              </h3>
-                              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                                {category.description || 'No description'}
-                              </p>
-                              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                                <Video className="h-3 w-3" />
-                                <span>{category.videos?.length || 0} videos</span>
-                              </div>
-                            </div>
+                        {category.thumbnailUrl ? (
+                          <div className="w-full h-28 overflow-hidden">
+                            <img
+                              src={category.thumbnailUrl}
+                              alt={category.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-28 bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center">
+                            <FolderOpen className="h-10 w-10 text-yellow-500 opacity-60" />
+                          </div>
+                        )}
+                        <CardContent className="p-3">
+                          <h3 className="font-semibold text-sm truncate">{category.name}</h3>
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                            {category.description || 'No description'}
+                          </p>
+                          <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+                            <Video className="h-3 w-3" />
+                            <span>{category.videos?.length || 0} videos</span>
                           </div>
                         </CardContent>
                       </Card>

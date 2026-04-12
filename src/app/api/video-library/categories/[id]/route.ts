@@ -72,7 +72,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, description, driveUrl, isActive, sortOrder, sync } = body;
+    const { name, description, thumbnailUrl, driveUrl, isActive, sortOrder, sync } = body;
 
     // Check if category exists
     const existingCategory = await db.videoCategory.findUnique({
@@ -183,6 +183,7 @@ export async function PUT(
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
+    if (thumbnailUrl !== undefined) updateData.thumbnailUrl = thumbnailUrl || null;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 

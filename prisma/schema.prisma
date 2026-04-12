@@ -197,16 +197,17 @@ model Usage {
 
 // Video Library Category - Admin creates categories with drive URLs
 model VideoCategory {
-  id          String        @id @default(cuid())
-  name        String        @unique
-  description String?
-  driveUrl    String        // Google Drive folder URL
-  folderId    String?       // Extracted folder ID from URL
-  isActive    Boolean       @default(true)
-  sortOrder   Int           @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  videos      LibraryVideo[]
+  id           String        @id @default(cuid())
+  name         String        @unique
+  description  String?
+  thumbnailUrl String?       // Optional thumbnail image URL for the category
+  driveUrl     String        // Google Drive folder URL
+  folderId     String?       // Extracted folder ID from URL
+  isActive     Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  videos       LibraryVideo[]
 
   @@map("video_categories")
 }

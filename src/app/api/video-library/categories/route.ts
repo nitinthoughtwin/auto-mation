@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, driveUrl, sortOrder } = body;
+    const { name, description, thumbnailUrl, driveUrl, sortOrder } = body;
 
     if (!name || !driveUrl) {
       return NextResponse.json({ error: 'Name and Drive URL are required' }, { status: 400 });
@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
         data: {
           name,
           description,
+          thumbnailUrl: thumbnailUrl || null,
           driveUrl,
           folderId,
           sortOrder: sortOrder || 0
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
       // Update fields in case they changed
       category = await db.videoCategory.update({
         where: { id: category.id },
-        data: { description, driveUrl, folderId, sortOrder: sortOrder || category.sortOrder }
+        data: { description, thumbnailUrl: thumbnailUrl || null, driveUrl, folderId, sortOrder: sortOrder || category.sortOrder }
       });
     }
 

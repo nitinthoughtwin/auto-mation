@@ -49,6 +49,7 @@ interface VideoCategory {
   id: string;
   name: string;
   description: string | null;
+  thumbnailUrl: string | null;
   driveUrl: string;
   folderId: string | null;
   isActive: boolean;
@@ -87,6 +88,7 @@ export default function AdminVideoLibraryPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    thumbnailUrl: '',
     driveUrl: '',
     sortOrder: 0,
   });
@@ -163,7 +165,7 @@ export default function AdminVideoLibraryPage() {
 
   const openAddDialog = () => {
     setEditingCategory(null);
-    setFormData({ name: '', description: '', driveUrl: '', sortOrder: 0 });
+    setFormData({ name: '', description: '', thumbnailUrl: '', driveUrl: '', sortOrder: 0 });
     setShowAddDialog(true);
   };
 
@@ -172,6 +174,7 @@ export default function AdminVideoLibraryPage() {
     setFormData({
       name: category.name,
       description: category.description || '',
+      thumbnailUrl: category.thumbnailUrl || '',
       driveUrl: category.driveUrl,
       sortOrder: category.sortOrder,
     });
@@ -576,10 +579,21 @@ export default function AdminVideoLibraryPage() {
             {categories.map((category) => (
               <Card
                 key={category.id}
-                className={`cursor-pointer transition-all hover:shadow-lg ${
+                className={`cursor-pointer transition-all hover:shadow-lg overflow-hidden ${
                   !category.isActive ? 'opacity-60' : ''
                 }`}
               >
+                {/* Thumbnail */}
+                {category.thumbnailUrl && (
+                  <div className="w-full h-36 overflow-hidden">
+                    <img
+                      src={category.thumbnailUrl}
+                      alt={category.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                )}
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -690,6 +704,26 @@ export default function AdminVideoLibraryPage() {
                   placeholder="Brief description of this category"
                   rows={2}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="thumbnailUrl">Thumbnail Image URL</Label>
+                <Input
+                  id="thumbnailUrl"
+                  value={formData.thumbnailUrl}
+                  onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                />
+                {formData.thumbnailUrl && (
+                  <img
+                    src={formData.thumbnailUrl}
+                    alt="Thumbnail preview"
+                    className="mt-2 w-full h-32 object-cover rounded-lg border"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Paste any public image URL to show as category cover
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="driveUrl">Google Drive Folder URL *</Label>
