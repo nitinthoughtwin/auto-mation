@@ -431,7 +431,7 @@ export default function VideoLibraryBrowser({
                         onClick={() => handleOpenCategory(category)}
                       >
                         {category.thumbnailUrl ? (
-                          <div className="w-full h-28 overflow-hidden">
+                          <div className="w-full aspect-video overflow-hidden">
                             <img
                               src={category.thumbnailUrl}
                               alt={category.name}
@@ -440,16 +440,13 @@ export default function VideoLibraryBrowser({
                             />
                           </div>
                         ) : (
-                          <div className="w-full h-28 bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center">
+                          <div className="w-full aspect-video bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center">
                             <FolderOpen className="h-10 w-10 text-yellow-500 opacity-60" />
                           </div>
                         )}
                         <CardContent className="p-3">
                           <h3 className="font-semibold text-sm truncate">{category.name}</h3>
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                            {category.description || 'No description'}
-                          </p>
-                          <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                             <Video className="h-3 w-3" />
                             <span>{category.videos?.length || 0} videos</span>
                           </div>
