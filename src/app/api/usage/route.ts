@@ -60,7 +60,7 @@ export async function GET() {
     }, 0);
     const storageUsedMB = totalStorageBytes / (1024 * 1024);
 
-    // Update usage record
+    // Update or create usage record
     if (subscription.usage) {
       await db.usage.update({
         where: { id: subscription.usage.id },
@@ -69,6 +69,16 @@ export async function GET() {
           channelsConnected: channelCount,
           storageUsedMB,
           updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Usage record missing — create it
+      await db.usage.create({
+        data: {
+          subscriptionId: subscription.id,
+          videosThisMonth: videoCountThisMonth,
+          channelsConnected: channelCount,
+          storageUsedMB,
         },
       });
     }

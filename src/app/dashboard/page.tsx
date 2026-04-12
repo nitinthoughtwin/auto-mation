@@ -1485,22 +1485,21 @@ export default function YouTubeAutomationDashboard() {
         {/* Tabs */}
         <Tabs defaultValue="queue" className="space-y-4">
           <TabsList className="w-full grid grid-cols-4 h-auto p-1">
-            <TabsTrigger value="queue" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+            <TabsTrigger value="queue" className="flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-2 px-1 text-xs sm:text-sm">
               <Video className="h-4 w-4 shrink-0" />
-              <span className="truncate">Queue ({queuedVideos.length})</span>
+              <span>Queue ({queuedVideos.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="upload" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+            <TabsTrigger value="upload" className="flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-2 px-1 text-xs sm:text-sm">
               <Upload className="h-4 w-4 shrink-0" />
-              <span className="hidden xs:inline truncate">Upload</span>
-              <span className="xs:hidden">Add</span>
+              <span>Add</span>
             </TabsTrigger>
-            <TabsTrigger value="settings" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+            <TabsTrigger value="settings" className="flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-2 px-1 text-xs sm:text-sm">
               <Settings className="h-4 w-4 shrink-0" />
-              <span className="truncate">Settings</span>
+              <span>Settings</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 py-2">
+            <TabsTrigger value="history" className="flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-2 px-1 text-xs sm:text-sm">
               <Clock className="h-4 w-4 shrink-0" />
-              <span className="truncate">History</span>
+              <span>History</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1654,10 +1653,10 @@ export default function YouTubeAutomationDashboard() {
                     <FolderOpen className="mr-2 h-4 w-4" />
                     Video Library
                   </Button>
-                  <Button variant="outline" onClick={() => setShowDriveBrowser(true)} className="btn-press">
+                  {/* <Button variant="outline" onClick={() => setShowDriveBrowser(true)} className="btn-press">
                     <HardDrive className="mr-2 h-4 w-4" />
                     Add from My Drive
-                  </Button>
+                  </Button> */}
                   <Button variant="outline" onClick={() => setShowPublicDriveBrowser(true)} className="btn-press">
                     <Link className="mr-2 h-4 w-4" />
                     Add from Link
