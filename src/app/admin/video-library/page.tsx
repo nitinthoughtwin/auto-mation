@@ -41,6 +41,7 @@ import {
   CheckCircle,
   XCircle,
   ExternalLink,
+  Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DriveThumbnail from '@/components/VideoThumbnail';
@@ -93,6 +94,7 @@ export default function AdminVideoLibraryPage() {
     sortOrder: 0,
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Delete state
   const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
@@ -706,24 +708,59 @@ export default function AdminVideoLibraryPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="thumbnailUrl">Thumbnail Image URL</Label>
-                <Input
-                  id="thumbnailUrl"
-                  value={formData.thumbnailUrl}
-                  onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-                  placeholder="https://example.com/image.jpg"
-                />
+                <Label>Category Thumbnail</Label>
                 {formData.thumbnailUrl && (
-                  <img
-                    src={formData.thumbnailUrl}
-                    alt="Thumbnail preview"
-                    className="mt-2 w-full h-32 object-cover rounded-lg border"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
+                  <div className="relative w-full h-32 rounded-lg overflow-hidden border">
+                    <img
+                      src={formData.thumbnailUrl}
+                      alt="Thumbnail preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, thumbnailUrl: '' })}
+                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Paste any public image URL to show as category cover
-                </p>
+                <label className={`flex items-center justify-center gap-2 w-full h-10 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${uploadingImage ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary/50 hover:bg-muted/50'}`}>
+                  {uploadingImage ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">Uploading...</span></>
+                  ) : (
+                    <><Upload className="h-4 w-4" /><span className="text-sm">{formData.thumbnailUrl ? 'Change Image' : 'Upload Image'}</span></>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingImage(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd });
+                        const data = await res.json();
+                        if (data.url) {
+                          setFormData(prev => ({ ...prev, thumbnailUrl: data.url }));
+                        } else {
+                          throw new Error(data.error || 'Upload failed');
+                        }
+                      } catch (err: any) {
+                        toast.error('Upload Failed', { description: err.message });
+                      } finally {
+                        setUploadingImage(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">JPG, PNG, WebP, GIF supported</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="driveUrl">Google Drive Folder URL *</Label>
