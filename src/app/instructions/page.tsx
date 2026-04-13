@@ -2,16 +2,48 @@
 
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+interface Plan {
+  id: string;
+  name: string;
+  displayName: string;
+  priceINR: number;
+  maxVideosPerMonth: number;
+  maxChannels: number;
+  aiCreditsPerMonth: number;
+  maxStorageMB: number;
+  maxVideoSizeMB: number;
+}
+
+const PLAN_COLORS: Record<string, string> = {
+  free: 'border-gray-200',
+  pro: 'border-blue-400 bg-blue-50',
+  premium: 'border-purple-400 bg-purple-50',
+};
+
+function formatStorage(mb: number) {
+  return mb >= 1024 ? `${mb / 1024} GB` : `${mb} MB`;
+}
 
 export default function InstructionsPage() {
+  const [plans, setPlans] = useState<Plan[]>([]);
+
+  useEffect(() => {
+    fetch('/api/plans')
+      .then(r => r.json())
+      .then(d => { if (d.plans) setPlans(d.plans); })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      <div className="print:hidden fixed top-4 right-8 z-50">
+      {/* <div className="print:hidden fixed top-4 right-8 z-50">
         <Button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 gap-2">
           <Printer className="h-4 w-4" />
           Save as PDF
         </Button>
-      </div>
+      </div> */}
 
       <div className="max-w-3xl mx-auto px-6 py-10 print:py-6 print:px-4">
 
@@ -252,22 +284,32 @@ export default function InstructionsPage() {
         {/* Plans */}
         <div className="mt-8 print:break-inside-avoid-page">
           <h2 className="text-lg font-bold text-gray-800 mb-3">Plans</h2>
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            {[
-              { name: 'Free', price: '₹0', videos: '10/mo', channels: '1', ai: '10', color: 'border-gray-200' },
-              { name: 'Pro', price: '₹499/mo', videos: '100/mo', channels: '3', ai: '100', color: 'border-blue-400 bg-blue-50' },
-              { name: 'Premium', price: '₹1499/mo', videos: '1000/mo', channels: '10', ai: '1000', color: 'border-purple-400 bg-purple-50' },
-            ].map(p => (
-              <div key={p.name} className={`border-2 rounded-xl p-3 ${p.color}`}>
-                <p className="font-bold text-gray-800">{p.name}</p>
-                <p className="text-blue-600 font-semibold text-sm">{p.price}</p>
+          <div className={`grid gap-3 text-sm ${plans.length > 0 ? `grid-cols-${Math.min(plans.length, 3)}` : 'grid-cols-3'}`}>
+            {plans.length > 0 ? plans.map(p => (
+              <div key={p.id} className={`border-2 rounded-xl p-3 ${PLAN_COLORS[p.name.toLowerCase()] ?? 'border-gray-200'}`}>
+                <p className="font-bold text-gray-800">{p.displayName}</p>
+                <p className="text-blue-600 font-semibold text-sm">{p.priceINR === 0 ? 'Free' : `₹${p.priceINR}/mo`}</p>
                 <div className="mt-2 space-y-0.5 text-xs text-gray-600">
-                  <p>📹 {p.videos} videos</p>
-                  <p>📺 {p.channels} channel{parseInt(p.channels) > 1 ? 's' : ''}</p>
-                  <p>✨ {p.ai} AI credits</p>
+                  <p>📹 {p.maxVideosPerMonth.toLocaleString()}/mo videos</p>
+                  <p>📺 {p.maxChannels} channel{p.maxChannels > 1 ? 's' : ''}</p>
+                  <p>✨ {p.aiCreditsPerMonth.toLocaleString()} AI credits</p>
+                  <p>💾 {formatStorage(p.maxStorageMB)} storage</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              // Skeleton while loading
+              [1,2,3].map(i => (
+                <div key={i} className="border-2 rounded-xl p-3 border-gray-200 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-16 mb-2" />
+                  <div className="h-3 bg-gray-200 rounded w-20 mb-3" />
+                  <div className="space-y-1.5">
+                    <div className="h-2.5 bg-gray-100 rounded w-24" />
+                    <div className="h-2.5 bg-gray-100 rounded w-20" />
+                    <div className="h-2.5 bg-gray-100 rounded w-22" />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
           <p className="text-xs text-gray-400 mt-2">Upgrade at gpmart.in/billing · Refund policy at gpmart.in/refund-policy</p>
         </div>

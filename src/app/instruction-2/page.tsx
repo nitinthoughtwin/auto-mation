@@ -2,17 +2,49 @@
 
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+interface Plan {
+  id: string;
+  name: string;
+  displayName: string;
+  priceINR: number;
+  yearlyPriceINR: number;
+  yearlyDiscountPercent: number | null;
+  maxVideosPerMonth: number;
+  maxChannels: number;
+  aiCreditsPerMonth: number;
+  maxStorageMB: number;
+  maxVideoSizeMB: number;
+}
+
+function formatStorage(mb: number) {
+  return mb >= 1024 ? `${mb / 1024} GB` : `${mb} MB`;
+}
+
+function formatNum(n: number) {
+  return n >= 1000 ? n.toLocaleString() : String(n);
+}
 
 export default function InstructionsPage() {
+  const [plans, setPlans] = useState<Plan[]>([]);
+
+  useEffect(() => {
+    fetch('/api/plans')
+      .then(r => r.json())
+      .then(d => { if (d.plans) setPlans(d.plans); })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       {/* Print Button — hidden when printing */}
-      <div className="print:hidden fixed top-4 right-4 z-50">
+      {/* <div className="print:hidden fixed top-4 right-4 z-50">
         <Button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 gap-2">
           <Printer className="h-4 w-4" />
           Save as PDF
         </Button>
-      </div>
+      </div> */}
 
       <div className="max-w-4xl mx-auto px-8 py-12 print:py-6 print:px-6">
 
@@ -65,7 +97,7 @@ export default function InstructionsPage() {
               After logging in, click <strong>Connect YouTube Channel</strong> on the dashboard. You will be redirected to Google — select the Google account that owns the YouTube channel you want to manage and grant the requested permissions.
             </Step>
             <Step n={4} title="Done!">
-              Your channel appears in the sidebar. You can connect more channels based on your plan (1 channel on Free, 3 on Pro, 10 on Premium).
+              Your channel appears in the sidebar. You can connect more channels based on your plan{plans.length > 0 ? ` (${plans.map(p => `${p.maxChannels} on ${p.displayName}`).join(', ')})` : ''}.
             </Step>
           </Steps>
           <Note>
@@ -215,7 +247,10 @@ export default function InstructionsPage() {
             </Step>
           </Steps>
           <Note>
-            AI credits are limited per plan: 10/month (Free), 100/month (Pro), 1000/month (Premium). Each video generated = 1 credit.
+            AI credits are limited per plan. {plans.length > 0
+              ? plans.map(p => `${formatNum(p.aiCreditsPerMonth)}/mo (${p.displayName})`).join(', ') + '.'
+              : 'Check the Plans section below for your limit.'
+            } Each video generated = 1 credit.
           </Note>
         </Section>
 
@@ -245,38 +280,47 @@ export default function InstructionsPage() {
 
         {/* ── Section 9 ── */}
         <Section number="9" title="Plans & Billing">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="text-left p-2 border border-gray-200 font-semibold">Feature</th>
-                  <th className="text-center p-2 border border-gray-200 font-semibold">Free</th>
-                  <th className="text-center p-2 border border-gray-200 font-semibold">Pro ₹499/mo</th>
-                  <th className="text-center p-2 border border-gray-200 font-semibold">Premium ₹1499/mo</th>
-                </tr>
-              </thead>
-              <tbody className="text-gray-600">
-                {[
-                  ['Videos / month', '10', '100', '1,000'],
-                  ['YouTube channels', '1', '3', '10'],
-                  ['Storage', '500 MB', '5 GB', '50 GB'],
-                  ['AI credits / month', '10', '100', '1,000'],
-                  ['Max video size', '100 MB', '500 MB', '2 GB'],
-                  ['Random delay', '—', '✓', '✓'],
-                  ['Priority support', '—', '✓', '✓'],
-                ].map(([feature, free, pro, premium]) => (
-                  <tr key={feature} className="border-b border-gray-100">
-                    <td className="p-2 border border-gray-200 font-medium text-gray-700">{feature}</td>
-                    <td className="p-2 border border-gray-200 text-center">{free}</td>
-                    <td className="p-2 border border-gray-200 text-center">{pro}</td>
-                    <td className="p-2 border border-gray-200 text-center">{premium}</td>
+          {plans.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="text-left p-2 border border-gray-200 font-semibold">Feature</th>
+                    {plans.map(p => (
+                      <th key={p.id} className="text-center p-2 border border-gray-200 font-semibold">
+                        {p.displayName}
+                        {p.priceINR > 0 && <span className="block text-blue-600 font-bold">₹{p.priceINR}/mo</span>}
+                        {p.priceINR === 0 && <span className="block text-gray-500 font-normal">Free</span>}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="text-gray-600">
+                  {[
+                    { label: 'Videos / month', val: (p: Plan) => `${formatNum(p.maxVideosPerMonth)}/mo` },
+                    { label: 'YouTube channels', val: (p: Plan) => String(p.maxChannels) },
+                    { label: 'Storage', val: (p: Plan) => formatStorage(p.maxStorageMB) },
+                    { label: 'AI credits / month', val: (p: Plan) => formatNum(p.aiCreditsPerMonth) },
+                    { label: 'Max video size', val: (p: Plan) => formatStorage(p.maxVideoSizeMB) },
+                  ].map(({ label, val }) => (
+                    <tr key={label} className="border-b border-gray-100">
+                      <td className="p-2 border border-gray-200 font-medium text-gray-700">{label}</td>
+                      {plans.map(p => (
+                        <td key={p.id} className="p-2 border border-gray-200 text-center">{val(p)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="h-32 bg-gray-50 rounded-lg animate-pulse flex items-center justify-center text-gray-400 text-sm">
+              Loading plans...
+            </div>
+          )}
           <p className="text-sm text-gray-500 mt-3">
-            To upgrade: go to <strong>Billing</strong> (top menu) → choose a plan → pay via UPI, card, or net banking. Yearly plans save 20–25%.
+            To upgrade: go to <strong>Billing</strong> (top menu) → choose a plan → pay via UPI, card, or net banking.
+            {plans.some(p => p.yearlyDiscountPercent) && ' Yearly plans available at a discount.'}
           </p>
           <Note>
             Refunds are available within 7 days of purchase if you have uploaded fewer than 5 videos. See our Refund Policy at gpmart.in/refund-policy.
