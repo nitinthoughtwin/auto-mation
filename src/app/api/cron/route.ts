@@ -5,9 +5,12 @@ import Redis from 'ioredis';
 async function pingRedis() {
   const url = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
   if (!url) return;
-  const redis = new Redis(url, { maxRetriesPerRequest: 1, lazyConnect: true });
+  const redis = new Redis(url, { maxRetriesPerRequest: 1, lazyConnect: true, connectTimeout: 5000 });
   try {
     await redis.ping();
+  } catch (err) {
+    // Redis ping failed — log but don't crash the cron job
+    console.warn('⚠️ Redis ping failed (non-critical):', (err as Error).message);
   } finally {
     redis.disconnect();
   }
