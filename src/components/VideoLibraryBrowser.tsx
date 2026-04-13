@@ -46,6 +46,7 @@ interface LibraryVideo {
   name: string;
   mimeType: string;
   size: number | null;
+  durationMillis: number | null;
   thumbnailLink: string | null;
   webViewLink: string | null;
   downloadUrl: string | null;
@@ -394,7 +395,10 @@ export default function VideoLibraryBrowser({
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-                    {selectedCategory.videos.map((video) => (
+                    {selectedCategory.videos.filter((video) =>
+                      // Hide videos longer than 60 seconds (only if duration is known)
+                      video.durationMillis === null || video.durationMillis <= 60000
+                    ).map((video) => (
                       <div
                         key={video.id}
                         className="group"

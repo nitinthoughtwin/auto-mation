@@ -103,6 +103,10 @@ export default function AdminVideoLibraryPage() {
   // Sync state
   const [syncingCategoryId, setSyncingCategoryId] = useState<string | null>(null);
 
+  // Fetch durations state
+  const [fetchingDurations, setFetchingDurations] = useState(false);
+  const [durationStats, setDurationStats] = useState<{ total: number; pending: number; done: number } | null>(null);
+
   // Import extra folder state
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importDriveUrl, setImportDriveUrl] = useState('');
@@ -340,6 +344,38 @@ export default function AdminVideoLibraryPage() {
     }
   };
 
+  const handleFetchDurations = async () => {
+    setFetchingDurations(true);
+    try {
+      // First check stats
+      const statsRes = await fetch('/api/admin/video-library/fetch-durations');
+      const stats = await statsRes.json();
+      setDurationStats(stats);
+
+      if (stats.pending === 0) {
+        toast.info('All videos already have duration data');
+        return;
+      }
+
+      toast.info(`Fetching durations for ${stats.pending} videos... This may take a while.`);
+
+      const res = await fetch('/api/admin/video-library/fetch-durations', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success('Durations Fetched', { description: data.message });
+        const newStats = await fetch('/api/admin/video-library/fetch-durations').then(r => r.json());
+        setDurationStats(newStats);
+      } else {
+        throw new Error(data.error || 'Failed');
+      }
+    } catch (error: any) {
+      toast.error('Failed to fetch durations', { description: error.message });
+    } finally {
+      setFetchingDurations(false);
+    }
+  };
+
   const handleToggleActive = async (category: VideoCategory) => {
     try {
       const res = await fetch(`/api/video-library/categories/${category.id}`, {
@@ -554,6 +590,23 @@ export default function AdminVideoLibraryPage() {
             <Button variant="outline" onClick={() => router.push('/admin')}>
               Back to Admin
             </Button>
+            <Button
+              variant="outline"
+              onClick={handleFetchDurations}
+              disabled={fetchingDurations}
+              title="Fetch video durations from Google Drive to enable 60s filter"
+            >
+              {fetchingDurations ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Fetching Durations...</>
+              ) : (
+                <><RefreshCw className="h-4 w-4 mr-2" />Fetch Durations</>
+              )}
+            </Button>
+            {durationStats && (
+              <span className="text-xs text-muted-foreground">
+                {durationStats.done}/{durationStats.total} done
+              </span>
+            )}
             <Button onClick={openAddDialog}>
               <Plus className="h-4 w-4 mr-2" />
               Add Category

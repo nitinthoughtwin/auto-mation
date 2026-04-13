@@ -341,7 +341,7 @@ export async function fetchAllVideosFromDriveFolder(
       url.searchParams.set('q', `'${folderId}' in parents and trashed = false`);
       url.searchParams.set(
         'fields',
-        'nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime)',
+        'nextPageToken,files(id,name,mimeType,size,thumbnailLink,webViewLink,createdTime,videoMediaMetadata)',
       );
       url.searchParams.set('pageSize', '1000');
       url.searchParams.set('key', key);
@@ -374,6 +374,14 @@ export async function fetchAllVideosFromDriveFolder(
       if (item.mimeType === 'application/vnd.google-apps.folder') {
         subfolderIds.push(item.id);
       } else if (item.mimeType?.startsWith('video/')) {
+        // Filter out videos longer than 60 seconds to avoid copyright issues
+        const durationMs = item.videoMediaMetadata?.durationMillis
+          ? parseInt(item.videoMediaMetadata.durationMillis)
+          : null;
+        if (durationMs !== null && durationMs > 60000) {
+          console.log(`[Drive] Skipping "${item.name}" — duration ${Math.round(durationMs / 1000)}s > 60s`);
+          continue;
+        }
         videos.push({
           id: item.id,
           name: item.name,

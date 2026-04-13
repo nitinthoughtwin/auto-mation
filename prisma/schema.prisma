@@ -219,12 +219,13 @@ model LibraryVideo {
   driveFileId    String         @unique
   name           String
   mimeType       String
-  size           Int?
-  thumbnailLink  String?
-  webViewLink    String?
-  downloadUrl    String?
-  createdTime    DateTime?
-  addedToQueue   Boolean        @default(false)
+  size             Int?
+  durationMillis   Int?          // Video duration in milliseconds (null = not yet fetched)
+  thumbnailLink    String?
+  webViewLink      String?
+  downloadUrl      String?
+  createdTime      DateTime?
+  addedToQueue     Boolean        @default(false)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   category       VideoCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
