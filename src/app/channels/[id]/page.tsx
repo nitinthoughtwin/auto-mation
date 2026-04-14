@@ -108,6 +108,17 @@ function VideoCard({ video, onDelete, isDeleting }: {
     uploaded: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     uploading: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    scanning: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    copyright_skipped: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  };
+
+  const statusLabels: Record<string, string> = {
+    queued: 'Queued',
+    uploaded: 'Uploaded ✅',
+    failed: 'Failed',
+    uploading: 'Uploading...',
+    scanning: '🔍 Scanning',
+    copyright_skipped: '⚠️ Copyright',
   };
 
   return (
@@ -121,7 +132,7 @@ function VideoCard({ video, onDelete, isDeleting }: {
             <h4 className="font-medium truncate">{video.title}</h4>
             <div className="flex items-center gap-2 mt-1">
               <Badge className={statusColors[video.status] || ''}>
-                {video.status}
+                {statusLabels[video.status] || video.status}
               </Badge>
               {video.fileSize && (
                 <span className="text-xs text-gray-500">{formatFileSize(video.fileSize)}</span>
