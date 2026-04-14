@@ -473,11 +473,11 @@ export async function processScheduledUploads(): Promise<{
         });
       } catch { /* use existing token */ }
 
-      // If scanning for more than 30 minutes — make public anyway
+      // If scanning for more than 10 minutes — make public anyway
       // YouTube Data API v3 can't reliably detect copyright claims on private videos
       const scanningFor = Date.now() - new Date(video.updatedAt).getTime();
       const scanningMinutes = Math.floor(scanningFor / 60000);
-      const timedOut = scanningMinutes >= 30;
+      const timedOut = scanningMinutes >= 10;
 
       const copyrightStatus = timedOut ? 'clean' : await checkVideoCopyrightStatus(accessToken, channel.refreshToken, video.uploadedVideoId!);
       console.log(`[CopyrightScan] Video "${video.title}" (${video.uploadedVideoId}): ${copyrightStatus} (scanning ${scanningMinutes}min${timedOut ? ' — timeout, forcing public' : ''})`);
@@ -539,6 +539,28 @@ export async function processScheduledUploads(): Promise<{
           },
         });
         results.push({ channel: channel.name, status: 'success', message: `"${video.title}" is clean — made public ✅` });
+        processed++;
+      } else if (timedOut) {
+        // makeVideoPublic failed after timeout — force mark as uploaded so it doesn't get stuck forever
+        // The video is still private on YouTube, but we can't keep blocking the queue
+        await db.video.update({
+          where: { id: video.id },
+          data: { status: 'uploaded', uploadedAt: new Date(), error: 'Made public failed — marked manually after timeout' },
+        });
+        await db.channel.update({
+          where: { id: channel.id },
+          data: { lastUploadDate: new Date() },
+        });
+        await db.schedulerLog.create({
+          data: {
+            channelId: channel.id,
+            videoId: video.id,
+            action: 'copyright_check',
+            status: 'error',
+            message: `makeVideoPublic failed for ${video.uploadedVideoId} — force-marked as uploaded after ${scanningMinutes}min timeout`,
+          },
+        });
+        results.push({ channel: channel.name, status: 'error', message: `"${video.title}" — could not make public, please check YouTube Studio manually` });
         processed++;
       }
     }

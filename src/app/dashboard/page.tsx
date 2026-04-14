@@ -155,6 +155,7 @@ interface Channel {
   queuedVideos?: number;
   randomDelayMinutes?: number | null;
   randomDelayDate?: string | null;
+  timezone?: string;
   platform?: string;
   instagramAccountId?: string;
   facebookPageId?: string;
@@ -299,6 +300,29 @@ const FREQ_HOURS: Record<string, number> = {
   every3days: 72,
   weekly: 168,
   biweekly: 336,
+};
+
+// Returns "HH:MM" with today's random delay applied (if stored for today)
+const getActualUploadTime = (
+  uploadTime: string,
+  randomDelayMinutes: number | null | undefined,
+  randomDelayDate: string | null | undefined,
+  timezone: string = 'Asia/Kolkata'
+): { display: string; hasDelay: boolean } => {
+  const [h, m] = uploadTime.split(':').map(Number);
+  if (!randomDelayMinutes || !randomDelayDate) {
+    return { display: uploadTime, hasDelay: false };
+  }
+  // Check if delay is for today
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const delayDate = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(randomDelayDate));
+  if (today !== delayDate) return { display: uploadTime, hasDelay: false };
+
+  let totalMin = h * 60 + m + randomDelayMinutes;
+  totalMin = ((totalMin % 1440) + 1440) % 1440;
+  const ah = Math.floor(totalMin / 60).toString().padStart(2, '0');
+  const am = (totalMin % 60).toString().padStart(2, '0');
+  return { display: `${ah}:${am}`, hasDelay: true };
 };
 
 const getScheduledUploadDate = (
@@ -1155,7 +1179,12 @@ export default function YouTubeAutomationDashboard() {
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {channel.uploadTime}
+                        {(() => {
+                          const { display, hasDelay } = getActualUploadTime(channel.uploadTime, channel.randomDelayMinutes, channel.randomDelayDate, channel.timezone);
+                          return hasDelay
+                            ? <><span className="line-through opacity-50">{channel.uploadTime}</span> <span className="text-blue-600 font-medium">{display}</span></>
+                            : display;
+                        })()}
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
@@ -1238,9 +1267,14 @@ export default function YouTubeAutomationDashboard() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {channel.uploadTime}
+                          <div className="flex items-center gap-1 text-sm">
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            {(() => {
+                              const { display, hasDelay } = getActualUploadTime(channel.uploadTime, channel.randomDelayMinutes, channel.randomDelayDate, channel.timezone);
+                              return hasDelay
+                                ? <><span className="line-through opacity-50 text-xs">{channel.uploadTime}</span> <span className="text-blue-600 font-medium">{display}</span></>
+                                : display;
+                            })()}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -2086,7 +2120,14 @@ export default function YouTubeAutomationDashboard() {
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Set at least 30 minutes from current time • Videos upload within ±15 min of this time
+                      Set at least 30 minutes from current time
+                      {(() => {
+                        if (!selectedChannel) return null;
+                        const { display, hasDelay } = getActualUploadTime(selectedChannel.uploadTime, selectedChannel.randomDelayMinutes, selectedChannel.randomDelayDate, selectedChannel.timezone);
+                        return hasDelay
+                          ? <span className="text-blue-600 font-medium"> • Today's actual time: {display} (random delay applied)</span>
+                          : ' • Random delay will be applied at upload time';
+                      })()}
                     </p>
                   </div>
                   <div className="space-y-2">
