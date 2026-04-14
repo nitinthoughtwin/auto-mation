@@ -53,14 +53,8 @@ async function handleDemoPayment(request: NextRequest, session: { user: { id: st
     periodEnd.setMonth(periodEnd.getMonth() + 1);
   }
 
-  // Cancel existing active subscriptions
-  await db.subscription.updateMany({
-    where: {
-      userId: session.user.id,
-      status: { in: ['active', 'trialing'] },
-    },
-    data: { status: 'cancelled' },
-  });
+  // Do NOT cancel existing subscriptions here — only cancel after payment is verified.
+  // If user exits the payment gateway, their current plan must remain active.
 
   const subscription = await db.subscription.create({
     data: {
@@ -183,14 +177,8 @@ async function handleRazorpayPayment(request: NextRequest, session: { user: { id
     periodEnd.setMonth(periodEnd.getMonth() + 1);
   }
 
-  // Cancel existing active subscriptions
-  await db.subscription.updateMany({
-    where: {
-      userId: session.user.id,
-      status: { in: ['active', 'trialing'] },
-    },
-    data: { status: 'cancelled' },
-  });
+  // Do NOT cancel existing subscriptions here — only cancel after payment is verified.
+  // If user exits the payment gateway, their current plan must remain active.
 
   const subscription = await db.subscription.create({
     data: {

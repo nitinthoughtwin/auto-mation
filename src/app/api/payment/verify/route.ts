@@ -106,6 +106,16 @@ async function handleDemoVerify(orderId: string, paymentId: string) {
     },
   });
 
+  // Cancel all other active/trialing subscriptions for this user (now that payment succeeded)
+  await db.subscription.updateMany({
+    where: {
+      userId: payment.subscription.userId,
+      status: { in: ['active', 'trialing'] },
+      id: { not: payment.subscriptionId },
+    },
+    data: { status: 'cancelled' },
+  });
+
   // Activate subscription
   await db.subscription.update({
     where: { id: payment.subscriptionId },
@@ -157,6 +167,16 @@ async function completePaymentVerification(
       razorpaySignature: signature,
       paymentMethod: 'razorpay',
     },
+  });
+
+  // Cancel all other active/trialing subscriptions for this user (now that payment succeeded)
+  await db.subscription.updateMany({
+    where: {
+      userId: payment.subscription.userId,
+      status: { in: ['active', 'trialing'] },
+      id: { not: payment.subscriptionId },
+    },
+    data: { status: 'cancelled' },
   });
 
   // Activate subscription
