@@ -125,7 +125,7 @@ export default function PricingPage() {
         if (data.success) {
           toast.success('Free plan activated successfully!');
           setCurrentPlan('free');
-          router.push('/');
+          router.push('/lp');
         } else {
           throw new Error(data.error || 'Failed to activate plan');
         }
@@ -202,7 +202,7 @@ export default function PricingPage() {
           description: 'This was a simulated payment. Configure Razorpay credentials for real payments.',
         });
         setCurrentPlan(plan.name);
-        router.push('/');
+        router.push('/lp');
       } else {
         throw new Error(verifyData.error || 'Payment verification failed');
       }
@@ -237,7 +237,7 @@ export default function PricingPage() {
           if (verifyData.success) {
             toast.success('Payment successful! Plan activated.');
             setCurrentPlan(plan.name);
-            router.push('/');
+            router.push('/lp');
           } else {
             throw new Error(verifyData.error || 'Payment verification failed');
           }

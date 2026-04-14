@@ -97,7 +97,7 @@ export default function LoginPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/lp')}
           className="mb-6 -ml-2 text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />

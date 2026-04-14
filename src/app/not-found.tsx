@@ -19,8 +19,8 @@ export default function NotFound() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          <Link href="/">
-            <Button className="w-full bg-red-600 hover:bg-red-700">
+          <Link href="/lp">
+            <Button className="w-full bg-blue-600 hover:bg-blue-700">
               <Home className="mr-2 h-4 w-4" />
               Go to Dashboard
             </Button>

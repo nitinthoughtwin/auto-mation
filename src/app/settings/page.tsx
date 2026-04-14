@@ -211,7 +211,7 @@ export default function SettingsPage() {
       }
 
       toast.success('Account deleted successfully');
-      router.push('/');
+      router.push('/lp');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete account. Please contact support.');
     }

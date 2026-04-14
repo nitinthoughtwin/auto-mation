@@ -8,12 +8,11 @@ import {
   TrendingUp,
   ArrowRight,
   Star,
-  Youtube,
 } from 'lucide-react';
 
 const benefits = [
   {
-    icon: <Youtube className="h-5 w-5 text-blue-600" />,
+    icon: <Zap className="h-5 w-5 text-blue-600" />,
     title: 'YouTube pe Auto Upload',
     desc: 'Videos queue karo — tool khud sahi time pe upload karta hai. Roz manually kuch nahi karna.',
   },
