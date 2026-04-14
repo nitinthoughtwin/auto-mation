@@ -3,14 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
-  Youtube,
   Zap,
   Clock,
   TrendingUp,
-  CheckCircle,
   ArrowRight,
   Star,
-  Play,
+  Youtube,
 } from 'lucide-react';
 
 const benefits = [
@@ -39,7 +37,7 @@ const benefits = [
 const steps = [
   { step: '1', text: 'Account banao — Free mein' },
   { step: '2', text: 'YouTube channel connect karo' },
-  { step: '3', text: 'Videos Google Drive se import karo' },
+  { step: '3', text: 'Videos list se choose karo ya Google Drive ki link paste karo' },
   { step: '4', text: 'Schedule set karo — kaam khatam' },
 ];
 
@@ -82,7 +80,7 @@ export default function LandingPage() {
 
         <p className="text-gray-600 text-base sm:text-lg mb-6 max-w-md mx-auto">
           Videos khud upload honge, sahi time pe, roz — bina tumhare kuch kiye.
-          Sirf queue bharo aur bhool jao.
+          Sirf queue me videos add karo aur bhool jao.
         </p>
 
         <Button
