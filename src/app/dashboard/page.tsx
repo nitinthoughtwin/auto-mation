@@ -1746,6 +1746,12 @@ export default function YouTubeAutomationDashboard() {
                 </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-6 space-y-4">
+                {loadingChannel ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                    <p className="text-sm text-muted-foreground">Loading queue...</p>
+                  </div>
+                ) : <>
                 {/* AI credits / upgrade nudge */}
                 {usagePlan?.limitsExceeded.aiCredits && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800">
@@ -2039,6 +2045,7 @@ export default function YouTubeAutomationDashboard() {
                   </div>
                   </>
                 )}
+                </>}
               </CardContent>
             </Card>
           </TabsContent>
