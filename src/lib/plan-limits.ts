@@ -47,10 +47,12 @@ export async function getUserPlanAndUsage(userId: string): Promise<{
     planDisplayName: subscription.plan.displayName,
   };
 
+  // Count only actually uploaded videos, not queued ones
   const videosThisMonth = await db.video.count({
     where: {
       channel: { userId },
-      createdAt: {
+      status: { in: ['uploaded', 'scanning'] },
+      uploadedAt: {
         gte: subscription.currentPeriodStart,
         lte: subscription.currentPeriodEnd,
       },

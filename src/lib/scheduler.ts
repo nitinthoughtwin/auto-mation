@@ -400,6 +400,12 @@ async function uploadVideoToYouTube(
     data: { status: 'scanning', uploadedVideoId: result.videoId },
   });
 
+  // Set lastUploadDate NOW so same channel doesn't upload another video today
+  await db.channel.update({
+    where: { id: channel.id },
+    data: { lastUploadDate: new Date() },
+  });
+
   // Delete from storage — video is already on YouTube (private)
   try {
     await deleteFile(video.fileName, { accessToken, refreshToken: channel.refreshToken });
@@ -467,12 +473,18 @@ export async function processScheduledUploads(): Promise<{
         });
       } catch { /* use existing token */ }
 
-      const copyrightStatus = await checkVideoCopyrightStatus(accessToken, channel.refreshToken, video.uploadedVideoId!);
-      console.log(`[CopyrightScan] Video "${video.title}" (${video.uploadedVideoId}): ${copyrightStatus}`);
+      // If scanning for more than 30 minutes — make public anyway
+      // YouTube Data API v3 can't reliably detect copyright claims on private videos
+      const scanningFor = Date.now() - new Date(video.updatedAt).getTime();
+      const scanningMinutes = Math.floor(scanningFor / 60000);
+      const timedOut = scanningMinutes >= 30;
+
+      const copyrightStatus = timedOut ? 'clean' : await checkVideoCopyrightStatus(accessToken, channel.refreshToken, video.uploadedVideoId!);
+      console.log(`[CopyrightScan] Video "${video.title}" (${video.uploadedVideoId}): ${copyrightStatus} (scanning ${scanningMinutes}min${timedOut ? ' — timeout, forcing public' : ''})`);
 
       if (copyrightStatus === 'pending') {
         // Still processing — leave as scanning, check next cron run
-        results.push({ channel: channel.name, status: 'scanning', message: `"${video.title}" still processing on YouTube` });
+        results.push({ channel: channel.name, status: 'scanning', message: `"${video.title}" still processing (${scanningMinutes}min)` });
         continue;
       }
 
