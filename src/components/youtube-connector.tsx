@@ -1,17 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Youtube, 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
-  ExternalLink,
-  RefreshCw,
+import {
+  Youtube,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Settings,
   Trash2
 } from 'lucide-react';
 
@@ -31,16 +31,15 @@ interface Channel {
 interface YouTubeConnectorProps {
   userId: string;
   existingChannel?: Channel | null;
-  onChannelConnected?: (channel: Channel) => void;
   onChannelDisconnected?: () => void;
 }
 
-export function YouTubeConnector({ 
-  userId, 
+export function YouTubeConnector({
+  userId,
   existingChannel,
-  onChannelConnected,
-  onChannelDisconnected 
+  onChannelDisconnected
 }: YouTubeConnectorProps) {
+  const router = useRouter();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,28 +94,6 @@ export function YouTubeConnector({
     }
   };
 
-  const handleRefresh = async () => {
-    if (!existingChannel) return;
-    
-    setIsConnecting(true);
-    try {
-      const response = await fetch(`/api/channels/${existingChannel.id}/refresh`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        onChannelConnected?.(data.channel);
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to refresh token');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to refresh');
-    } finally {
-      setIsConnecting(false);
-    }
-  };
 
   return (
     <Card className="w-full">
@@ -203,22 +180,15 @@ export function YouTubeConnector({
 
             {/* Actions */}
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isConnecting}
+              <Button
+                size="sm"
+                onClick={() => router.push(`/channels/${existingChannel.id}`)}
               >
-                {isConnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Refresh Token
+                Manage
               </Button>
-              <Button 
-                variant="destructive" 
-                size="sm" 
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={handleDisconnect}
                 disabled={isDisconnecting}
               >
@@ -245,7 +215,7 @@ export function YouTubeConnector({
             </div>
 
             {/* Benefits */}
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <h4 className="font-medium">Why connect your own channel?</h4>
               <ul className="text-sm space-y-2">
                 <li className="flex items-start gap-2">
@@ -261,7 +231,7 @@ export function YouTubeConnector({
                   <span><strong>Direct access</strong> - Manage videos in YouTube Studio</span>
                 </li>
               </ul>
-            </div>
+            </div> */}
 
             {/* Connect Button */}
             <Button 

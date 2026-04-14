@@ -177,11 +177,6 @@ function ConnectYouTubeContent() {
             <YouTubeConnector
               userId={session?.user?.id || ''}
               existingChannel={channel}
-              onChannelConnected={(ch) => setChannels(prev => {
-                const idx = prev.findIndex(c => c.id === ch.id);
-                if (idx >= 0) { const next = [...prev]; next[idx] = ch; return next; }
-                return [...prev, ch];
-              })}
               onChannelDisconnected={() => setChannels(prev => prev.filter(c => c.id !== channel?.id))}
             />
 
@@ -191,11 +186,6 @@ function ConnectYouTubeContent() {
                 key={ch.id}
                 userId={session?.user?.id || ''}
                 existingChannel={ch}
-                onChannelConnected={(updated) => setChannels(prev => {
-                  const idx = prev.findIndex(c => c.id === updated.id);
-                  if (idx >= 0) { const next = [...prev]; next[idx] = updated; return next; }
-                  return prev;
-                })}
                 onChannelDisconnected={() => setChannels(prev => prev.filter(c => c.id !== ch.id))}
               />
             ))}
