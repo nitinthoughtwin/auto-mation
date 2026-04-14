@@ -1390,7 +1390,7 @@ export default function YouTubeAutomationDashboard() {
     if (!selectedChannel) return null;
 
     const queuedVideos = videos
-      .filter((v) => v.status === 'queued')
+      .filter((v) => ['queued', 'scanning', 'copyright_skipped'].includes(v.status))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     const uploadedVideos = videos.filter((v) => v.status === 'uploaded');
     const failedVideos = videos.filter((v) => v.status === 'failed');

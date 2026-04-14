@@ -6,7 +6,7 @@ import { getNextUploadTime } from '@/lib/utils-shared';
 import { getUserPlanAndUsage, checkChannelLimit } from '@/lib/plan-limits';
 
 // GET - List all channels for current user
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
           select: { videos: true },
         },
         videos: {
-          where: { status: 'queued' },
+          where: { status: { in: ['queued', 'scanning', 'copyright_skipped'] } },
           select: { id: true },
         },
       },
