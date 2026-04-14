@@ -182,6 +182,7 @@ export function YouTubeConnector({
             <div className="flex gap-2">
               <Button
                 size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => router.push(`/channels/${existingChannel.id}`)}
               >
                 Manage

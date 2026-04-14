@@ -995,8 +995,8 @@ export default function YouTubeAutomationDashboard() {
         <Card className="border-border/50 shadow-soft card-hover">
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center">
-                <Youtube className="h-5 w-5 text-red-500" />
+              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
+                <Youtube className="h-5 w-5 text-blue-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{channels.length}</p>
@@ -1066,13 +1066,13 @@ export default function YouTubeAutomationDashboard() {
 
       {/* Plan limit warnings */}
       {usagePlan && (usagePlan.limitsExceeded.videos || usagePlan.limitsExceeded.channels || usagePlan.limitsExceeded.storage || usagePlan.limitsExceeded.aiCredits) && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 border border-red-200 dark:border-red-800">
-          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800">
+          <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
               {usagePlan.plan.displayName} plan limit reached
             </p>
-            <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
               {[
                 usagePlan.limitsExceeded.videos && `Videos (${usagePlan.usage.videos.used}/${usagePlan.usage.videos.limit})`,
                 usagePlan.limitsExceeded.channels && `Channels (${usagePlan.usage.channels.used}/${usagePlan.usage.channels.limit})`,
@@ -1375,7 +1375,7 @@ export default function YouTubeAutomationDashboard() {
           </Button>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
                 {selectedChannel.platform === 'instagram' ? (
                   <Instagram className="h-6 w-6 text-pink-500" />
                 ) : selectedChannel.platform === 'facebook' ? (
@@ -1447,13 +1447,13 @@ export default function YouTubeAutomationDashboard() {
             (queuedVideos.length * (FREQ_HOURS[selectedChannel.frequency] ?? 24)) / 24
           );
           if (queuedVideos.length === 0) return (
-            <div className="flex items-center gap-3 p-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-700">
-              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700">
+              <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-semibold text-red-700 dark:text-red-400">Queue is empty — uploads are paused</p>
-                <p className="text-xs text-red-600 dark:text-red-500">Add videos from the library to resume your schedule.</p>
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Queue is empty — uploads are paused</p>
+                <p className="text-xs text-amber-600 dark:text-amber-500">Add videos from the library to resume your schedule.</p>
               </div>
-              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white flex-shrink-0" onClick={() => setShowVideoLibrary(true)}>
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0" onClick={() => setShowVideoLibrary(true)}>
                 Add Videos
               </Button>
             </div>
@@ -1648,7 +1648,7 @@ export default function YouTubeAutomationDashboard() {
                   {/* Video Library Button - Highlighted */}
                   <Button
                     onClick={() => setShowVideoLibrary(true)}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white btn-press"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white btn-press"
                   >
                     <FolderOpen className="mr-2 h-4 w-4" />
                     Video Library
@@ -1685,7 +1685,7 @@ export default function YouTubeAutomationDashboard() {
                       <Button
                         onClick={usagePlan?.limitsExceeded.aiCredits ? () => router.push('/pricing') : generateAITitles}
                         disabled={generatingAI || (selectedVideoIds.size === 0 && !usagePlan?.limitsExceeded.aiCredits)}
-                        className={`btn-press ${usagePlan?.limitsExceeded.aiCredits ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'} text-white`}
+                        className={`btn-press ${usagePlan?.limitsExceeded.aiCredits ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'} text-white`}
                       >
                         {generatingAI ? (
                           <>
@@ -1748,7 +1748,7 @@ export default function YouTubeAutomationDashboard() {
               <CardContent className="p-3 sm:p-6 space-y-4">
                 {/* AI credits / upgrade nudge */}
                 {usagePlan?.limitsExceeded.aiCredits && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800">
                     <Sparkles className="h-4 w-4 text-purple-500 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-purple-700 dark:text-purple-300">AI credits exhausted</p>
@@ -1799,7 +1799,7 @@ export default function YouTubeAutomationDashboard() {
                         <FolderOpen className="mr-2 h-4 w-4" />
                         Browse Video Library
                       </Button>
-                      <Button
+                      {/* <Button
                         variant="outline"
                         className="border-amber-300 text-amber-700 hover:bg-amber-50"
                         onClick={() => {
@@ -1809,7 +1809,7 @@ export default function YouTubeAutomationDashboard() {
                       >
                         <Upload className="mr-2 h-4 w-4" />
                         Upload Videos
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
                 ) : (

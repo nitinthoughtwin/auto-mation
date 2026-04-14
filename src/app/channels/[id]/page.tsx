@@ -410,7 +410,7 @@ export default function ChannelDetailPage() {
               Back
             </Button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                 <Youtube className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -491,7 +491,7 @@ export default function ChannelDetailPage() {
         {/* Tabs */}
         <Tabs defaultValue="upload" className="space-y-6">
           <TabsList className="bg-white dark:bg-slate-800 p-1 rounded-xl">
-            <TabsTrigger value="upload" className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-orange-500 data-[state=active]:text-white">
+            <TabsTrigger value="upload" className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white">
               <Upload className="h-4 w-4 mr-2" />
               Upload
             </TabsTrigger>
@@ -549,7 +549,7 @@ export default function ChannelDetailPage() {
                     <Button 
                       onClick={uploadVideos} 
                       disabled={uploading}
-                      className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600"
+                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
                     >
                       {uploading ? (
                         <>
@@ -754,7 +754,7 @@ export default function ChannelDetailPage() {
                 <Button 
                   onClick={saveSettings} 
                   disabled={saving}
-                  className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600"
+                  className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
                 >
                   {saving ? (
                     <>
