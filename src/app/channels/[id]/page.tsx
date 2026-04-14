@@ -395,7 +395,7 @@ export default function ChannelDetailPage() {
     return null;
   }
 
-  const queuedVideos = videos.filter(v => v.status === 'queued');
+  const queuedVideos = videos.filter(v => ['queued', 'scanning', 'copyright_skipped'].includes(v.status));
   const uploadedVideos = videos.filter(v => v.status === 'uploaded');
   const failedVideos = videos.filter(v => v.status === 'failed');
 

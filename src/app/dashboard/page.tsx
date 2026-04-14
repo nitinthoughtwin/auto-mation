@@ -1854,6 +1854,7 @@ export default function YouTubeAutomationDashboard() {
                           <TableHead>Thumbnail</TableHead>
                           <TableHead>Title</TableHead>
                           <TableHead>Type</TableHead>
+                          <TableHead>Status</TableHead>
                           <TableHead className="hidden sm:table-cell">Scheduled Upload</TableHead>
                           <TableHead className="hidden md:table-cell">Size</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
@@ -1951,6 +1952,15 @@ export default function YouTubeAutomationDashboard() {
                               <Badge variant={getVideoType(video) === 'shorts' ? 'default' : 'secondary'}>
                                 {getVideoType(video) === 'shorts' ? 'Shorts' : 'Video'}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {video.status === 'scanning' ? (
+                                <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">🔍 Scanning</Badge>
+                              ) : video.status === 'copyright_skipped' ? (
+                                <Badge className="bg-orange-100 text-orange-700 border-orange-200">⚠️ Copyright</Badge>
+                              ) : (
+                                <Badge className="bg-blue-100 text-blue-700 border-blue-200">Queued</Badge>
+                              )}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">
                               {selectedChannel ? (() => {
