@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Refund Policy | GPMart Studio',
+  title: 'Refund Policy | GPMart AI Studio',
 };
 
 export default function RefundPolicy() {
@@ -15,13 +15,13 @@ export default function RefundPolicy() {
         </p>
 
         <p className="text-muted-foreground mb-8">
-          At GPMart Studio, we want you to be completely satisfied with your subscription. Please read this refund policy carefully before purchasing any plan.
+          At GPMart AI Studio, we want you to be completely satisfied with your subscription. Please read this refund policy carefully before purchasing any plan.
         </p>
 
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4">1. Subscription Plans</h2>
           <p className="text-muted-foreground mb-4">
-            GPMart Studio offers monthly subscription plans (Starter, Basic, Pro, Premium). All plans are billed on a recurring monthly basis. By subscribing, you authorize us to charge your payment method on a recurring basis until you cancel.
+            GPMart AI Studio offers monthly subscription plans (Starter, Basic, Pro, Premium). All plans are billed on a recurring monthly basis. By subscribing, you authorize us to charge your payment method on a recurring basis until you cancel.
           </p>
         </section>
 

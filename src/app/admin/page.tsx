@@ -96,7 +96,7 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Manage your GPMart Studio platform</p>
+            <p className="text-muted-foreground">Manage your GPMart AI Studio platform</p>
           </div>
           <Button variant="outline" onClick={() => router.push('/dashboard')}>
             Back to Dashboard

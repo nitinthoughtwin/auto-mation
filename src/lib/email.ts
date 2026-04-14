@@ -45,7 +45,7 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
   const resetUrl = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
   
   const template: EmailTemplate = {
-    subject: 'Reset Your Password - GPMart Studio',
+    subject: 'Reset Your Password - GPMart AI Studio',
     html: `
       <!DOCTYPE html>
       <html>
@@ -53,12 +53,12 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎬 GPMart Studio</h1>
+            <h1>🎬 GPMart AI Studio</h1>
           </div>
           <div class="content">
             <h2>Password Reset Request</h2>
             <p>Hi${name ? ` ${name}` : ''},</p>
-            <p>We received a request to reset your password for your GPMart Studio account. Click the button below to create a new password:</p>
+            <p>We received a request to reset your password for your GPMart AI Studio account. Click the button below to create a new password:</p>
             <div style="text-align: center;">
               <a href="${resetUrl}" class="button">Reset Password</a>
             </div>
@@ -69,7 +69,7 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
             <p style="background: #f5f5f5; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 14px;">${resetUrl}</p>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} GPMart Studio. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} GPMart AI Studio. All rights reserved.</p>
             <p>This email was sent to ${email}</p>
           </div>
         </div>
@@ -77,18 +77,18 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
       </html>
     `,
     text: `
-Reset Your Password - GPMart Studio
+Reset Your Password - GPMart AI Studio
 
 Hi${name ? ` ${name}` : ''},
 
-We received a request to reset your password for your GPMart Studio account.
+We received a request to reset your password for your GPMart AI Studio account.
 
 Click the link below to reset your password:
 ${resetUrl}
 
 This link will expire in 1 hour. If you didn't request this password reset, you can safely ignore this email.
 
-© ${new Date().getFullYear()} GPMart Studio
+© ${new Date().getFullYear()} GPMart AI Studio
     `,
   };
 
@@ -99,7 +99,7 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<boo
   const loginUrl = `${process.env.NEXTAUTH_URL}/login`;
   
   const template: EmailTemplate = {
-    subject: 'Welcome to GPMart Studio! 🎉',
+    subject: 'Welcome to GPMart AI Studio! 🎉',
     html: `
       <!DOCTYPE html>
       <html>
@@ -107,11 +107,11 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<boo
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎬 GPMart Studio</h1>
+            <h1>🎬 GPMart AI Studio</h1>
           </div>
           <div class="content">
             <h2>Welcome${name ? `, ${name}` : ''}! 🎉</h2>
-            <p>Thank you for joining GPMart Studio! You're now ready to automate your YouTube workflow.</p>
+            <p>Thank you for joining GPMart AI Studio! You're now ready to automate your YouTube workflow.</p>
             <h3>Getting Started:</h3>
             <ul>
               <li>Connect your YouTube channel</li>
@@ -123,14 +123,14 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<boo
             </div>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} GPMart Studio. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} GPMart AI Studio. All rights reserved.</p>
           </div>
         </div>
       </body>
       </html>
     `,
     text: `
-Welcome to GPMart Studio!
+Welcome to GPMart AI Studio!
 
 Thank you for joining! You're now ready to automate your YouTube workflow.
 
@@ -141,7 +141,7 @@ Getting Started:
 
 Go to Dashboard: ${loginUrl}
 
-© ${new Date().getFullYear()} GPMart Studio
+© ${new Date().getFullYear()} GPMart AI Studio
     `,
   };
 
@@ -165,7 +165,7 @@ export async function sendSubscriptionEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎬 GPMart Studio</h1>
+            <h1>🎬 GPMart AI Studio</h1>
           </div>
           <div class="content">
             <h2>Subscription Activated! ✨</h2>
@@ -181,7 +181,7 @@ export async function sendSubscriptionEmail(
             </div>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} GPMart Studio. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} GPMart AI Studio. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -196,7 +196,7 @@ ${nextBillingDate ? `Next billing: ${nextBillingDate.toLocaleDateString()}` : ''
 
 View Subscription: ${dashboardUrl}
 
-© ${new Date().getFullYear()} GPMart Studio
+© ${new Date().getFullYear()} GPMart AI Studio
     `,
   };
 
@@ -220,7 +220,7 @@ export async function sendPaymentReminderEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎬 GPMart Studio</h1>
+            <h1>🎬 GPMart AI Studio</h1>
           </div>
           <div class="content">
             <h2>Payment Reminder 💳</h2>
@@ -234,7 +234,7 @@ export async function sendPaymentReminderEmail(
             </div>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} GPMart Studio. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} GPMart AI Studio. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -250,7 +250,7 @@ Due Date: ${dueDate.toLocaleDateString()}
 
 Manage Billing: ${billingUrl}
 
-© ${new Date().getFullYear()} GPMart Studio
+© ${new Date().getFullYear()} GPMart AI Studio
     `,
   };
 
@@ -262,7 +262,7 @@ export async function sendVerificationEmail(email: string, token: string, name?:
   const verifyUrl = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
   
   const template: EmailTemplate = {
-    subject: 'Verify Your Email - GPMart Studio',
+    subject: 'Verify Your Email - GPMart AI Studio',
     html: `
       <!DOCTYPE html>
       <html>
@@ -270,12 +270,12 @@ export async function sendVerificationEmail(email: string, token: string, name?:
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎬 GPMart Studio</h1>
+            <h1>🎬 GPMart AI Studio</h1>
           </div>
           <div class="content">
             <h2>Verify Your Email Address</h2>
             <p>Hi${name ? `, ${name}` : ''},</p>
-            <p>Thank you for creating an account! Please verify your email address to get started with GPMart Studio.</p>
+            <p>Thank you for creating an account! Please verify your email address to get started with GPMart AI Studio.</p>
             <div style="text-align: center;">
               <a href="${verifyUrl}" class="button">Verify Email</a>
             </div>
@@ -286,7 +286,7 @@ export async function sendVerificationEmail(email: string, token: string, name?:
             <p style="background: #f5f5f5; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 14px;">${verifyUrl}</p>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} GPMart Studio. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} GPMart AI Studio. All rights reserved.</p>
             <p>This email was sent to ${email}</p>
           </div>
         </div>
@@ -294,7 +294,7 @@ export async function sendVerificationEmail(email: string, token: string, name?:
       </html>
     `,
     text: `
-Verify Your Email - GPMart Studio
+Verify Your Email - GPMart AI Studio
 
 Hi${name ? `, ${name}` : ''},
 
@@ -305,7 +305,7 @@ ${verifyUrl}
 
 This link will expire in 24 hours. If you didn't create this account, you can safely ignore this email.
 
-© ${new Date().getFullYear()} GPMart Studio
+© ${new Date().getFullYear()} GPMart AI Studio
     `,
   };
 
@@ -314,7 +314,7 @@ This link will expire in 24 hours. If you didn't create this account, you can sa
 
 export async function sendPasswordChangedEmail(email: string): Promise<boolean> {
   const template: EmailTemplate = {
-    subject: 'Password Changed - GPMart Studio',
+    subject: 'Password Changed - GPMart AI Studio',
     html: `
       <!DOCTYPE html>
       <html>
@@ -322,7 +322,7 @@ export async function sendPasswordChangedEmail(email: string): Promise<boolean> 
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎬 GPMart Studio</h1>
+            <h1>🎬 GPMart AI Studio</h1>
           </div>
           <div class="content">
             <h2>Password Changed ✅</h2>
@@ -332,20 +332,20 @@ export async function sendPasswordChangedEmail(email: string): Promise<boolean> 
             </div>
           </div>
           <div class="footer">
-            <p>© ${new Date().getFullYear()} GPMart Studio. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} GPMart AI Studio. All rights reserved.</p>
           </div>
         </div>
       </body>
       </html>
     `,
     text: `
-Password Changed - GPMart Studio
+Password Changed - GPMart AI Studio
 
 Your password has been successfully changed.
 
 If you didn't make this change, please contact support immediately.
 
-© ${new Date().getFullYear()} GPMart Studio
+© ${new Date().getFullYear()} GPMart AI Studio
     `,
   };
 

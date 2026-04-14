@@ -219,7 +219,7 @@ export default function PricingPage() {
       amount: orderData.amount,
       currency: orderData.currency,
       order_id: orderData.orderId,
-      name: 'GPMart Studio',
+      name: 'GPMart AI Studio',
       description: `${plan.displayName} - ${billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'}`,
       handler: async (response: any) => {
         try {

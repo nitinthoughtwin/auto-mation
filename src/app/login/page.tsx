@@ -114,7 +114,7 @@ export default function LoginPage() {
             <div>
               <CardTitle className="text-xl sm:text-2xl font-bold">Welcome back</CardTitle>
               <CardDescription className="text-muted-foreground mt-1">
-                Sign in to your GPMart Studio account
+                Sign in to your GPMart AI Studio account
               </CardDescription>
             </div>
           </CardHeader>

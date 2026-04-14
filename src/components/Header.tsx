@@ -90,7 +90,7 @@ export default function Header() {
           <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center shadow-md shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
             <Tv className="h-4 w-4 text-white" />
           </div>
-          <span className="font-bold text-base hidden sm:block">GPMart Studio</span>
+          <span className="font-bold text-base hidden sm:block">GPMart AI Studio</span>
         </Link>
 
         {/* Desktop Navigation - authenticated only */}

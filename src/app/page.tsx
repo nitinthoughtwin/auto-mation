@@ -98,7 +98,7 @@ const testimonials = [
   {
     name: 'Rahul Verma',
     role: 'YouTube Automation Creator',
-    content: 'I bought a reels bundle and uploaded 90 videos in one go. GPMart Studio scheduled them automatically — I earned my first ₹5,000 from YouTube without recording a single video!',
+    content: 'I bought a reels bundle and uploaded 90 videos in one go. GPMart AI Studio scheduled them automatically — I earned my first ₹5,000 from YouTube without recording a single video!',
     rating: 5,
     avatar: 'RV',
   },
@@ -189,7 +189,7 @@ export default function LandingPage() {
                 <Youtube className="h-5 w-5 sm:h-5.5 sm:w-5.5 text-white" />
               </div>
               <span className="text-lg sm:text-xl font-bold text-foreground">
-                GPMart Studio
+                GPMart AI Studio
               </span>
             </Link>
 
@@ -330,7 +330,7 @@ export default function LandingPage() {
           {/* Subheading */}
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in" style={{ animationDelay: '0.2s' }}>
             Buy a reels bundle, import from Google Drive, set a schedule — and let
-            GPMart Studio upload to YouTube automatically every single day.
+            GPMart AI Studio upload to YouTube automatically every single day.
           </p>
 
           {/* CTA Buttons */}
@@ -592,7 +592,7 @@ export default function LandingPage() {
               Loved by <span className="text-gradient">Creators</span>
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              See what our users are saying about GPMart Studio.
+              See what our users are saying about GPMart AI Studio.
             </p>
           </div>
 
@@ -652,7 +652,7 @@ export default function LandingPage() {
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto mb-8">
               Stop uploading manually. Start earning passively. Join hundreds of creators
-              already running YouTube on autopilot with GPMart Studio.
+              already running YouTube on autopilot with GPMart AI Studio.
             </p>
             <Link href="/signup">
               <Button
@@ -679,7 +679,7 @@ export default function LandingPage() {
                 <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center">
                   <Youtube className="h-5 w-5 text-white" />
                 </div>
-                <span className="font-bold">GPMart Studio</span>
+                <span className="font-bold">GPMart AI Studio</span>
               </Link>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Automate your YouTube workflow and grow your channel faster.
@@ -766,7 +766,7 @@ export default function LandingPage() {
 
           {/* Copyright */}
           <div className="pt-8 border-t border-border/50 text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} GPMart Studio. All rights reserved.
+            © {new Date().getFullYear()} GPMart AI Studio. All rights reserved.
           </div>
         </div>
       </footer>
