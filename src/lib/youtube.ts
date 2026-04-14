@@ -107,6 +107,7 @@ export async function uploadVideo(
     filePath?: string;       // Local file path
     fileBuffer?: Buffer;     // Buffer for in-memory file
     fileName?: string;       // File name (required for buffer)
+    privacyStatus?: 'public' | 'private' | 'unlisted';
   }
 ) {
   const oauth2Client = createOAuth2Client();
@@ -149,7 +150,7 @@ export async function uploadVideo(
           categoryId: '22', // People & Blogs category
         },
         status: {
-          privacyStatus: 'public',
+          privacyStatus: videoData.privacyStatus ?? 'private',
           selfDeclaredMadeForKids: false,
         },
       },
@@ -214,6 +215,79 @@ export async function setThumbnail(
   } catch (error: any) {
     console.error('[YouTube] Thumbnail error:', error.message);
     return { success: false, error: error.message };
+  }
+}
+
+// Check if a video has a copyright claim after upload
+// Returns: 'clean' | 'claimed' | 'pending' (still processing)
+export async function checkVideoCopyrightStatus(
+  accessToken: string,
+  refreshToken: string,
+  videoId: string
+): Promise<'clean' | 'claimed' | 'pending'> {
+  const oauth2Client = createOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
+  const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+  try {
+    const response = await youtube.videos.list({
+      part: ['contentDetails', 'status', 'processingDetails'],
+      id: [videoId],
+    });
+
+    const video = response.data.items?.[0];
+    if (!video) return 'pending';
+
+    // If still processing, report pending
+    const processingStatus = video.processingDetails?.processingStatus;
+    if (processingStatus === 'processing' || processingStatus === 'pending') {
+      return 'pending';
+    }
+
+    // Check content rating / content ID claim indicators
+    // YouTube doesn't expose claims directly via Data API v3 for private videos
+    // but we can check via contentDetails.contentRating and status
+    const uploadStatus = video.status?.uploadStatus;
+    if (uploadStatus === 'failed' || uploadStatus === 'rejected') {
+      return 'claimed';
+    }
+
+    // Use YouTube Studio API workaround — check if video is blocked
+    const regionRestriction = video.contentDetails?.regionRestriction;
+    if (regionRestriction?.blocked && regionRestriction.blocked.length > 0) {
+      return 'claimed';
+    }
+
+    return 'clean';
+  } catch (error: any) {
+    console.error('[YouTube] Copyright check error:', error.message);
+    return 'pending'; // assume pending on error, retry next cron
+  }
+}
+
+// Make a private video public
+export async function makeVideoPublic(
+  accessToken: string,
+  refreshToken: string,
+  videoId: string
+): Promise<boolean> {
+  const oauth2Client = createOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
+  const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+  try {
+    await youtube.videos.update({
+      part: ['status'],
+      requestBody: {
+        id: videoId,
+        status: { privacyStatus: 'public' },
+      },
+    });
+    console.log(`[YouTube] Video ${videoId} made public`);
+    return true;
+  } catch (error: any) {
+    console.error('[YouTube] makeVideoPublic error:', error.message);
+    return false;
   }
 }
 

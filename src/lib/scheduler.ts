@@ -1,6 +1,6 @@
 import 'server-only';
 import { db } from './db';
-import { uploadVideo, refreshAccessToken, setThumbnail } from './youtube';
+import { uploadVideo, refreshAccessToken, setThumbnail, checkVideoCopyrightStatus, makeVideoPublic } from './youtube';
 import { deleteFile } from './storage';
 import { downloadFromGoogleDrive, extractFileIdFromUrl } from './google-drive';
 import { getUserPlanAndUsage, checkVideoLimit } from './plan-limits';
@@ -332,6 +332,102 @@ async function shouldUpload(channel: {
   }
 }
 
+// Upload a single video as PRIVATE to YouTube, then mark it as "scanning"
+// Returns true if upload succeeded (even if still scanning)
+async function uploadVideoToYouTube(
+  channel: { id: string; name: string; accessToken: string; refreshToken: string },
+  video: { id: string; title: string; description: string | null; tags: string; fileName: string; originalName: string | null; thumbnailName: string | null },
+  accessToken: string,
+  results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }>
+): Promise<boolean> {
+  // Download video
+  const isUrl = video.fileName.startsWith('http://') || video.fileName.startsWith('https://');
+  let videoBuffer: Buffer;
+
+  if (isUrl) {
+    console.log(`Downloading video from URL: ${video.fileName}`);
+    const response = await fetch(video.fileName);
+    if (!response.ok) throw new Error(`Failed to download video: ${response.status}`);
+    videoBuffer = Buffer.from(await response.arrayBuffer());
+  } else {
+    const fileId = extractFileIdFromUrl(video.fileName) || video.fileName;
+    console.log(`Downloading video from Google Drive, file ID: ${fileId}`);
+    videoBuffer = await downloadFromGoogleDrive(accessToken, channel.refreshToken, fileId);
+  }
+
+  console.log(`Video downloaded, size: ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+
+  const videoTitle = video.title || video.originalName || 'Untitled Video';
+  const videoDescription = video.description || '';
+  const videoTags = video.tags ? video.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
+
+  // Upload as PRIVATE — YouTube will scan for copyright automatically
+  const result = await uploadVideo(accessToken, channel.refreshToken, {
+    title: videoTitle,
+    description: videoDescription,
+    tags: videoTags,
+    fileBuffer: videoBuffer,
+    fileName: video.originalName || 'video.mp4',
+    privacyStatus: 'private',
+  });
+
+  if (!result.success) throw new Error(result.error);
+
+  // Upload thumbnail if available
+  if (video.thumbnailName && result.videoId) {
+    try {
+      let thumbnailBuffer: Buffer;
+      if (video.thumbnailName.startsWith('http')) {
+        const thumbResponse = await fetch(video.thumbnailName);
+        if (thumbResponse.ok) {
+          thumbnailBuffer = Buffer.from(await thumbResponse.arrayBuffer());
+          await setThumbnail(accessToken, channel.refreshToken, result.videoId, thumbnailBuffer);
+        }
+      } else {
+        const thumbFileId = extractFileIdFromUrl(video.thumbnailName) || video.thumbnailName;
+        thumbnailBuffer = await downloadFromGoogleDrive(accessToken, channel.refreshToken, thumbFileId);
+        await setThumbnail(accessToken, channel.refreshToken, result.videoId, thumbnailBuffer);
+      }
+      console.log(`✅ [Thumbnail] Uploaded successfully`);
+    } catch (thumbError: any) {
+      console.warn(`[Thumbnail] Upload failed (non-critical):`, thumbError.message);
+    }
+  }
+
+  // Mark as "scanning" — next cron run will check copyright status
+  await db.video.update({
+    where: { id: video.id },
+    data: { status: 'scanning', uploadedVideoId: result.videoId },
+  });
+
+  // Delete from storage — video is already on YouTube (private)
+  try {
+    await deleteFile(video.fileName, { accessToken, refreshToken: channel.refreshToken });
+    console.log(`🗑️ Deleted from storage`);
+  } catch (deleteError) {
+    console.warn(`Failed to delete from storage (non-critical):`, deleteError);
+  }
+
+  await db.schedulerLog.create({
+    data: {
+      channelId: channel.id,
+      videoId: video.id,
+      action: 'upload',
+      status: 'scanning',
+      message: `Uploaded as private (${result.videoId}) — scanning for copyright`,
+    },
+  });
+
+  results.push({
+    channel: channel.name,
+    status: 'scanning',
+    message: `"${videoTitle}" uploaded as private — scanning for copyright 🔍`,
+  });
+
+  console.log(`🔍 Uploaded as private for copyright scan: ${result.videoId}`);
+  return true;
+}
+
 // Main scheduler function - processes all channels
 export async function processScheduledUploads(): Promise<{ 
   processed: number; 
@@ -346,6 +442,96 @@ export async function processScheduledUploads(): Promise<{
   let skipped = 0;
   
   try {
+    // ── Phase 1: Check videos that are currently in "scanning" state ──
+    // These were uploaded as private in a previous cron run — check if YouTube
+    // has finished processing and whether they have a copyright claim.
+    const scanningVideos = await db.video.findMany({
+      where: { status: 'scanning' },
+      include: { channel: true },
+    });
+
+    for (const video of scanningVideos) {
+      if (!video.uploadedVideoId) continue;
+
+      const channel = video.channel;
+      let accessToken = channel.accessToken;
+      try {
+        const tokens = await refreshAccessToken(channel.refreshToken);
+        accessToken = tokens.accessToken ?? channel.accessToken;
+        await db.channel.update({
+          where: { id: channel.id },
+          data: {
+            accessToken: tokens.accessToken ?? channel.accessToken,
+            refreshToken: tokens.refreshToken ?? channel.refreshToken,
+          },
+        });
+      } catch { /* use existing token */ }
+
+      const copyrightStatus = await checkVideoCopyrightStatus(accessToken, channel.refreshToken, video.uploadedVideoId!);
+      console.log(`[CopyrightScan] Video "${video.title}" (${video.uploadedVideoId}): ${copyrightStatus}`);
+
+      if (copyrightStatus === 'pending') {
+        // Still processing — leave as scanning, check next cron run
+        results.push({ channel: channel.name, status: 'scanning', message: `"${video.title}" still processing on YouTube` });
+        continue;
+      }
+
+      if (copyrightStatus === 'claimed') {
+        // Copyright detected — keep private, mark as copyright_skipped
+        await db.video.update({
+          where: { id: video.id },
+          data: { status: 'copyright_skipped', error: 'Copyright claim detected — kept private' },
+        });
+        await db.schedulerLog.create({
+          data: {
+            channelId: channel.id,
+            videoId: video.id,
+            action: 'copyright_check',
+            status: 'skipped',
+            message: `Copyright claim detected on video ${video.uploadedVideoId} — kept private, next video will be uploaded`,
+          },
+        });
+        results.push({ channel: channel.name, status: 'copyright_skipped', message: `"${video.title}" has copyright claim — kept private` });
+
+        // Upload next queued video for this channel immediately
+        const nextVideo = await db.video.findFirst({
+          where: { channelId: channel.id, status: 'queued' },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (nextVideo) {
+          console.log(`[CopyrightScan] Triggering next video upload: "${nextVideo.title}"`);
+          await uploadVideoToYouTube(channel, nextVideo, accessToken, results);
+          processed++;
+        }
+        continue;
+      }
+
+      // copyrightStatus === 'clean' — make it public
+      const madePublic = await makeVideoPublic(accessToken, channel.refreshToken, video.uploadedVideoId);
+      if (madePublic) {
+        await db.video.update({
+          where: { id: video.id },
+          data: { status: 'uploaded', uploadedAt: new Date() },
+        });
+        await db.channel.update({
+          where: { id: channel.id },
+          data: { lastUploadDate: new Date() },
+        });
+        await db.schedulerLog.create({
+          data: {
+            channelId: channel.id,
+            videoId: video.id,
+            action: 'copyright_check',
+            status: 'success',
+            message: `No copyright claim — video ${video.uploadedVideoId} made public`,
+          },
+        });
+        results.push({ channel: channel.name, status: 'success', message: `"${video.title}" is clean — made public ✅` });
+        processed++;
+      }
+    }
+
+    // ── Phase 2: Schedule new uploads ──
     // Get all active channels with queued videos
     const channels = await db.channel.findMany({
       where: { isActive: true },
@@ -444,12 +630,12 @@ export async function processScheduledUploads(): Promise<{
         let accessToken = channel.accessToken;
         try {
           const tokens = await refreshAccessToken(channel.refreshToken);
-          accessToken = tokens.accessToken;
+          accessToken = tokens.accessToken ?? channel.accessToken;
           await db.channel.update({
             where: { id: channel.id },
             data: {
-              accessToken: tokens.accessToken,
-              refreshToken: tokens.refreshToken,
+              accessToken: tokens.accessToken ?? channel.accessToken,
+              refreshToken: tokens.refreshToken ?? channel.refreshToken,
             },
           });
           console.log('Token refreshed successfully');
@@ -457,144 +643,14 @@ export async function processScheduledUploads(): Promise<{
           console.error('Token refresh failed, trying existing token:', tokenError);
         }
 
-        // Determine how to download the video
-        const isUrl = video.fileName.startsWith('http://') || video.fileName.startsWith('https://');
-        
-        let videoBuffer: Buffer;
-        
-        if (isUrl) {
-          // Download from URL (Google Drive public URL)
-          console.log(`Downloading video from URL: ${video.fileName}`);
-          const response = await fetch(video.fileName);
-          if (!response.ok) {
-            throw new Error(`Failed to download video: ${response.status}`);
-          }
-          const arrayBuffer = await response.arrayBuffer();
-          videoBuffer = Buffer.from(arrayBuffer);
-        } else {
-          // It's a Google Drive file ID - download using API
-          const fileId = extractFileIdFromUrl(video.fileName) || video.fileName;
-          console.log(`Downloading video from Google Drive, file ID: ${fileId}`);
-          videoBuffer = await downloadFromGoogleDrive(accessToken, channel.refreshToken, fileId);
-        }
-
-        console.log(`Video downloaded, size: ${(videoBuffer.length / 1024 / 1024).toFixed(2)} MB`);
-
-        // Prepare video metadata
-        const videoTitle = video.title || video.originalName || 'Untitled Video';
-        const videoDescription = video.description || '';
-        const videoTags = video.tags ? video.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-
-        console.log('=== Video Metadata ===');
-        console.log('Title:', videoTitle);
-        console.log('Description:', videoDescription.substring(0, 100) + (videoDescription.length > 100 ? '...' : ''));
-        console.log('Tags:', videoTags.join(', '));
-        console.log('Thumbnail:', video.thumbnailName || 'None');
-        console.log('======================');
-
-        // Upload to YouTube
-        const result = await uploadVideo(accessToken, channel.refreshToken, {
-          title: videoTitle,
-          description: videoDescription,
-          tags: videoTags,
-          fileBuffer: videoBuffer,
-          fileName: video.originalName || 'video.mp4',
-        });
-
-        if (result.success) {
-          // Upload thumbnail if available
-          if (video.thumbnailName && result.videoId) {
-            try {
-              console.log(`[Thumbnail] Uploading thumbnail for video ${result.videoId}...`);
-
-              let thumbnailBuffer: Buffer;
-
-              // Check if thumbnail is a URL
-              if (video.thumbnailName.startsWith('http')) {
-                const thumbResponse = await fetch(video.thumbnailName);
-                if (thumbResponse.ok) {
-                  const thumbArrayBuffer = await thumbResponse.arrayBuffer();
-                  thumbnailBuffer = Buffer.from(thumbArrayBuffer);
-
-                  await setThumbnail(accessToken, channel.refreshToken, result.videoId, thumbnailBuffer);
-                  console.log(`✅ [Thumbnail] Uploaded successfully`);
-                } else {
-                  console.warn(`[Thumbnail] Failed to download from URL: ${thumbResponse.status}`);
-                }
-              } else {
-                // It's a Google Drive file ID
-                const thumbFileId = extractFileIdFromUrl(video.thumbnailName) || video.thumbnailName;
-                thumbnailBuffer = await downloadFromGoogleDrive(accessToken, channel.refreshToken, thumbFileId);
-
-                await setThumbnail(accessToken, channel.refreshToken, result.videoId, thumbnailBuffer);
-                console.log(`✅ [Thumbnail] Uploaded successfully`);
-              }
-            } catch (thumbError: any) {
-              console.warn(`[Thumbnail] Upload failed (non-critical):`, thumbError.message);
-            }
-          }
-
-          // Update video status
-          await db.video.update({
-            where: { id: video.id },
-            data: {
-              status: 'uploaded',
-              uploadedAt: new Date(),
-              uploadedVideoId: result.videoId,
-            },
-          });
-
-          // Update channel last upload date
-          await db.channel.update({
-            where: { id: channel.id },
-            data: { lastUploadDate: new Date() },
-          });
-
-          // Log success
-          await db.schedulerLog.create({
-            data: {
-              channelId: channel.id,
-              videoId: video.id,
-              action: 'upload',
-              status: 'success',
-              message: `Video uploaded: ${result.videoUrl}`,
-            },
-          });
-
-          // Delete from storage to save space
-          try {
-            // Pass the full URL — deleteFile handles Vercel Blob, R2, and Google Drive URLs
-            await deleteFile(video.fileName, {
-              accessToken,
-              refreshToken: channel.refreshToken,
-            });
-            console.log(`🗑️ Deleted from storage`);
-          } catch (deleteError) {
-            console.warn(`Failed to delete from storage (non-critical):`, deleteError);
-          }
-
-          console.log(`✅ Uploaded: ${result.videoUrl}`);
-          
-          results.push({
-            channel: channel.name,
-            status: 'success',
-            message: `Uploaded: ${video.title} - ${result.videoUrl}`
-          });
-          processed++;
-        } else {
-          throw new Error(result.error);
-        }
+        const uploaded = await uploadVideoToYouTube(channel, video, accessToken, results);
+        if (uploaded) processed++;
       } catch (error: any) {
         console.error(`❌ Upload failed for ${channel.name}:`, error);
-
         await db.video.update({
           where: { id: video.id },
-          data: {
-            status: 'failed',
-            error: error.message || 'Upload failed',
-          },
+          data: { status: 'failed', error: error.message || 'Upload failed' },
         });
-
         await db.schedulerLog.create({
           data: {
             channelId: channel.id,
@@ -604,12 +660,7 @@ export async function processScheduledUploads(): Promise<{
             message: error.message || 'Upload failed',
           },
         });
-        
-        results.push({
-          channel: channel.name,
-          status: 'failed',
-          message: error.message || 'Upload failed'
-        });
+        results.push({ channel: channel.name, status: 'failed', message: error.message || 'Upload failed' });
       }
     }
   } catch (error) {

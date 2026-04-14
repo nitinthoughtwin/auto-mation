@@ -11,12 +11,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Only return logs for channels belonging to this user
+    const userChannels = await db.channel.findMany({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+    const channelIds = userChannels.map(c => c.id);
+
     const logs = await db.schedulerLog.findMany({
-      where: {
-        channel: {
-          userId: session.user.id,
-        },
-      },
+      where: { channelId: { in: channelIds } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
