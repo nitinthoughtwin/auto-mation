@@ -202,7 +202,7 @@ async function shouldUpload(channel: {
   // - Must be AT or AFTER scheduled time (timeDiff >= 0)
   // - Must be within 30 minutes AFTER scheduled time (timeDiff <= 30)
   // - OR within 5 minutes BEFORE scheduled time (timeDiff >= -5)
-  if (timeDiff < -1440) { // disabled for testing
+  if (timeDiff < -5) {
     // Too early - more than 5 minutes before scheduled time
     return {
       allowed: false,
@@ -211,7 +211,7 @@ async function shouldUpload(channel: {
     };
   }
   
-  if (timeDiff > 1440) { // 24 hours — effectively disabled for testing
+  if (timeDiff > 30) {
     // Too late - more than 30 minutes past scheduled time
     // This might mean we missed the window, skip for today
     return {
