@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -127,6 +127,15 @@ function Step({ n, done, active, label, subtitle }: {
 // ── Main ───────────────────────────────────────────────
 export default function Dashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const name = searchParams.get('name');
+    if (searchParams.get('connected') && name) {
+      toast.success(`✅ ${decodeURIComponent(name)} connected!`);
+      router.replace('/dashboard');
+    }
+  }, []);
   const [channel, setChannel] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
   const [planName, setPlanName] = useState<string | null>(null);
@@ -144,7 +153,10 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('queue');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
 
   // ── Load channel + plan in parallel ──
   const loadChannel = useCallback(async () => {
@@ -272,23 +284,68 @@ export default function Dashboard() {
   const handleFileUpload = async (files: FileList) => {
     if (!channel || files.length === 0) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append('channelId', channel.id);
-    Array.from(files).forEach(f => formData.append('files', f));
+    setUploadProgress('Preparing upload...');
     try {
-      const res = await fetch('/api/videos/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`${data.uploaded?.length || files.length} video${files.length > 1 ? 's' : ''} added to queue`);
-        loadVideos(channel.id);
-        loadChannel();
-      } else {
-        toast.error(data.error || 'Upload failed');
+      // Step 1: Get presigned URLs (tiny JSON request, no file data)
+      const presignRes = await fetch('/api/videos/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId: channel.id,
+          files: Array.from(files).map(f => ({ name: f.name, type: f.type, size: f.size })),
+        }),
+      });
+      const presignData = await presignRes.json();
+      if (!presignRes.ok) {
+        toast.error(presignData.error || 'Failed to prepare upload');
+        return;
       }
+
+      // Step 2: Upload each file directly to R2 (bypasses Vercel limit)
+      const { presigned } = presignData;
+      for (let i = 0; i < presigned.length; i++) {
+        const { uploadUrl, publicUrl, originalName, size, type } = presigned[i];
+        const file = files[i];
+        setUploadProgress(`Uploading ${i + 1}/${presigned.length}: ${file.name}`);
+
+        const r2Res = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': type || 'video/mp4' },
+        });
+        if (!r2Res.ok) {
+          toast.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+
+        // Step 3: Register video in DB
+        await fetch('/api/videos/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelId: channel.id, publicUrl, originalName, fileSize: size, mimeType: type }),
+        });
+      }
+
+      toast.success(`${presigned.length} video${presigned.length > 1 ? 's' : ''} added to queue`);
+      loadVideos(channel.id);
+      loadChannel();
     } finally {
       setUploading(false);
+      setUploadProgress('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const saveTitle = async (videoId: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    setVideos(prev => prev.map(v => v.id === videoId ? { ...v, title: trimmed } : v));
+    setEditingTitleId(null);
+    await fetch('/api/videos/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoId, title: trimmed }),
+    });
   };
 
   const deleteVideo = async (videoId: string) => {
@@ -450,7 +507,7 @@ export default function Dashboard() {
 
               {/* Step 2 expanded options */}
               {showAddOptions && (
-                <div className="grid grid-cols-1 gap-2 pl-2">
+                <div className="grid grid-cols-1 gap-2 border border-border/60 rounded-2xl p-3 bg-muted/20">
                   <Button
                     variant="outline"
                     className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
@@ -487,8 +544,8 @@ export default function Dashboard() {
                       {uploading ? <Loader2 className="h-4 w-4 animate-spin text-green-600" /> : <Upload className="h-4 w-4 text-green-600" />}
                     </div>
                     <div className="text-left">
-                      <p className="font-semibold">{uploading ? 'Uploading...' : 'Upload from Device'}</p>
-                      <p className="text-xs text-muted-foreground font-normal">Select video files</p>
+                      <p className="font-semibold">{uploading ? (uploadProgress || 'Uploading...') : 'Upload from Device'}</p>
+                      <p className="text-xs text-muted-foreground font-normal">{uploading ? 'Please wait...' : 'Select video files'}</p>
                     </div>
                   </Button>
                   <input ref={fileInputRef} type="file" multiple accept="video/*" className="hidden"
@@ -581,7 +638,7 @@ export default function Dashboard() {
               disabled={uploading}
             >
               {uploading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <Upload className="h-5 w-5 text-green-500" />}
-              {uploading ? '...' : 'Upload'}
+              {uploading ? 'Uploading' : 'Upload'}
             </Button>
           </div>
           <input ref={fileInputRef} type="file" multiple accept="video/*" className="hidden"
@@ -662,9 +719,29 @@ export default function Dashboard() {
             ) : (
               queuedVideos.map((video, i) => (
                 <div key={video.id} className="flex items-center gap-3 bg-muted/40 hover:bg-muted/60 rounded-2xl px-3 py-3 transition-colors">
-                  <span className="text-xs text-muted-foreground w-5 text-center font-bold tabular-nums">{i + 1}</span>
+                  <span className="text-xs text-muted-foreground w-5 text-center font-bold tabular-nums shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{video.title || video.originalName}</p>
+                    {editingTitleId === video.id ? (
+                      <input
+                        autoFocus
+                        className="w-full text-sm font-medium bg-background border border-blue-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        value={editingTitleValue}
+                        onChange={e => setEditingTitleValue(e.target.value)}
+                        onBlur={() => saveTitle(video.id, editingTitleValue)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveTitle(video.id, editingTitleValue);
+                          if (e.key === 'Escape') setEditingTitleId(null);
+                        }}
+                      />
+                    ) : (
+                      <p
+                        className="text-sm font-medium truncate cursor-pointer hover:text-blue-600 transition-colors"
+                        title="Click to edit title"
+                        onClick={() => { setEditingTitleId(video.id); setEditingTitleValue(video.title || video.originalName); }}
+                      >
+                        {video.title || video.originalName}
+                      </p>
+                    )}
                     {i === 0 && channel?.isActive ? (
                       <p className="text-xs text-green-600 font-medium mt-0.5">Next to upload</p>
                     ) : video.status === 'scanning' ? (

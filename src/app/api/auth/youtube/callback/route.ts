@@ -8,7 +8,7 @@ function redirectError(base: string, msg: string) {
 }
 
 function redirectSuccess(base: string, id: string, name: string) {
-  return NextResponse.redirect(`${base}/connect-youtube?success=${id}&name=${encodeURIComponent(name)}`);
+  return NextResponse.redirect(`${base}/dashboard?connected=${id}&name=${encodeURIComponent(name)}`);
 }
 
 function getBase(request: NextRequest) {
