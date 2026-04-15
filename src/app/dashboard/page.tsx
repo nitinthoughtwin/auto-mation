@@ -443,6 +443,7 @@ export default function Dashboard() {
       </div>
     );
   }
+  console.log('Channel:', channel);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
