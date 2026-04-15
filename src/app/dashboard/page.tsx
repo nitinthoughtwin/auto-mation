@@ -157,6 +157,9 @@ export default function Dashboard() {
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitleValue, setEditingTitleValue] = useState('');
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiLanguage, setAiLanguage] = useState<'english' | 'hindi'>('hindi');
 
   // ── Load channel + plan in parallel ──
   const loadChannel = useCallback(async () => {
@@ -336,6 +339,32 @@ export default function Dashboard() {
     }
   };
 
+  const generateAITitles = async () => {
+    if (!channel || queuedVideos.length === 0) return;
+    setGeneratingAI(true);
+    try {
+      const res = await fetch('/api/ai/generate-for-videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId: channel.id,
+          videos: queuedVideos.map(v => ({ id: v.id, title: v.title || v.originalName })),
+          topic: aiTopic.trim() || undefined,
+          language: aiLanguage,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`AI titles generated for ${data.updated} videos`);
+        loadVideos(channel.id);
+      } else {
+        toast.error(data.error || 'Failed to generate titles');
+      }
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
   const saveTitle = async (videoId: string, newTitle: string) => {
     const trimmed = newTitle.trim();
     if (!trimmed) return;
@@ -474,17 +503,22 @@ export default function Dashboard() {
 
           {/* Step 2 */}
           {hasChannel && (
-            <>
+            <div className={`rounded-2xl border transition-all ${
+              !hasVideos && currentStep === 2
+                ? 'border-blue-200 dark:border-blue-800'
+                : hasVideos
+                  ? 'border-border/40'
+                  : 'border-border/20 opacity-50'
+            }`}>
+              {/* Step 2 header */}
               <button
                 className="w-full text-left"
                 onClick={() => setShowAddOptions(v => !v)}
               >
-                <div className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl transition-all border ${
+                <div className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl ${
                   !hasVideos && currentStep === 2
-                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
-                    : hasVideos
-                      ? 'bg-muted/30 border-border/40'
-                      : 'bg-muted/20 border-border/20 opacity-50'
+                    ? 'bg-blue-50 dark:bg-blue-950/40'
+                    : 'bg-muted/30'
                 }`}>
                   <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
                     hasVideos ? 'bg-green-500 text-white' : currentStep === 2 ? 'bg-blue-600 text-white' : 'bg-muted text-muted-foreground'
@@ -507,7 +541,7 @@ export default function Dashboard() {
 
               {/* Step 2 expanded options */}
               {showAddOptions && (
-                <div className="grid grid-cols-1 gap-2 border border-border/60 rounded-2xl p-3 bg-muted/20">
+                <div className="grid grid-cols-1 gap-2 px-3 pb-3">
                   <Button
                     variant="outline"
                     className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
@@ -552,7 +586,7 @@ export default function Dashboard() {
                     onChange={e => e.target.files && handleFileUpload(e.target.files)} />
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {/* Step 3 */}
@@ -705,7 +739,42 @@ export default function Dashboard() {
           </TabsList>
 
           {/* Queue Tab */}
-          <TabsContent value="queue" className="mt-3 space-y-2">
+          <TabsContent value="queue" className="mt-3 space-y-3">
+
+            {/* AI Generate section — shown when videos exist */}
+            {queuedVideos.length > 0 && (
+              <div className="border border-border/50 rounded-2xl p-3 space-y-2 bg-muted/20">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Title & Description</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Topic (e.g. Motivation, Krishna)"
+                    value={aiTopic}
+                    onChange={e => setAiTopic(e.target.value)}
+                    className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  />
+                  <select
+                    value={aiLanguage}
+                    onChange={e => setAiLanguage(e.target.value as 'english' | 'hindi')}
+                    className="h-9 rounded-xl border border-input bg-background px-2 text-sm focus:outline-none"
+                  >
+                    <option value="hindi">Hindi</option>
+                    <option value="english">English</option>
+                  </select>
+                </div>
+                <Button
+                  className="w-full h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold"
+                  onClick={generateAITitles}
+                  disabled={generatingAI}
+                >
+                  {generatingAI
+                    ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Generating...</>
+                    : <><Zap className="h-4 w-4 mr-2" />Generate for all {queuedVideos.length} videos</>
+                  }
+                </Button>
+              </div>
+            )}
+
             {loadingVideos ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
