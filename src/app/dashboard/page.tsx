@@ -30,6 +30,9 @@ import {
   History,
   Tv2,
   Zap,
+  Crown,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PublicDriveBrowser from '@/components/PublicDriveBrowser';
@@ -126,6 +129,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [channel, setChannel] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
+  const [planName, setPlanName] = useState<string | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [togglingActive, setTogglingActive] = useState(false);
@@ -136,21 +140,29 @@ export default function Dashboard() {
   const [frequency, setFrequency] = useState('daily');
   const [showDrive, setShowDrive] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showAddOptions, setShowAddOptions] = useState(true);
   const [activeTab, setActiveTab] = useState('queue');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
 
-  // ── Load channel ──
+  // ── Load channel + plan in parallel ──
   const loadChannel = useCallback(async () => {
     try {
-      const res = await fetch('/api/channels');
-      const data = await res.json();
-      const ch = data.channels?.[0] ?? null;
+      const [channelRes, usageRes] = await Promise.all([
+        fetch('/api/channels'),
+        fetch('/api/usage'),
+      ]);
+      const channelData = await channelRes.json();
+      const ch = channelData.channels?.[0] ?? null;
       setChannel(ch);
       if (ch) {
         setUploadTime(ch.uploadTime || '18:00');
         setFrequency(ch.frequency || 'daily');
+      }
+      if (usageRes.ok) {
+        const usageData = await usageRes.json();
+        setPlanName(usageData.plan?.displayName || usageData.plan?.name || null);
       }
     } finally {
       setLoading(false);
@@ -180,7 +192,23 @@ export default function Dashboard() {
   const currentStep = !hasChannel ? 1 : !hasVideos ? 2 : !channel.isActive ? 3 : 0;
 
   // ── Actions ──
-  const connectYouTube = () => router.push('/connect-youtube');
+  const [connectingYT, setConnectingYT] = useState(false);
+  const connectYouTube = async () => {
+    setConnectingYT(true);
+    try {
+      const res = await fetch('/api/auth/youtube');
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error || 'Failed to start YouTube connection');
+        setConnectingYT(false);
+      }
+    } catch {
+      toast.error('Something went wrong');
+      setConnectingYT(false);
+    }
+  };
 
   const toggleActive = async (forceValue?: boolean) => {
     if (!channel) return;
@@ -276,14 +304,54 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-4 animate-pulse">
+        {/* plan bar skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="h-5 w-24 bg-muted rounded-full" />
+          <div className="h-8 w-20 bg-muted rounded-xl" />
+        </div>
+        {/* status card skeleton */}
+        <div className="h-28 bg-muted rounded-2xl" />
+        {/* steps skeleton */}
+        <div className="space-y-2">
+          <div className="h-4 w-16 bg-muted rounded" />
+          <div className="h-14 bg-muted rounded-2xl" />
+          <div className="h-14 bg-muted rounded-2xl opacity-60" />
+          <div className="h-14 bg-muted rounded-2xl opacity-30" />
+        </div>
+        {/* tabs skeleton */}
+        <div className="h-11 bg-muted rounded-xl" />
+        <div className="space-y-2">
+          <div className="h-12 bg-muted rounded-2xl" />
+          <div className="h-12 bg-muted rounded-2xl opacity-70" />
+          <div className="h-12 bg-muted rounded-2xl opacity-40" />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+
+      {/* ── PLAN BAR ── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Crown className="h-3.5 w-3.5 text-amber-500" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            {planName ?? 'Free'}
+          </span>
+        </div>
+        {planName?.toLowerCase() !== 'premium' && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs font-semibold border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30 rounded-xl"
+            onClick={() => router.push('/billing')}
+          >
+            Upgrade
+          </Button>
+        )}
+      </div>
 
       {/* ── LIVE STATUS BANNER ── */}
       {isLive && (
@@ -325,23 +393,112 @@ export default function Dashboard() {
       {!isLive && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Setup</p>
-          <button
-            className="w-full text-left"
-            onClick={currentStep === 1 ? connectYouTube : undefined}
-          >
+
+          {/* Step 1 */}
+          <button className="w-full text-left" onClick={currentStep === 1 ? connectYouTube : undefined}>
             <Step
               n={1} done={hasChannel} active={currentStep === 1}
               label={hasChannel ? channel!.name : 'Connect YouTube Channel'}
               subtitle={hasChannel ? 'Channel connected' : 'Link your YouTube account'}
             />
           </button>
-          {hasChannel && (
-            <Step
-              n={2} done={hasVideos} active={currentStep === 2}
-              label="Add Videos to Queue"
-              subtitle={hasVideos ? `${queuedVideos.length} video${queuedVideos.length !== 1 ? 's' : ''} ready` : 'Add videos from Drive, Library, or your device'}
-            />
+
+          {/* Step 1 action */}
+          {currentStep === 1 && (
+            <Button
+              onClick={connectYouTube}
+              disabled={connectingYT}
+              className="w-full bg-red-600 hover:bg-red-700 text-white h-12 text-base font-semibold rounded-2xl shadow-sm"
+            >
+              {connectingYT ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <Tv2 className="h-5 w-5 mr-2" />}
+              {connectingYT ? 'Connecting...' : 'Connect YouTube Channel'}
+            </Button>
           )}
+
+          {/* Step 2 */}
+          {hasChannel && (
+            <>
+              <button
+                className="w-full text-left"
+                onClick={() => setShowAddOptions(v => !v)}
+              >
+                <div className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl transition-all border ${
+                  !hasVideos && currentStep === 2
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                    : hasVideos
+                      ? 'bg-muted/30 border-border/40'
+                      : 'bg-muted/20 border-border/20 opacity-50'
+                }`}>
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+                    hasVideos ? 'bg-green-500 text-white' : currentStep === 2 ? 'bg-blue-600 text-white' : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {hasVideos ? <CheckCircle className="h-4 w-4" /> : 2}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold text-sm ${!hasVideos && currentStep === 2 ? 'text-blue-700 dark:text-blue-300' : ''}`}>
+                      Add Videos to Queue
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {hasVideos ? `${queuedVideos.length} video${queuedVideos.length !== 1 ? 's' : ''} ready` : 'Drive, Library, or Device'}
+                    </p>
+                  </div>
+                  {showAddOptions
+                    ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                    : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                </div>
+              </button>
+
+              {/* Step 2 expanded options */}
+              {showAddOptions && (
+                <div className="grid grid-cols-1 gap-2 pl-2">
+                  <Button
+                    variant="outline"
+                    className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
+                    onClick={() => setShowDrive(true)}
+                  >
+                    <div className="h-8 w-8 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+                      <FolderOpen className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold">Google Drive</p>
+                      <p className="text-xs text-muted-foreground font-normal">Import from your Drive folder</p>
+                    </div>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
+                    onClick={() => setShowLibrary(true)}
+                  >
+                    <div className="h-8 w-8 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
+                      <Library className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold">Video Library</p>
+                      <p className="text-xs text-muted-foreground font-normal">Pick from curated content</p>
+                    </div>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-950/20"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <div className="h-8 w-8 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
+                      {uploading ? <Loader2 className="h-4 w-4 animate-spin text-green-600" /> : <Upload className="h-4 w-4 text-green-600" />}
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold">{uploading ? 'Uploading...' : 'Upload from Device'}</p>
+                      <p className="text-xs text-muted-foreground font-normal">Select video files</p>
+                    </div>
+                  </Button>
+                  <input ref={fileInputRef} type="file" multiple accept="video/*" className="hidden"
+                    onChange={e => e.target.files && handleFileUpload(e.target.files)} />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Step 3 */}
           {hasChannel && hasVideos && (
             <Step
               n={3} done={false} active={currentStep === 3}
@@ -349,68 +506,6 @@ export default function Dashboard() {
               subtitle="Set schedule and go live"
             />
           )}
-        </div>
-      )}
-
-      {/* ── STEP 1: CONNECT ── */}
-      {currentStep === 1 && (
-        <Button
-          onClick={connectYouTube}
-          className="w-full bg-red-600 hover:bg-red-700 text-white h-12 text-base font-semibold rounded-2xl shadow-sm"
-        >
-          <Tv2 className="h-5 w-5 mr-2" />
-          Connect YouTube Channel
-        </Button>
-      )}
-
-      {/* ── STEP 2: ADD VIDEOS ── */}
-      {currentStep === 2 && hasChannel && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Add Videos</p>
-          <div className="grid grid-cols-1 gap-2">
-            <Button
-              variant="outline"
-              className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
-              onClick={() => setShowDrive(true)}
-            >
-              <div className="h-8 w-8 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
-                <FolderOpen className="h-4 w-4 text-blue-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold">Google Drive</p>
-                <p className="text-xs text-muted-foreground font-normal">Import from your Drive folder</p>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
-              onClick={() => setShowLibrary(true)}
-            >
-              <div className="h-8 w-8 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
-                <Library className="h-4 w-4 text-purple-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold">Video Library</p>
-                <p className="text-xs text-muted-foreground font-normal">Pick from curated content</p>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-950/20"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              <div className="h-8 w-8 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin text-green-600" /> : <Upload className="h-4 w-4 text-green-600" />}
-              </div>
-              <div className="text-left">
-                <p className="font-semibold">{uploading ? 'Uploading...' : 'Upload from Device'}</p>
-                <p className="text-xs text-muted-foreground font-normal">Select video files</p>
-              </div>
-            </Button>
-          </div>
-          <input ref={fileInputRef} type="file" multiple accept="video/*" className="hidden"
-            onChange={e => e.target.files && handleFileUpload(e.target.files)} />
         </div>
       )}
 
