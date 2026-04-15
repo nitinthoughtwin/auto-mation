@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -345,6 +345,7 @@ const getQueueDaysRemaining = (channel: { queuedVideos?: number; frequency: stri
 // ============================================
 export default function YouTubeAutomationDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -497,6 +498,7 @@ export default function YouTubeAutomationDashboard() {
     const params = new URLSearchParams(window.location.search);
     const connected = params.get('connected');
     const error = params.get('error');
+    const channelParam = params.get('channel');
     if (connected) {
       toast.success('Channel Connected!', {
         description: 'Your YouTube channel has been successfully connected.',
@@ -510,7 +512,14 @@ export default function YouTubeAutomationDashboard() {
       });
       window.history.replaceState({}, '', '/dashboard');
     }
-  }, [loadChannels]);
+    if (channelParam && channels.length > 0) {
+      const ch = channels.find(c => c.id === channelParam);
+      if (ch) {
+        openChannelDetail(ch);
+        window.history.replaceState({}, '', '/dashboard');
+      }
+    }
+  }, [loadChannels, channels]);
 
   // ============================================
   // HANDLERS
@@ -1913,7 +1922,8 @@ export default function YouTubeAutomationDashboard() {
                           };
                           const scheduledDate = getScheduledUploadDate(liveChannel, index);
                           // Disabled if: (1) this video would exceed monthly limit, OR (2) scheduled after period end
-                          const exceedsLimit = videosUsed + index >= videosLimit;
+                          // videosUsed = already uploaded this month (not queued), index = position in queue
+                          const exceedsLimit = videosLimit !== Infinity && (videosUsed + index + 1) > videosLimit;
                           const afterPeriodEnd = periodEnd ? scheduledDate > periodEnd : false;
                           const isDisabled = exceedsLimit || afterPeriodEnd;
                           const disabledReason = exceedsLimit

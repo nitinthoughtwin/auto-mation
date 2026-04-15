@@ -42,7 +42,8 @@ export async function GET() {
     const videoCountThisMonth = await db.video.count({
       where: {
         channel: { userId: session.user.id },
-        createdAt: {
+        status: { in: ['uploaded', 'scanning'] },
+        uploadedAt: {
           gte: subscription.currentPeriodStart,
           lte: subscription.currentPeriodEnd,
         },
