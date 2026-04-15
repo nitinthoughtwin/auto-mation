@@ -1,6 +1,6 @@
 import 'server-only';
 import { db } from './db';
-import { uploadVideo, refreshAccessToken, setThumbnail, checkVideoCopyrightStatus, makeVideoPublic } from './youtube';
+import { uploadVideo, refreshAccessToken, setThumbnail } from './youtube';
 import { deleteFile } from './storage';
 import { downloadFromGoogleDrive, extractFileIdFromUrl } from './google-drive';
 import { getUserPlanAndUsage, checkVideoLimit } from './plan-limits';
@@ -202,7 +202,8 @@ async function shouldUpload(channel: {
   // - Must be AT or AFTER scheduled time (timeDiff >= 0)
   // - Must be within 30 minutes AFTER scheduled time (timeDiff <= 30)
   // - OR within 5 minutes BEFORE scheduled time (timeDiff >= -5)
-  if (timeDiff < -1440) { // TESTING: disabled
+  if (timeDiff < -5) {
+    // Too early - more than 5 minutes before scheduled time
     return {
       allowed: false,
       reason: `Too early. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min). Wait ${Math.abs(timeDiff)} more minutes.`,
@@ -210,7 +211,8 @@ async function shouldUpload(channel: {
     };
   }
   
-  if (timeDiff > 1440) { // TESTING: disabled
+  if (timeDiff > 30) {
+    // Too late - more than 30 minutes past scheduled time
     // Too late - more than 30 minutes past scheduled time
     // This might mean we missed the window, skip for today
     return {
@@ -360,14 +362,14 @@ async function uploadVideoToYouTube(
   const videoDescription = video.description || '';
   const videoTags = video.tags ? video.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
 
-  // Upload as PRIVATE — YouTube will scan for copyright automatically
+  // Upload as PUBLIC directly
   const result = await uploadVideo(accessToken, channel.refreshToken, {
     title: videoTitle,
     description: videoDescription,
     tags: videoTags,
     fileBuffer: videoBuffer,
     fileName: video.originalName || 'video.mp4',
-    privacyStatus: 'private',
+    privacyStatus: 'public',
   });
 
   if (!result.success) throw new Error(result.error);
@@ -393,19 +395,19 @@ async function uploadVideoToYouTube(
     }
   }
 
-  // Mark as "scanning" — next cron run will check copyright status
+  // Mark as uploaded directly
   await db.video.update({
     where: { id: video.id },
-    data: { status: 'scanning', uploadedVideoId: result.videoId },
+    data: { status: 'uploaded', uploadedVideoId: result.videoId, uploadedAt: new Date() },
   });
 
-  // Set lastUploadDate NOW so same channel doesn't upload another video today
+  // Set lastUploadDate
   await db.channel.update({
     where: { id: channel.id },
     data: { lastUploadDate: new Date() },
   });
 
-  // Delete from storage — video is already on YouTube (private)
+  // Delete from storage
   try {
     await deleteFile(video.fileName, { accessToken, refreshToken: channel.refreshToken });
     console.log(`🗑️ Deleted from storage`);
@@ -418,18 +420,18 @@ async function uploadVideoToYouTube(
       channelId: channel.id,
       videoId: video.id,
       action: 'upload',
-      status: 'scanning',
-      message: `Uploaded as private (${result.videoId}) — scanning for copyright`,
+      status: 'success',
+      message: `Uploaded as public (${result.videoId})`,
     },
   });
 
   results.push({
     channel: channel.name,
-    status: 'scanning',
-    message: `"${videoTitle}" uploaded as private — scanning for copyright 🔍`,
+    status: 'success',
+    message: `"${videoTitle}" uploaded successfully ✅`,
   });
 
-  console.log(`🔍 Uploaded as private for copyright scan: ${result.videoId}`);
+  console.log(`✅ Uploaded as public: ${result.videoId}`);
   return true;
 }
 
@@ -447,124 +449,7 @@ export async function processScheduledUploads(): Promise<{
   let skipped = 0;
   
   try {
-    // ── Phase 1: Check videos that are currently in "scanning" state ──
-    // These were uploaded as private in a previous cron run — check if YouTube
-    // has finished processing and whether they have a copyright claim.
-    const scanningVideos = await db.video.findMany({
-      where: { status: 'scanning' },
-      include: { channel: true },
-    });
-
-    for (const video of scanningVideos) {
-      if (!video.uploadedVideoId) continue;
-
-      const channel = video.channel;
-      let accessToken = channel.accessToken;
-      try {
-        const tokens = await refreshAccessToken(channel.refreshToken);
-        accessToken = tokens.accessToken ?? channel.accessToken;
-        await db.channel.update({
-          where: { id: channel.id },
-          data: {
-            accessToken: tokens.accessToken ?? channel.accessToken,
-            refreshToken: tokens.refreshToken ?? channel.refreshToken,
-          },
-        });
-      } catch { /* use existing token */ }
-
-      // If scanning for more than 10 minutes — make public anyway
-      // YouTube Data API v3 can't reliably detect copyright claims on private videos
-      const scanningFor = Date.now() - new Date(video.updatedAt).getTime();
-      const scanningMinutes = Math.floor(scanningFor / 60000);
-      const timedOut = scanningMinutes >= 10;
-
-      const copyrightStatus = timedOut ? 'clean' : await checkVideoCopyrightStatus(accessToken, channel.refreshToken, video.uploadedVideoId!);
-      console.log(`[CopyrightScan] Video "${video.title}" (${video.uploadedVideoId}): ${copyrightStatus} (scanning ${scanningMinutes}min${timedOut ? ' — timeout, forcing public' : ''})`);
-
-      if (copyrightStatus === 'pending') {
-        // Still processing — leave as scanning, check next cron run
-        results.push({ channel: channel.name, status: 'scanning', message: `"${video.title}" still processing (${scanningMinutes}min)` });
-        continue;
-      }
-
-      if (copyrightStatus === 'claimed') {
-        // Copyright detected — keep private, mark as copyright_skipped
-        await db.video.update({
-          where: { id: video.id },
-          data: { status: 'copyright_skipped', error: 'Copyright claim detected — kept private' },
-        });
-        await db.schedulerLog.create({
-          data: {
-            channelId: channel.id,
-            videoId: video.id,
-            action: 'copyright_check',
-            status: 'skipped',
-            message: `Copyright claim detected on video ${video.uploadedVideoId} — kept private, next video will be uploaded`,
-          },
-        });
-        results.push({ channel: channel.name, status: 'copyright_skipped', message: `"${video.title}" has copyright claim — kept private` });
-
-        // Upload next queued video for this channel immediately
-        const nextVideo = await db.video.findFirst({
-          where: { channelId: channel.id, status: 'queued' },
-          orderBy: { createdAt: 'asc' },
-        });
-        if (nextVideo) {
-          console.log(`[CopyrightScan] Triggering next video upload: "${nextVideo.title}"`);
-          await uploadVideoToYouTube(channel, nextVideo, accessToken, results);
-          processed++;
-        }
-        continue;
-      }
-
-      // copyrightStatus === 'clean' — make it public
-      const madePublic = await makeVideoPublic(accessToken, channel.refreshToken, video.uploadedVideoId);
-      if (madePublic) {
-        await db.video.update({
-          where: { id: video.id },
-          data: { status: 'uploaded', uploadedAt: new Date() },
-        });
-        await db.channel.update({
-          where: { id: channel.id },
-          data: { lastUploadDate: new Date() },
-        });
-        await db.schedulerLog.create({
-          data: {
-            channelId: channel.id,
-            videoId: video.id,
-            action: 'copyright_check',
-            status: 'success',
-            message: `No copyright claim — video ${video.uploadedVideoId} made public`,
-          },
-        });
-        results.push({ channel: channel.name, status: 'success', message: `"${video.title}" is clean — made public ✅` });
-        processed++;
-      } else if (timedOut) {
-        // makeVideoPublic failed after timeout — force mark as uploaded so it doesn't get stuck forever
-        // The video is still private on YouTube, but we can't keep blocking the queue
-        await db.video.update({
-          where: { id: video.id },
-          data: { status: 'uploaded', uploadedAt: new Date(), error: 'Made public failed — marked manually after timeout' },
-        });
-        await db.channel.update({
-          where: { id: channel.id },
-          data: { lastUploadDate: new Date() },
-        });
-        await db.schedulerLog.create({
-          data: {
-            channelId: channel.id,
-            videoId: video.id,
-            action: 'copyright_check',
-            status: 'error',
-            message: `makeVideoPublic failed for ${video.uploadedVideoId} — force-marked as uploaded after ${scanningMinutes}min timeout`,
-          },
-        });
-        results.push({ channel: channel.name, status: 'error', message: `"${video.title}" — could not make public, please check YouTube Studio manually` });
-        processed++;
-      }
-    }
-
-    // ── Phase 2: Schedule new uploads ──
+    // ── Schedule new uploads ──
     // Get all active channels with queued videos
     const channels = await db.channel.findMany({
       where: { isActive: true },
