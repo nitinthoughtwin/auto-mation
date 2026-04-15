@@ -152,7 +152,6 @@ export default function VideoLibraryBrowser({
   const [adding, setAdding] = useState(false);
   const [generatingTitles, setGeneratingTitles] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<LibraryVideo | null>(null);
-  const [remainingSlots, setRemainingSlots] = useState<number | null>(null);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -161,17 +160,6 @@ export default function VideoLibraryBrowser({
       setSelectedCategory(null);
       setSelectedVideos(new Set());
       setSelectedChannelId(defaultChannelId || (channels && channels.length > 0 ? channels[0].id : ''));
-      // Fetch remaining video slots for this billing period
-      fetch('/api/usage')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data?.usage?.videos) {
-            setRemainingSlots(data.usage.videos.limit - data.usage.videos.used);
-          } else {
-            setRemainingSlots(null); // unknown — backend will enforce
-          }
-        })
-        .catch(() => setRemainingSlots(null));
     }
   }, [open, channels, defaultChannelId]);
 
@@ -236,22 +224,6 @@ export default function VideoLibraryBrowser({
         description: 'Please select at least one video to add.'
       });
       return;
-    }
-
-    // Pre-check plan limit before hitting the API
-    if (remainingSlots !== null) {
-      if (remainingSlots <= 0) {
-        toast.error('Video Limit Reached', {
-          description: 'You have used all your video slots this month. Please upgrade your plan.'
-        });
-        return;
-      }
-      if (selectedVideos.size > remainingSlots) {
-        toast.error(`Too Many Videos Selected (${selectedVideos.size})`, {
-          description: `You only have ${remainingSlots} slot${remainingSlots !== 1 ? 's' : ''} remaining this month. Please deselect some videos.`
-        });
-        return;
-      }
     }
 
     setAdding(true);
@@ -320,7 +292,7 @@ export default function VideoLibraryBrowser({
       <Dialog open={open && !previewVideo} onOpenChange={onClose}>
         <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
           {/* Header - Fixed */}
-          <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 border-b flex-shrink-0">
+          <DialogHeader className="p-3 sm:p-4 pb-2 sm:pb-3 border-b flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
@@ -354,7 +326,7 @@ export default function VideoLibraryBrowser({
               </div>
             ) : selectedCategory ? (
               // Videos View
-              <div className="p-3 sm:p-4">
+              <div className="p-2 sm:p-3">
                 {/* Navigation & Actions */}
                 <div className="flex flex-col gap-3 mb-4">
                   <Button 
@@ -368,16 +340,11 @@ export default function VideoLibraryBrowser({
                   </Button>
                   <div className="flex items-center gap-2 flex-wrap">
                     {selectedVideos.size > 0 && (
-                      <Badge variant="secondary" className={`${remainingSlots !== null && selectedVideos.size > remainingSlots ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'}`}>
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                         {selectedVideos.size} selected
                       </Badge>
                     )}
-                    {remainingSlots !== null && (
-                      <Badge variant="outline" className={remainingSlots <= 0 ? 'text-red-500 border-red-300' : 'text-muted-foreground'}>
-                        {remainingSlots <= 0 ? 'No slots left' : `${remainingSlots} slots left`}
-                      </Badge>
-                    )}
-                    <Button 
+                    <Button
                       variant="outline" 
                       size="sm" 
                       onClick={selectedVideos.size > 0 ? deselectAll : selectAllVideos}
@@ -419,7 +386,7 @@ export default function VideoLibraryBrowser({
               </div>
             ) : (
               // Categories View
-              <div className="p-3 sm:p-4">
+              <div className="p-2 sm:p-3">
                 {categories.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -427,7 +394,7 @@ export default function VideoLibraryBrowser({
                     <p className="text-sm mt-1">Add video categories to get started</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {categories.map((category) => (
                       <Card
                         key={category.id}
@@ -445,13 +412,13 @@ export default function VideoLibraryBrowser({
                           </div>
                         ) : (
                           <div className="w-full aspect-video bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center">
-                            <FolderOpen className="h-10 w-10 text-yellow-500 opacity-60" />
+                            <FolderOpen className="h-8 w-8 text-yellow-500 opacity-60" />
                           </div>
                         )}
-                        <CardContent className="p-3">
-                          <h3 className="font-semibold text-sm truncate">{category.name}</h3>
-                          <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                            <Video className="h-3 w-3" />
+                        <CardContent className="p-2">
+                          <h3 className="font-semibold text-xs truncate">{category.name}</h3>
+                          <div className="flex items-center gap-1 mt-0.5 text-[10px] text-muted-foreground">
+                            <Video className="h-2.5 w-2.5" />
                             <span>{category.videos?.length || 0} videos</span>
                           </div>
                         </CardContent>

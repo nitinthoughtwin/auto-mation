@@ -32,7 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import DriveVideoBrowser from '@/components/DriveVideoBrowser';
+import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 import VideoLibraryBrowser from '@/components/VideoLibraryBrowser';
 import { getNextUploadTime } from '@/lib/utils-shared';
 
@@ -645,7 +645,7 @@ export default function Dashboard() {
 
       {/* ── MODALS ── */}
       {channel && (
-        <DriveVideoBrowser
+        <PublicDriveBrowser
           open={showDrive}
           channelId={channel.id}
           onClose={() => setShowDrive(false)}
