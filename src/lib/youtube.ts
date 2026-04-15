@@ -276,6 +276,12 @@ export async function makeVideoPublic(
   const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
   try {
+    // Set both tokens so oauth2Client can auto-refresh
+    oauth2Client.setCredentials({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
     await youtube.videos.update({
       part: ['status'],
       requestBody: {
@@ -286,8 +292,23 @@ export async function makeVideoPublic(
     console.log(`[YouTube] Video ${videoId} made public`);
     return true;
   } catch (error: any) {
-    console.error('[YouTube] makeVideoPublic error:', error.message);
-    return false;
+    // If access token expired, try refreshing manually
+    try {
+      const refreshed = await oauth2Client.refreshAccessToken();
+      oauth2Client.setCredentials(refreshed.credentials);
+      await youtube.videos.update({
+        part: ['status'],
+        requestBody: {
+          id: videoId,
+          status: { privacyStatus: 'public' },
+        },
+      });
+      console.log(`[YouTube] Video ${videoId} made public (after token refresh)`);
+      return true;
+    } catch (err: any) {
+      console.error('[YouTube] makeVideoPublic error (after retry):', err.message, err.response?.data ?? '');
+      return false;
+    }
   }
 }
 
