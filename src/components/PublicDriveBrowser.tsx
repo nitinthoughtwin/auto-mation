@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
+import {
   Loader2,
   Video,
   CheckCircle2,
@@ -23,7 +23,8 @@ import {
   ChevronRight,
   Home,
   AlertCircle,
-  Play
+  Play,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DriveThumbnail from '@/components/VideoThumbnail';
@@ -346,18 +347,21 @@ export default function PublicDriveBrowser({
       <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="max-w-[95vw] sm:max-w-5xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
           {/* Header */}
-          <DialogHeader className="p-4 sm:p-6 pb-0">
-            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <LinkIcon className="h-5 w-5 text-green-500" />
-              Add Videos from Drive Link
-            </DialogTitle>
-            <DialogDescription className="text-sm">
-              Paste a public Google Drive folder link
-            </DialogDescription>
+          <DialogHeader className="p-3 border-b flex-shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <LinkIcon className="h-4 w-4 text-green-500 shrink-0" />
+                <DialogTitle className="text-base truncate">Add from Drive</DialogTitle>
+                <DialogDescription className="hidden">Paste a public Google Drive folder link</DialogDescription>
+              </div>
+              <button onClick={onClose} className="shrink-0 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
           </DialogHeader>
 
           {/* URL Input */}
-          <div className="flex gap-2 p-4 sm:px-6 flex-shrink-0">
+          <div className="flex gap-2 p-3 flex-shrink-0">
             <div className="flex-1 relative">
               <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -475,9 +479,8 @@ export default function PublicDriveBrowser({
                     <div className="aspect-video bg-muted relative">
                       <DefaultThumbnail isFolder />
                     </div>
-                    <div className="p-2">
+                    <div className="p-1.5">
                       <p className="text-xs font-medium truncate">{folder.name}</p>
-                      <p className="text-xs text-muted-foreground">Folder</p>
                     </div>
                   </div>
                 ))}
@@ -532,7 +535,7 @@ export default function PublicDriveBrowser({
                         {formatSize(video.size)}
                       </Badge>
                     </div>
-                    <div className="p-2">
+                    <div className="p-1.5">
                       <p className="text-xs truncate font-medium">{video.name.replace(/\.[^/.]+$/, '')}</p>
                     </div>
                   </div>
@@ -563,7 +566,7 @@ export default function PublicDriveBrowser({
           </div>
 
           {/* Footer */}
-          <DialogFooter className="p-4 sm:p-6 pt-4 border-t flex-shrink-0 gap-2">
+          <DialogFooter className="p-3 border-t flex-shrink-0 gap-2">
             <Button variant="outline" onClick={onClose} className="h-10 sm:h-9">
               Cancel
             </Button>

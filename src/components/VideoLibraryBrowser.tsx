@@ -27,6 +27,7 @@ import {
   Play,
   ChevronLeft,
   Link2,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DriveThumbnail from '@/components/VideoThumbnail';
@@ -292,29 +293,20 @@ export default function VideoLibraryBrowser({
       <Dialog open={open && !previewVideo} onOpenChange={onClose}>
         <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
           {/* Header - Fixed */}
-          <DialogHeader className="p-3 sm:p-4 pb-2 sm:pb-3 border-b flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <FolderOpen className="h-5 w-5 text-yellow-500 flex-shrink-0" />
-                  <span className="truncate">
-                    {selectedCategory ? selectedCategory.name : 'Video Library'}
-                  </span>
+          <DialogHeader className="p-3 pb-3 border-b flex-shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <FolderOpen className="h-4 w-4 text-yellow-500 shrink-0" />
+                <DialogTitle className="text-base truncate">
+                  {selectedCategory ? selectedCategory.name : 'Video Library'}
                 </DialogTitle>
-                <DialogDescription className="mt-1 text-sm">
-                  {selectedCategory
-                    ? `${selectedCategory.videos.length} videos available`
-                    : 'Browse pre-added videos by category'}
+                <DialogDescription className="hidden">
+                  {selectedCategory ? `${selectedCategory.videos.length} videos` : 'Browse categories'}
                 </DialogDescription>
               </div>
-              {/* <Button
-                variant="ghost"
-                size="icon"
-                onClick={onClose}
-                className="h-8 w-8 flex-shrink-0"
-              >
-                <X className="h-4 w-4" />
-              </Button> */}
+              <button onClick={onClose} className="shrink-0 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
             </div>
           </DialogHeader>
 
@@ -328,17 +320,17 @@ export default function VideoLibraryBrowser({
               // Videos View
               <div className="p-2 sm:p-3">
                 {/* Navigation & Actions */}
-                <div className="flex flex-col gap-3 mb-4">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={handleBackToCategories}
-                    className="self-start"
+                    className="h-7 px-2 text-xs"
                   >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Back to Categories
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                    Back
                   </Button>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap flex-1">
                     {selectedVideos.size > 0 && (
                       <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                         {selectedVideos.size} selected
@@ -376,7 +368,7 @@ export default function VideoLibraryBrowser({
                           onClick={() => toggleVideoSelection(video.id)}
                           onPreview={() => setPreviewVideo(video)}
                         />
-                        <p className="mt-1.5 text-xs sm:text-sm font-medium truncate px-0.5" title={video.name}>
+                        <p className="mt-1 text-xs font-medium truncate" title={video.name}>
                           {video.name.replace(/\.[^/.]+$/, '')}
                         </p>
                       </div>
@@ -431,7 +423,7 @@ export default function VideoLibraryBrowser({
           </div>
 
           {/* Footer - Fixed */}
-          <div className="border-t p-3 sm:p-4 flex-shrink-0 bg-background">
+          <div className="border-t p-3 flex-shrink-0 bg-background">
             {selectedCategory ? (
               // Videos footer with channel selection
               channels && channels.length > 0 ? (

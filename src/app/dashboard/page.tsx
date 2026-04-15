@@ -60,6 +60,20 @@ interface Video {
   createdAt: string;
   uploadedAt?: string;
   uploadedVideoId?: string;
+  driveFileId?: string | null;
+  thumbnailDriveId?: string | null;
+  thumbnailName?: string | null;
+}
+
+function getVideoThumbnail(video: { driveFileId?: string | null; thumbnailDriveId?: string | null; thumbnailName?: string | null; uploadedVideoId?: string }): string | null {
+  // YouTube thumbnail (uploaded)
+  if (video.uploadedVideoId) return `https://img.youtube.com/vi/${video.uploadedVideoId}/mqdefault.jpg`;
+  // Custom thumbnail from Drive
+  if (video.thumbnailDriveId) return `https://drive.google.com/thumbnail?id=${video.thumbnailDriveId}&sz=w120`;
+  if (video.thumbnailName && video.thumbnailName.length > 10) return `https://drive.google.com/thumbnail?id=${video.thumbnailName}&sz=w120`;
+  // Drive video thumbnail
+  if (video.driveFileId) return `https://drive.google.com/thumbnail?id=${video.driveFileId}&sz=w120`;
+  return null;
 }
 
 const FREQ_LABELS: Record<string, string> = {
@@ -83,7 +97,7 @@ function CountdownTimer({ channel }: { channel: Channel }) {
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`);
+      setTimeLeft(h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`);
     };
     update();
     const id = setInterval(update, 1000);
@@ -160,6 +174,7 @@ export default function Dashboard() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
   const [aiLanguage, setAiLanguage] = useState<'english' | 'hindi'>('hindi');
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
 
   // ── Load channel + plan in parallel ──
   const loadChannel = useCallback(async () => {
@@ -339,8 +354,20 @@ export default function Dashboard() {
     }
   };
 
+  const toggleVideoSelect = (id: string) => {
+    setSelectedVideoIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   const generateAITitles = async () => {
-    if (!channel || queuedVideos.length === 0) return;
+    if (!channel) return;
+    const targets = selectedVideoIds.size > 0
+      ? queuedVideos.filter(v => selectedVideoIds.has(v.id))
+      : queuedVideos;
+    if (targets.length === 0) return;
     setGeneratingAI(true);
     try {
       const res = await fetch('/api/ai/generate-for-videos', {
@@ -348,7 +375,7 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId: channel.id,
-          videos: queuedVideos.map(v => ({ id: v.id, title: v.title || v.originalName })),
+          videos: targets.map(v => ({ id: v.id, title: v.title || v.originalName })),
           topic: aiTopic.trim() || undefined,
           language: aiLanguage,
         }),
@@ -356,6 +383,7 @@ export default function Dashboard() {
       const data = await res.json();
       if (res.ok) {
         toast.success(`AI titles generated for ${data.updated} videos`);
+        setSelectedVideoIds(new Set());
         loadVideos(channel.id);
       } else {
         toast.error(data.error || 'Failed to generate titles');
@@ -769,7 +797,7 @@ export default function Dashboard() {
                 >
                   {generatingAI
                     ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Generating...</>
-                    : <><Zap className="h-4 w-4 mr-2" />Generate for all {queuedVideos.length} videos</>
+                    : <><Zap className="h-4 w-4 mr-2" />Generate for {selectedVideoIds.size > 0 ? `${selectedVideoIds.size} selected` : `all ${queuedVideos.length}`} videos</>
                   }
                 </Button>
               </div>
@@ -787,8 +815,24 @@ export default function Dashboard() {
               </div>
             ) : (
               queuedVideos.map((video, i) => (
-                <div key={video.id} className="flex items-center gap-3 bg-muted/40 hover:bg-muted/60 rounded-2xl px-3 py-3 transition-colors">
-                  <span className="text-xs text-muted-foreground w-5 text-center font-bold tabular-nums shrink-0">{i + 1}</span>
+                <div key={video.id} className={`flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors ${selectedVideoIds.has(video.id) ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-muted/40 hover:bg-muted/60'}`}>
+                  <input
+                    type="checkbox"
+                    checked={selectedVideoIds.has(video.id)}
+                    onChange={() => toggleVideoSelect(video.id)}
+                    className="h-4 w-4 rounded accent-blue-600 shrink-0 cursor-pointer"
+                  />
+                  {/* Thumbnail */}
+                  {(() => {
+                    const thumb = getVideoThumbnail(video);
+                    return thumb ? (
+                      <img src={thumb} alt="" className="h-10 w-16 rounded-lg object-cover shrink-0 bg-muted" />
+                    ) : (
+                      <div className="h-10 w-16 rounded-lg bg-muted shrink-0 flex items-center justify-center">
+                        <ListVideo className="h-4 w-4 text-muted-foreground/40" />
+                      </div>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     {editingTitleId === video.id ? (
                       <input
