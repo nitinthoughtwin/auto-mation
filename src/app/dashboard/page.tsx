@@ -1900,7 +1900,7 @@ export default function YouTubeAutomationDashboard() {
                             />
                           </TableHead>
                           <TableHead className="w-[40px]">#</TableHead>
-                          <TableHead className="hidden sm:table-cell">Thumbnail</TableHead>
+                          <TableHead>Thumbnail</TableHead>
                           <TableHead>Title</TableHead>
                           <TableHead className="hidden sm:table-cell">Type</TableHead>
                           <TableHead className="hidden sm:table-cell">Status</TableHead>

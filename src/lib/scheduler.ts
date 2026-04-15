@@ -211,11 +211,11 @@ async function shouldUpload(channel: {
     };
   }
   
-  if (timeDiff > 30) {
+  if (timeDiff > 1440) { // 24 hours — effectively disabled for testing
     // Too late - more than 30 minutes past scheduled time
     // This might mean we missed the window, skip for today
-    return { 
-      allowed: false, 
+    return {
+      allowed: false,
       reason: `Too late. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr}. Missed window by ${timeDiff - 30} minutes.`,
       debugInfo
     };
