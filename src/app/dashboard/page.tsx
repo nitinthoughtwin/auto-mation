@@ -1899,12 +1899,12 @@ export default function YouTubeAutomationDashboard() {
                               className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
                             />
                           </TableHead>
-                          <TableHead className="w-[80px]">#</TableHead>
-                          <TableHead>Thumbnail</TableHead>
+                          <TableHead className="w-[40px]">#</TableHead>
+                          <TableHead className="hidden sm:table-cell">Thumbnail</TableHead>
                           <TableHead>Title</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="hidden sm:table-cell">Scheduled Upload</TableHead>
+                          <TableHead className="hidden sm:table-cell">Type</TableHead>
+                          <TableHead className="hidden sm:table-cell">Status</TableHead>
+                          <TableHead>Scheduled</TableHead>
                           <TableHead className="hidden md:table-cell">Size</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -1957,7 +1957,7 @@ export default function YouTubeAutomationDashboard() {
                                 <span className="text-muted-foreground text-sm">{index + 1}</span>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden sm:table-cell">
                               {video.thumbnailName ? (
                                 <div
                                   className="w-16 h-10 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all bg-muted"
@@ -1998,12 +1998,12 @@ export default function YouTubeAutomationDashboard() {
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden sm:table-cell">
                               <Badge variant={getVideoType(video) === 'shorts' ? 'default' : 'secondary'}>
                                 {getVideoType(video) === 'shorts' ? 'Shorts' : 'Video'}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden sm:table-cell">
                               {video.status === 'scanning' ? (
                                 <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">🔍 Scanning</Badge>
                               ) : video.status === 'copyright_skipped' ? (
@@ -2012,7 +2012,7 @@ export default function YouTubeAutomationDashboard() {
                                 <Badge className="bg-blue-100 text-blue-700 border-blue-200">Queued</Badge>
                               )}
                             </TableCell>
-                            <TableCell className="hidden sm:table-cell">
+                            <TableCell>
                               {selectedChannel ? (() => {
                                 // Use editSettings so dates update live when frequency/time changes
                                 const liveChannel = {
