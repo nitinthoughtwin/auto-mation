@@ -110,10 +110,17 @@ function CountdownTimer({ channel }: { channel: Channel }) {
       const next = new Date(base.getTime() + delayMs.current);
       const diff = next.getTime() - Date.now();
       if (diff <= 0) { setTimeLeft('Uploading soon...'); setExactTime(''); return; }
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`);
+      const totalSecs = Math.floor(diff / 1000);
+      const d = Math.floor(totalSecs / 86400);
+      const h = Math.floor((totalSecs % 86400) / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      const timeStr = d > 0
+        ? `${d}d ${h}h ${m}m ${s}s`
+        : h > 0
+          ? `${h}h ${m}m ${s}s`
+          : `${m}m ${s}s`;
+      setTimeLeft(timeStr);
       setExactTime(next.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
     };
     update();

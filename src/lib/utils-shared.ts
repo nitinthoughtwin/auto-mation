@@ -9,10 +9,10 @@ export function getNextUploadTime(channel: {
     const now = new Date();
     const [hours, minutes] = channel.uploadTime.split(':').map(Number);
 
-    // Helper: next upload = lastUploadDate + N days, advancing in increments until future
-    const nextFromLast = (days: number): Date | null => {
-      if (!channel.lastUploadDate) return null;
-      const last = new Date(channel.lastUploadDate);
+    // Helper: next upload = lastUploadDate + N days, advancing in increments until future.
+    // If no lastUploadDate, treat today as reference so timer reflects the chosen frequency.
+    const nextFromLast = (days: number): Date => {
+      const last = channel.lastUploadDate ? new Date(channel.lastUploadDate) : new Date();
       const next = new Date(last);
       next.setHours(hours, minutes, 0, 0);
       // Advance by 'days' increments until we land in the future
@@ -35,13 +35,13 @@ export function getNextUploadTime(channel: {
         return nextDaily();
 
       case 'alternate':
-        return nextFromLast(2) ?? nextDaily();
+        return nextFromLast(2);
 
       case 'every3days':
-        return nextFromLast(3) ?? nextDaily();
+        return nextFromLast(3);
 
       case 'every5days':
-        return nextFromLast(5) ?? nextDaily();
+        return nextFromLast(5);
 
       case 'everySunday': {
         const dayOfWeek = now.getDay(); // 0 = Sunday

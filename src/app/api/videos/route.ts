@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const videos = await prisma.video.findMany({
       where: whereClause,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
 
     return NextResponse.json({ videos });
