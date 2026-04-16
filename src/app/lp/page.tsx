@@ -8,11 +8,17 @@ import {
   TrendingUp,
   ArrowRight,
   Star,
+  Check,
+  Upload,
+  Brain,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { useState } from 'react';
 
 const benefits = [
   {
-    icon: <Zap className="h-5 w-5 text-blue-600" />,
+    icon: <Upload className="h-5 w-5 text-blue-600" />,
     title: 'Auto Upload to YouTube',
     desc: 'Queue your videos — the tool uploads them at the right time automatically. No manual work every day.',
   },
@@ -22,21 +28,21 @@ const benefits = [
     desc: 'Bulk import, set your schedule, done. Everything else runs on autopilot.',
   },
   {
-    icon: <Zap className="h-5 w-5 text-blue-600" />,
+    icon: <Brain className="h-5 w-5 text-blue-600" />,
     title: 'AI Title & Description',
     desc: 'Generate SEO-friendly titles and tags in one click. No need to write them yourself.',
   },
   {
     icon: <TrendingUp className="h-5 w-5 text-blue-600" />,
-    title: 'Multiple Channels',
-    desc: 'Manage 2-3 channels from a single dashboard. Each with its own schedule, all automatic.',
+    title: 'Google Drive Import',
+    desc: 'Connect your Drive folder directly. Pick videos, set a schedule — channel grows on autopilot.',
   },
 ];
 
 const steps = [
   { step: '1', text: 'Create an account — for free' },
   { step: '2', text: 'Connect your YouTube channel' },
-  { step: '3', text: 'Choose videos from the list or paste your Google Drive link' },
+  { step: '3', text: 'Add videos from Drive or your device' },
   { step: '4', text: 'Set a schedule — you\'re done' },
 ];
 
@@ -48,7 +54,7 @@ const reviews = [
   },
   {
     name: 'Priya S.',
-    text: 'I manage 3 channels from one place. Now I just check the dashboard every morning.',
+    text: 'I manage my channel from one place now. Just check the dashboard every morning, that\'s it.',
     stars: 5,
   },
   {
@@ -58,16 +64,77 @@ const reviews = [
   },
 ];
 
+const faqs = [
+  {
+    q: 'What kind of videos can I upload?',
+    a: 'Any video file from your device or Google Drive — MP4, MOV, AVI etc. The tool uploads them to YouTube exactly as-is.',
+  },
+  {
+    q: 'Does it work with any YouTube channel?',
+    a: 'Yes. Just connect your YouTube account via Google login and your channel is linked in seconds.',
+  },
+  {
+    q: 'What happens when my free quota runs out?',
+    a: 'Uploads pause automatically. Upgrade to Pro (₹199/month) to continue — no data is lost.',
+  },
+  {
+    q: 'Can I cancel anytime?',
+    a: 'Yes. Cancel from your billing page anytime. You keep access until the end of your current period.',
+  },
+];
+
+function FAQ({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3.5 text-left text-sm font-semibold text-gray-800"
+        onClick={() => setOpen(v => !v)}
+      >
+        {q}
+        {open
+          ? <ChevronUp className="h-4 w-4 text-gray-400 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+        }
+      </button>
+      {open && (
+        <div className="px-4 pb-4 text-sm text-gray-500 leading-relaxed border-t border-gray-100 pt-3">
+          {a}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const router = useRouter();
-
   const handleCTA = () => router.push('/signup');
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
 
+      {/* ── NAVBAR ── */}
+      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 px-5 py-3 flex items-center justify-between">
+        <span className="font-extrabold text-gray-900 text-base tracking-tight">GPMart AI Studio</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push('/login')}
+            className="text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5"
+          >
+            Login
+          </button>
+          <Button
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg h-8 px-3"
+            onClick={handleCTA}
+          >
+            Start Free
+          </Button>
+        </div>
+      </nav>
+
       {/* ── HERO ── */}
-      <section className="bg-gradient-to-b from-blue-50 to-white px-5 pt-12 pb-10 text-center">
+      <section className="bg-gradient-to-b from-blue-50 to-white px-5 pt-10 pb-10 text-center">
         <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
           <Zap className="h-3 w-3" /> YouTube Automation Tool
         </div>
@@ -78,8 +145,8 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-gray-600 text-base sm:text-lg mb-6 max-w-md mx-auto">
-          Videos upload themselves, at the right time, every day — without you lifting a finger.
-          Just add videos to the queue and forget about it.
+          Videos upload themselves, at the right time, every day —
+          without you lifting a finger. Just add videos to the queue and forget about it.
         </p>
 
         <Button
@@ -93,27 +160,47 @@ export default function LandingPage() {
 
         <p className="text-xs text-gray-400 mt-3">No credit card required • Free plan forever</p>
 
-        {/* Social proof strip */}
+        {/* Social proof */}
         <div className="flex items-center justify-center gap-1 mt-6">
           {[...Array(5)].map((_, i) => (
             <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
           ))}
           <span className="text-sm text-gray-500 ml-1">500+ creators are already using it</span>
         </div>
-      </section>
 
-      {/* ── HOW IT WORKS ── */}
-      <section className="px-5 py-10 bg-white">
-        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Just 4 Steps</h2>
-        <div className="flex flex-col gap-3 max-w-sm mx-auto">
-          {steps.map((s) => (
-            <div key={s.step} className="flex items-center gap-4 bg-gray-50 rounded-xl px-4 py-3">
-              <div className="h-8 w-8 rounded-full bg-blue-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
-                {s.step}
-              </div>
-              <p className="text-gray-700 font-medium text-sm">{s.text}</p>
+        {/* Stats strip */}
+        <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto mt-8">
+          {[
+            { val: '500+', label: 'Active Creators' },
+            { val: '50k+', label: 'Videos Uploaded' },
+            { val: '2h+', label: 'Saved Daily' },
+          ].map((s) => (
+            <div key={s.label} className="bg-white rounded-xl py-3 shadow-sm border border-gray-100">
+              <p className="text-lg font-extrabold text-blue-600">{s.val}</p>
+              <p className="text-[10px] text-gray-400 font-medium">{s.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── PAIN POINTS ── */}
+      <section className="px-5 py-10 bg-white text-center">
+        <div className="max-w-md mx-auto">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Sound Familiar?</h2>
+          <div className="flex flex-col gap-2 text-left">
+            {[
+              'Manually uploading videos to YouTube every single day',
+              'Writing titles and descriptions feels like a waste of time',
+              'Videos piling up on Drive that never get uploaded',
+              'Missing the best upload times because you forgot',
+            ].map((pain, i) => (
+              <div key={i} className="flex items-start gap-2 bg-red-50 rounded-lg px-3 py-2.5">
+                <span className="text-red-500 font-bold text-sm mt-0.5">✗</span>
+                <span className="text-gray-700 text-sm">{pain}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-blue-600 font-semibold mt-5 text-sm">GPMart AI Studio handles all of this automatically.</p>
         </div>
       </section>
 
@@ -135,33 +222,74 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── PAIN POINT ── */}
-      <section className="px-5 py-10 bg-white text-center">
-        <div className="max-w-md mx-auto">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Sound Familiar?</h2>
-          <div className="flex flex-col gap-2 text-left">
-            {[
-              'Manually uploading videos to YouTube every single day',
-              'Writing titles and descriptions feels like a waste of time',
-              'Managing multiple channels is overwhelming',
-              'Videos piling up on Drive that never get uploaded',
-            ].map((pain, i) => (
-              <div key={i} className="flex items-start gap-2 bg-red-50 rounded-lg px-3 py-2">
-                <span className="text-red-500 font-bold text-sm mt-0.5">✗</span>
-                <span className="text-gray-700 text-sm">{pain}</span>
+      {/* ── HOW IT WORKS ── */}
+      <section className="px-5 py-10 bg-white">
+        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Just 4 Steps</h2>
+        <div className="flex flex-col gap-3 max-w-sm mx-auto">
+          {steps.map((s) => (
+            <div key={s.step} className="flex items-center gap-4 bg-gray-50 rounded-xl px-4 py-3">
+              <div className="h-8 w-8 rounded-full bg-blue-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
+                {s.step}
               </div>
-            ))}
+              <p className="text-gray-700 font-medium text-sm">{s.text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── PRICING ── */}
+      <section className="px-5 py-10 bg-gray-50">
+        <h2 className="text-xl font-bold text-center mb-2 text-gray-800">Simple Pricing</h2>
+        <p className="text-sm text-gray-500 text-center mb-6">Start free. Upgrade when you need more.</p>
+        <div className="flex flex-col gap-4 max-w-sm mx-auto">
+
+          {/* Free */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <p className="font-bold text-gray-800 text-base mb-0.5">Free</p>
+            <p className="text-2xl font-extrabold mb-3">₹0 <span className="text-sm font-normal text-gray-400">/ forever</span></p>
+            <ul className="space-y-2">
+              {['5 videos / month', 'Google Drive import', 'Video library access', 'All schedule types'].map(f => (
+                <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                  <Check className="h-4 w-4 text-green-500 shrink-0" /> {f}
+                </li>
+              ))}
+            </ul>
+            <Button variant="outline" className="w-full mt-4 rounded-xl font-semibold" onClick={handleCTA}>
+              Get Started Free
+            </Button>
           </div>
-          <p className="text-blue-600 font-semibold mt-5 text-sm">GPMart AI Studio handles all of this automatically.</p>
+
+          {/* Pro */}
+          <div className="bg-white rounded-2xl border-2 border-blue-500 p-5 relative">
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">
+              Most Popular
+            </span>
+            <p className="font-bold text-gray-800 text-base mb-0.5">Pro</p>
+            <div className="flex items-baseline gap-2 mb-3">
+              <p className="text-2xl font-extrabold">₹199 <span className="text-sm font-normal text-gray-400">/ month</span></p>
+              <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full">₹499 / 3 months</span>
+            </div>
+            <ul className="space-y-2">
+              {['30 videos / month', 'Google Drive import', 'Video library access', 'Unlimited AI titles & descriptions', 'All schedule types'].map(f => (
+                <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
+                  <Check className="h-4 w-4 text-blue-500 shrink-0" /> {f}
+                </li>
+              ))}
+            </ul>
+            <Button className="w-full mt-4 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white" onClick={handleCTA}>
+              Start Free → Upgrade Anytime
+            </Button>
+          </div>
+
         </div>
       </section>
 
       {/* ── REVIEWS ── */}
-      <section className="px-5 py-10 bg-gray-50">
+      <section className="px-5 py-10 bg-white">
         <h2 className="text-xl font-bold text-center mb-6 text-gray-800">What Creators Are Saying</h2>
         <div className="flex flex-col gap-4 max-w-md mx-auto">
           {reviews.map((r, i) => (
-            <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
+            <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
               <div className="flex gap-0.5 mb-2">
                 {[...Array(r.stars)].map((_, j) => (
                   <Star key={j} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
@@ -171,6 +299,14 @@ export default function LandingPage() {
               <p className="text-gray-400 text-xs font-medium">— {r.name}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="px-5 py-10 bg-gray-50">
+        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Frequently Asked</h2>
+        <div className="flex flex-col gap-2 max-w-md mx-auto">
+          {faqs.map((f, i) => <FAQ key={i} q={f.q} a={f.a} />)}
         </div>
       </section>
 
@@ -191,13 +327,17 @@ export default function LandingPage() {
         <p className="text-blue-200 text-xs mt-3">No credit card • Setup in 5 minutes</p>
       </section>
 
-      {/* ── FOOTER LINKS ── */}
+      {/* ── FOOTER ── */}
       <footer className="px-5 py-5 bg-gray-900 text-center">
         <p className="text-gray-500 text-xs">
           © 2025 GPMart AI Studio •{' '}
           <a href="/privacy" className="hover:text-gray-300">Privacy</a>{' '}
           •{' '}
           <a href="/terms" className="hover:text-gray-300">Terms</a>
+          {' '}•{' '}
+          <a href="/refund-policy" className="hover:text-gray-300">Refund Policy</a>
+          {' '}•{' '}
+          <a href="/contact" className="hover:text-gray-300">Contact</a>
         </p>
       </footer>
 
