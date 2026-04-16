@@ -36,9 +36,9 @@ async function handleDemoPayment(request: NextRequest, session: { user: { id: st
     );
   }
 
-  // Calculate amount
-  const totalAmount = billingPeriod === 'yearly'
-    ? plan.priceINR * 12 * (100 - (plan.yearlyDiscountPercent || 0)) / 100
+  // Calculate amount — quarterly uses yearlyPriceINR field
+  const totalAmount = billingPeriod === 'quarterly'
+    ? plan.yearlyPriceINR
     : plan.priceINR;
 
   // Generate demo order ID
@@ -47,8 +47,8 @@ async function handleDemoPayment(request: NextRequest, session: { user: { id: st
   // Create subscription record
   const now = new Date();
   const periodEnd = new Date(now);
-  if (billingPeriod === 'yearly') {
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  if (billingPeriod === 'quarterly') {
+    periodEnd.setMonth(periodEnd.getMonth() + 3);
   } else {
     periodEnd.setMonth(periodEnd.getMonth() + 1);
   }
@@ -126,9 +126,9 @@ async function handleRazorpayPayment(request: NextRequest, session: { user: { id
     );
   }
 
-  // Calculate amount
-  const totalAmount = billingPeriod === 'yearly'
-    ? plan.priceINR * 12 * (100 - (plan.yearlyDiscountPercent || 0)) / 100
+  // Calculate amount — quarterly uses yearlyPriceINR field
+  const totalAmount = billingPeriod === 'quarterly'
+    ? plan.yearlyPriceINR
     : plan.priceINR;
 
   // Create order in Razorpay
@@ -171,8 +171,8 @@ async function handleRazorpayPayment(request: NextRequest, session: { user: { id
   // Create subscription record (pending until payment verified)
   const now = new Date();
   const periodEnd = new Date(now);
-  if (billingPeriod === 'yearly') {
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  if (billingPeriod === 'quarterly') {
+    periodEnd.setMonth(periodEnd.getMonth() + 3);
   } else {
     periodEnd.setMonth(periodEnd.getMonth() + 1);
   }
