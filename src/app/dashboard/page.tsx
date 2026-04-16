@@ -813,15 +813,16 @@ export default function Dashboard() {
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Schedule</p>
           <div className="flex gap-2">
-            <div className="flex-1 relative">
+          <div className="flex-1 relative">
               <input
                 type="time"
                 value={uploadTime}
                 onChange={e => setUploadTime(e.target.value)}
-                className="w-full h-9 rounded-xl border border-input bg-background pl-2 pr-14 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full h-9 rounded-xl border border-input bg-background pl-2 pr-20 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
+
               {uploadTime && (
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
+                <span className="absolute right-10 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
                   {parseInt(uploadTime.split(':')[0]) >= 12 ? 'PM' : 'AM'}
                 </span>
               )}

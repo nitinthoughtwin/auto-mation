@@ -533,7 +533,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-secondary/50">
               <div>
                 <p className="text-sm font-medium">Contact Support</p>
-                <p className="text-xs text-muted-foreground">For any queries, billing issues, or technical help</p>
+                {/* <p className="text-xs text-muted-foreground">For any queries, billing issues, or technical help</p> */}
               </div>
               <a
                 href="mailto:support@gpmart.in"
