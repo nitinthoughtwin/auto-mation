@@ -36,11 +36,22 @@ export async function POST(request: NextRequest) {
 
     // Process videos one by one
     const results: Array<{ id: string; success: boolean; metadata?: { title: string; description: string; tags: string[] }; error?: string }> = [];
-    
+
     for (let i = 0; i < videos.length; i++) {
       const video = videos[i];
       try {
-        const metadata = await generateUniqueAIMetadata(video.title, topic, i, videos.length, selectedLanguage);
+        // Resolve effective topic:
+        // 1. User-provided topic (highest priority)
+        // 2. Library category extracted from description "From: CategoryName"
+        // 3. Fallback to video title
+        let effectiveTopic = topic?.trim() || '';
+        if (!effectiveTopic) {
+          const dbVideo = await db.video.findUnique({ where: { id: video.id }, select: { description: true } });
+          const fromMatch = dbVideo?.description?.match(/^From:\s*(.+)$/i);
+          if (fromMatch) effectiveTopic = fromMatch[1].trim();
+        }
+
+        const metadata = await generateUniqueAIMetadata(video.title, effectiveTopic || undefined, i, videos.length, selectedLanguage);
         
         await db.video.update({
           where: { id: video.id },
@@ -79,109 +90,46 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Title word banks for variety
-const titleWordsHindi = {
-  emotions: ['रो पड़ोगे', 'दिल छू गया', 'हैरान रह जाओगे', 'शांति मिलेगी', 'प्रेरित होगे', 'बदल जाओगे', 'सुकून मिलेगा', 'जीवन बदलेगा'],
-  actions: ['सुनकर', 'देखकर', 'जानकर', 'समझकर', 'जानें', 'देखें', 'सुनें', 'पढ़ें'],
-  reactions: ['अविश्वसनीय', 'अद्भुत', 'शानदार', 'जबरदस्त', 'कमाल का', 'धमाकेदार', 'लाजवाब', 'ज़बरदस्त'],
-  calls: ['जरूर देखें', 'शेयर करें', 'सुनें पूरा', 'मिस न करें', 'आज ही देखें', 'तुरंत देखें', 'जल्दी देखें', 'जरूर सुनें'],
-};
-
-const titleWordsEnglish = {
-  emotions: ['Will Make You Cry', 'Touch Your Heart', 'Leave You Shocked', 'Give You Peace', 'Inspire You', 'Change You', 'Amaze You', 'Blow Your Mind'],
-  actions: ['Watch This', 'Listen To This', 'See What Happens', 'You Need To See', 'Must Watch', 'Wait For It', 'Don\'t Miss', 'Viral Content'],
-  reactions: ['Unbelievable', 'Amazing', 'Incredible', 'Shocking', 'Beautiful', 'Powerful', 'Life Changing', 'Heart Touching'],
-  calls: ['Must Watch', 'Share Now', 'Subscribe', 'Like Now', 'Watch Till End', 'Don\'t Skip', 'Full Video', 'Share It'],
-};
-
-// Generate completely random title
+// Generic fallback title generator (topic-appropriate, no devotional bias)
 function generateRandomTitle(topic: string, index: number, language: string): string {
-  const words = language === 'hindi' ? titleWordsHindi : titleWordsEnglish;
-  
-  const emotion = words.emotions[Math.floor(Math.random() * words.emotions.length)];
-  const action = words.actions[Math.floor(Math.random() * words.actions.length)];
-  const reaction = words.reactions[Math.floor(Math.random() * words.reactions.length)];
-  const call = words.calls[Math.floor(Math.random() * words.calls.length)];
-  
-  const templates = language === 'hindi' ? [
-    `${topic} ${action} ${emotion} 😭🙏`,
-    `${reaction}! ${topic} ${call} 🔥`,
-    `${topic} - ${emotion} ✨`,
-    `${action} ${topic} ${reaction} ❤️`,
-    `${topic} का यह राज़ ${call} 😲🙏`,
-    `${reaction} ${topic} Video ${call} 🔥`,
-  ] : [
-    `${topic} ${action} ${emotion} 😭🙏`,
-    `${reaction}! ${topic} ${call} 🔥`,
-    `${topic} - ${emotion} ✨`,
-    `${action} ${topic} ${reaction} ❤️`,
-    `This ${topic} Will ${emotion} 😲🙏`,
-    `${reaction} ${topic} Content ${call} 🔥`,
+  const templatesHindi = [
+    `${topic} का जबरदस्त वीडियो 🔥 #shorts`,
+    `${topic} - देखकर हैरान रह जाओगे 😲 #shorts`,
+    `${topic} का यह वीडियो वायरल हो रहा है 🔥 #shorts`,
+    `${topic} की धमाकेदार क्लिप 💥 #shorts`,
+    `${topic} - आज का बेस्ट वीडियो ✅ #shorts`,
+    `${topic} की यह क्लिप मिस मत करो 👀 #shorts`,
   ];
-  
-  const templateIndex = (index + Math.floor(Math.random() * 100)) % templates.length;
-  return templates[templateIndex] + ' #shorts';
+  const templatesEnglish = [
+    `${topic} - You Won't Believe This 😲 #shorts`,
+    `Incredible ${topic} Moment 🔥 #shorts`,
+    `${topic} Gone Viral - Watch Now 👀 #shorts`,
+    `Best ${topic} Clip of the Day ✅ #shorts`,
+    `${topic} - Must Watch! 💥 #shorts`,
+    `This ${topic} Clip is Insane 🤯 #shorts`,
+  ];
+  const templates = language === 'hindi' ? templatesHindi : templatesEnglish;
+  return templates[(index + Math.floor(Math.random() * templates.length)) % templates.length];
 }
 
-// Generate completely random description
+// Generic fallback description generator
 function generateRandomDescription(topic: string, index: number, language: string): string {
-  const hooksHindi = [
-    'यह वीडियो आपके दिल को छू जाएगी',
-    'इस वीडियो में छुपा है जीवन का राज़',
-    'देखें यह अद्भुत वीडियो',
-    'आज जानें एक खास बात',
-    'यह संदेश आपकी जिंदगी बदल सकता है',
-  ];
-  
-  const hooksEnglish = [
-    'This video will touch your heart',
-    'The secret hidden in this video',
-    'Watch this amazing content',
-    'Learn something special today',
-    'This message can change your life',
-  ];
-  
-  const ctasHindi = [
-    '🔔 Subscribe करें! ❤️ Like करें! 📲 Share करें!',
-    '👍 Video पसंद आए तो Like करें! 🔔 Subscribe करें!',
-    '🙏 आपका समर्थन करें - Subscribe! ❤️ Share करें!',
-  ];
-  
-  const ctasEnglish = [
-    '🔔 Subscribe! ❤️ Like! 📲 Share!',
-    '👍 Like if you enjoyed! 🔔 Subscribe for more!',
-    '🙏 Support us - Subscribe! ❤️ Share with friends!',
-  ];
-  
-  const hooks = language === 'hindi' ? hooksHindi : hooksEnglish;
-  const ctas = language === 'hindi' ? ctasHindi : ctasEnglish;
-  
-  const hookIndex = (index + Math.floor(Math.random() * 100)) % hooks.length;
-  const ctaIndex = (index + Math.floor(Math.random() * 100)) % ctas.length;
-  
-  const hook = hooks[hookIndex];
-  const cta = ctas[ctaIndex];
-  
   if (language === 'hindi') {
-    const lines = [
-      `${topic} के बारे में यह वीडियो आपको बहुत पसंद आएगी।`,
-      `इसमें छुपे राज़ को जानें और अपनी जिंदगी में लागू करें।`,
-      `${topic} से जुड़ी यह जानकारी बहुत महत्वपूर्ण है।`,
-      `पूरा देखें और अपने दोस्तों को भी बताएं।`,
+    const ctasHindi = [
+      '🔔 Subscribe करें! ❤️ Like करें! 📲 Share करें!',
+      '👍 Video पसंद आए तो Like करें! 🔔 Subscribe करें!',
+      '🔔 Channel Subscribe करें और नोटिफिकेशन ON करें!',
     ];
-    const randomLines = lines.sort(() => Math.random() - 0.5).slice(0, 2);
-    
-    return `${hook}! 🙏\n\n${randomLines.join(' ')}\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Viral #Trending`;
+    const cta = ctasHindi[index % ctasHindi.length];
+    return `${topic} से जुड़ा यह वीडियो देखें और अपने दोस्तों के साथ Share करें।\n\nपूरा वीडियो जरूर देखें!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Viral #Trending`;
   } else {
-    const lines = [
-      `This ${topic} content is truly special.`,
-      `Watch till the end for the complete message.`,
-      `Something you don't want to miss.`,
-      `Share with your friends and family.`,
+    const ctasEnglish = [
+      '🔔 Subscribe! ❤️ Like! 📲 Share!',
+      '👍 Like if you enjoyed! 🔔 Subscribe for more!',
+      '🔔 Subscribe and hit the notification bell!',
     ];
-    const randomLines = lines.sort(() => Math.random() - 0.5).slice(0, 2);
-    
-    return `${hook}! 🙏\n\n${randomLines.join(' ')}\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Viral #Trending`;
+    const cta = ctasEnglish[index % ctasEnglish.length];
+    return `Watch this ${topic} video and share it with your friends.\n\nWatch till the end!\n\n${cta}\n\n#${topic.replace(/\s+/g, '')} #Shorts #Viral #Trending`;
   }
 }
 
@@ -197,20 +145,14 @@ async function generateUniqueAIMetadata(
   const topicText = hasTopic ? topic!.trim() : 'Video';
   const isHindi = language === 'hindi';
   const videoNum = (videoIndex || 0) + 1;
-  
-  // Unique random seed for THIS specific video
+
+  // Unique seed so each video gets a different output
   const uniqueSeed = `${Date.now()}-${videoNum}-${Math.random().toString(36).substring(7)}`;
-  
-  // Pre-generate random elements for the prompt
-  const randomWords = isHindi ? titleWordsHindi : titleWordsEnglish;
-  const randomEmotion = randomWords.emotions[Math.floor(Math.random() * randomWords.emotions.length)];
-  const randomAction = randomWords.actions[Math.floor(Math.random() * randomWords.actions.length)];
-  const randomReaction = randomWords.reactions[Math.floor(Math.random() * randomWords.reactions.length)];
-  
-  const model = genAI.getGenerativeModel({ 
+
+  const model = genAI.getGenerativeModel({
     model: 'gemini-1.5-flash',
     generationConfig: {
-      temperature: 1.0,  // Maximum randomness
+      temperature: 1.0,
       topP: 0.9,
       topK: 40,
     }
@@ -220,56 +162,58 @@ async function generateUniqueAIMetadata(
 तुम एक YouTube Shorts expert हो। Video #${videoNum} के लिए UNIQUE title और description बनाओ।
 
 TOPIC: "${topicText}"
-VIDEO NUMBER: ${videoNum}
-UNIQUE SEED: ${uniqueSeed}
-RANDOM EMOTION: ${randomEmotion}
-RANDOM ACTION: ${randomAction}
+SEED: ${uniqueSeed}
 
-** IMPORTANT: यह Video #${videoNum} है। पिछली videos से DIFFERENT title बनाओ! **
+IMPORTANT RULES:
+- Title TOPIC के अनुसार होना चाहिए। अगर TOPIC cricket है तो cricket style, cooking है तो cooking style, news है तो news style।
+- कभी भी topic से अलग या devotional/spiritual style मत use करो जब तक topic खुद devotional न हो।
+- हर video का title DIFFERENT होना चाहिए।
 
 TITLE RULES:
-1. हिंदी में लिखो (देवनागरी स्क्रिप्ट)
+1. हिंदी में लिखो (देवनागरी)
 2. #shorts से end करो
-3. 40-60 characters
-4. 1-2 emojis (🙏, ❤️, ✨, 🔥, 😭)
-5. यह जरूर use करो: "${randomEmotion}" या "${randomAction}"
+3. 50-70 characters
+4. Topic के हिसाब से 1-2 relevant emojis
+5. Clickbait style लेकिन topic-relevant
 6. NO: Part 1/2, numbers, dates
 
 DESCRIPTION RULES:
 1. हिंदी में लिखो
-2. 80-100 words
-3. #Shorts #Viral #Trending hashtags
-4. Subscribe, Like, Share CTA
+2. 60-80 words
+3. Topic relevant content
+4. #Shorts #Viral #Trending hashtags
+5. Subscribe, Like, Share CTA
 
-Respond ONLY JSON:
-{"title": "हिंदी title #shorts", "description": "हिंदी description", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12"]}
+Respond ONLY with valid JSON, nothing else:
+{"title": "title here #shorts", "description": "description here", "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10"]}
 ` : `
-You are a YouTube Shorts expert. Create UNIQUE title and description for Video #${videoNum}.
+You are a YouTube Shorts expert. Create a UNIQUE, topic-appropriate title and description for Video #${videoNum}.
 
 TOPIC: "${topicText}"
-VIDEO NUMBER: ${videoNum}
-UNIQUE SEED: ${uniqueSeed}
-RANDOM EMOTION: ${randomEmotion}
-RANDOM ACTION: ${randomAction}
+SEED: ${uniqueSeed}
 
-** IMPORTANT: This is Video #${videoNum}. Make it DIFFERENT from previous videos! **
+CRITICAL RULES:
+- The title style MUST match the topic. Cricket → sports style. Cooking → food style. News → news style. Devotional → devotional style.
+- NEVER apply devotional/spiritual/emotional style to non-devotional topics.
+- Every video title must be DIFFERENT.
 
 TITLE RULES:
 1. Write in English
 2. End with #shorts
-3. 40-60 characters
-4. 1-2 emojis (🙏, ❤️, ✨, 🔥, 😭)
-5. MUST use: "${randomEmotion}" or "${randomAction}"
+3. 50-70 characters
+4. 1-2 relevant emojis matching the topic
+5. Clickbait style but topic-relevant
 6. NO: Part 1/2, numbers, dates
 
 DESCRIPTION RULES:
 1. Write in English
-2. 80-100 words
-3. #Shorts #Viral #Trending hashtags
-4. Subscribe, Like, Share CTA
+2. 60-80 words
+3. Topic-relevant content
+4. #Shorts #Viral #Trending hashtags
+5. Subscribe, Like, Share CTA
 
-Respond ONLY JSON:
-{"title": "english title #shorts", "description": "english description", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12"]}
+Respond ONLY with valid JSON, nothing else:
+{"title": "title here #shorts", "description": "description here", "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10"]}
 `;
 
   try {
