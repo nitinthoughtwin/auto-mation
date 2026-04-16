@@ -486,5 +486,5 @@
 }
 
 input[type="time"]::-webkit-calendar-picker-indicator {
-  margin-right: 8px; /* pushes arrow away from border */
+  margin-right: 8px !important; /* pushes arrow away from border */
 }

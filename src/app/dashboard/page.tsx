@@ -198,7 +198,7 @@ export default function Dashboard() {
   const [generatingEditAI, setGeneratingEditAI] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
 
-  // ── Load channel + plan in parallel ──
+  // ── Load channel + plan + videos in one shot ──
   const loadChannel = useCallback(async () => {
     try {
       const [channelRes, usageRes] = await Promise.all([
@@ -211,6 +211,10 @@ export default function Dashboard() {
       if (ch) {
         setUploadTime(ch.uploadTime || '18:00');
         setFrequency(ch.frequency || 'daily');
+        // load videos before revealing the page
+        const vidRes = await fetch(`/api/videos?channelId=${ch.id}&limit=100`);
+        const vidData = await vidRes.json();
+        setVideos(vidData.videos || []);
       }
       if (usageRes.ok) {
         const usageData = await usageRes.json();
@@ -233,7 +237,6 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => { loadChannel(); }, [loadChannel]);
-  useEffect(() => { if (channel) loadVideos(channel.id); }, [channel, loadVideos]);
 
   // ── Step logic ──
   const hasChannel = !!channel;
@@ -516,28 +519,8 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-4 animate-pulse">
-        {/* plan bar skeleton */}
-        <div className="flex items-center justify-between">
-          <div className="h-5 w-24 bg-muted rounded-full" />
-          <div className="h-8 w-20 bg-muted rounded-xl" />
-        </div>
-        {/* status card skeleton */}
-        <div className="h-28 bg-muted rounded-2xl" />
-        {/* steps skeleton */}
-        <div className="space-y-2">
-          <div className="h-4 w-16 bg-muted rounded" />
-          <div className="h-14 bg-muted rounded-2xl" />
-          <div className="h-14 bg-muted rounded-2xl opacity-60" />
-          <div className="h-14 bg-muted rounded-2xl opacity-30" />
-        </div>
-        {/* tabs skeleton */}
-        <div className="h-11 bg-muted rounded-xl" />
-        <div className="space-y-2">
-          <div className="h-12 bg-muted rounded-2xl" />
-          <div className="h-12 bg-muted rounded-2xl opacity-70" />
-          <div className="h-12 bg-muted rounded-2xl opacity-40" />
-        </div>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -774,8 +757,8 @@ export default function Dashboard() {
 
       {/* ── ADD MORE VIDEOS (when live) ── */}
       {isLive && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Add More Videos</p>
+        <div className="border border-border/40 rounded-2xl p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add More Videos</p>
           <div className="grid grid-cols-3 gap-2">
             <Button
               variant="outline"
@@ -814,19 +797,19 @@ export default function Dashboard() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Schedule</p>
           <div className="flex gap-2">
           <div className="flex-1 relative">
-              <input
-                type="time"
-                value={uploadTime}
-                onChange={e => setUploadTime(e.target.value)}
-                className="w-full h-9 rounded-xl border border-input bg-background pl-2 pr-20 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
+            <input
+              type="time"
+              value={uploadTime}
+              onChange={e => setUploadTime(e.target.value)}
+              className="w-full h-9 rounded-xl border border-input bg-background pl-2 pr-12 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
 
-              {uploadTime && (
-                <span className="absolute right-10 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
-                  {parseInt(uploadTime.split(':')[0]) >= 12 ? 'PM' : 'AM'}
-                </span>
-              )}
-            </div>
+            {uploadTime && (
+              <span className="absolute right-12 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
+                {parseInt(uploadTime.split(':')[0]) >= 12 ? 'PM' : 'AM'}
+              </span>
+            )}
+          </div>
             <Select value={frequency} onValueChange={setFrequency}>
               <SelectTrigger className="h-9 flex-1 rounded-xl text-sm pr-3">
                 <SelectValue />
