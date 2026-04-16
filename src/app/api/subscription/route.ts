@@ -91,6 +91,49 @@ export async function GET() {
   }
 }
 
+// Activate / switch to free plan
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { planId } = await request.json();
+    if (!planId) {
+      return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    }
+
+    const plan = await db.plan.findUnique({ where: { id: planId } });
+    if (!plan || plan.name !== 'free') {
+      return NextResponse.json({ error: 'Only free plan can be activated this way' }, { status: 400 });
+    }
+
+    // Cancel any existing active subscription
+    await db.subscription.updateMany({
+      where: { userId: session.user.id, status: { in: ['active', 'trialing'] } },
+      data: { status: 'cancelled', cancelledAt: new Date(), cancelAtPeriodEnd: false },
+    });
+
+    // Create new free subscription
+    const newSub = await db.subscription.create({
+      data: {
+        userId: session.user.id,
+        planId: plan.id,
+        status: 'active',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+    await db.usage.create({ data: { subscriptionId: newSub.id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error activating free plan:', error);
+    return NextResponse.json({ error: 'Failed to activate free plan' }, { status: 500 });
+  }
+}
+
 // Cancel subscription
 export async function DELETE() {
   try {
