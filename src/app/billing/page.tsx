@@ -134,6 +134,16 @@ export default function BillingPage() {
     });
   };
 
+  const getBillingPeriodLabel = (sub: Subscription) => {
+    const days = Math.round(
+      (new Date(sub.currentPeriodEnd).getTime() - new Date(sub.currentPeriodStart).getTime())
+      / (1000 * 60 * 60 * 24)
+    );
+    if (days >= 80 && days <= 100) return '3-month plan';
+    if (days >= 355) return 'Free plan (yearly)';
+    return 'Monthly plan';
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -227,10 +237,13 @@ export default function BillingPage() {
                       {getStatusBadge(subscription.status)}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {subscription.cancelAtPeriodEnd 
+                      {subscription.cancelAtPeriodEnd
                         ? `Cancels on ${formatDate(subscription.currentPeriodEnd)}`
                         : `Renews on ${formatDate(subscription.currentPeriodEnd)}`
                       }
+                    </p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">
+                      {getBillingPeriodLabel(subscription)}
                     </p>
                   </div>
                   <div className="flex gap-2 w-full sm:w-auto">
@@ -281,7 +294,9 @@ export default function BillingPage() {
                   </div>
                   <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/5 to-amber-500/10 border border-amber-500/10">
                     <p className="text-xs text-muted-foreground mb-1">AI Credits</p>
-                    <p className="text-xl font-bold text-amber-600">{subscription.plan.aiCreditsPerMonth}</p>
+                    <p className="text-xl font-bold text-amber-600">
+                      {subscription.plan.aiCreditsPerMonth >= 9999 ? '∞' : subscription.plan.aiCreditsPerMonth}
+                    </p>
                   </div>
                 </div>
 

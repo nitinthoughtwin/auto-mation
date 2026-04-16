@@ -88,11 +88,11 @@ function getVideoThumbnail(video: { driveFileId?: string | null; thumbnailDriveI
 }
 
 const FREQ_LABELS: Record<string, string> = {
-  daily: 'Every day',
+  daily: 'Daily',
   alternate: 'Every 2 days',
   every3days: 'Every 3 days',
   every5days: 'Every 5 days',
-  everySunday: 'Every Sunday',
+  everySunday: 'Sundays',
 };
 
 // ── Countdown Timer ────────────────────────────────────
@@ -198,6 +198,8 @@ export default function Dashboard() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [generatingEditAI, setGeneratingEditAI] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState('');
 
   // ── Load channel + plan + videos in one shot ──
   const loadChannel = useCallback(async () => {
@@ -341,7 +343,12 @@ export default function Dashboard() {
       });
       const presignData = await presignRes.json();
       if (!presignRes.ok) {
-        toast.error(presignData.error || 'Failed to prepare upload');
+        if (presignData.limitExceeded === 'videos' || presignData.limitExceeded === 'plan') {
+          setUpgradeReason(presignData.error || 'Upgrade to Pro to upload more videos.');
+          setShowUpgradeModal(true);
+        } else {
+          toast.error(presignData.error || 'Failed to prepare upload');
+        }
         return;
       }
 
@@ -731,32 +738,31 @@ export default function Dashboard() {
       {currentStep === 3 && hasChannel && hasVideos && (
         <div className="bg-muted/30 border border-border/50 rounded-2xl p-3 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Set Schedule</p>
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Upload Time</label>
               <input
                 type="time"
                 value={uploadTime}
                 onChange={e => setUploadTime(e.target.value)}
-                className="w-full h-9 rounded-xl border border-input bg-background pl-2 pr-14 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full h-9 rounded-xl border border-input bg-background px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
-              {uploadTime && (
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
-                  {parseInt(uploadTime.split(':')[0]) >= 12 ? 'PM' : 'AM'}
-                </span>
-              )}
             </div>
-            <Select value={frequency} onValueChange={setFrequency}>
-              <SelectTrigger className="h-9 flex-1 rounded-xl text-sm pr-3">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Every day</SelectItem>
-                <SelectItem value="alternate">Every 2 days</SelectItem>
-                <SelectItem value="every3days">Every 3 days</SelectItem>
-                <SelectItem value="every5days">Every 5 days</SelectItem>
-                <SelectItem value="everySunday">Every Sunday</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Repeat</label>
+              <Select value={frequency} onValueChange={setFrequency}>
+                <SelectTrigger className="h-9 w-full rounded-xl text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="alternate">Every 2 days</SelectItem>
+                  <SelectItem value="every3days">Every 3 days</SelectItem>
+                  <SelectItem value="every5days">Every 5 days</SelectItem>
+                  <SelectItem value="everySunday">Sundays</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button
             className="w-full h-10 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-2xl shadow-sm"
@@ -817,33 +823,31 @@ export default function Dashboard() {
       {isLive && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Schedule</p>
-          <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              type="time"
-              value={uploadTime}
-              onChange={e => setUploadTime(e.target.value)}
-              className="w-full h-9 rounded-xl border border-input bg-background pl-2 pr-12 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            />
-
-            {uploadTime && (
-              <span className="absolute right-12 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
-                {parseInt(uploadTime.split(':')[0]) >= 12 ? 'PM' : 'AM'}
-              </span>
-            )}
-          </div>
-            <Select value={frequency} onValueChange={setFrequency}>
-              <SelectTrigger className="h-9 flex-1 rounded-xl text-sm pr-3">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Every day</SelectItem>
-                <SelectItem value="alternate">Every 2 days</SelectItem>
-                <SelectItem value="every3days">Every 3 days</SelectItem>
-                <SelectItem value="every5days">Every 5 days</SelectItem>
-                <SelectItem value="everySunday">Every Sunday</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Upload Time</label>
+              <input
+                type="time"
+                value={uploadTime}
+                onChange={e => setUploadTime(e.target.value)}
+                className="w-full h-9 rounded-xl border border-input bg-background px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-0.5">Frequency</label>
+              <Select value={frequency} onValueChange={setFrequency}>
+                <SelectTrigger className="h-9 w-full rounded-xl text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="alternate">Every 2 days</SelectItem>
+                  <SelectItem value="every3days">Every 3 days</SelectItem>
+                  <SelectItem value="every5days">Every 5 days</SelectItem>
+                  <SelectItem value="everySunday">Sundays</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           {(uploadTime !== channel?.uploadTime || frequency !== channel?.frequency) && (
             <Button
@@ -1178,6 +1182,33 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── UPGRADE MODAL ── */}
+      <AlertDialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader className="text-center items-center">
+            <div className="h-14 w-14 rounded-2xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-2">
+              <Crown className="h-7 w-7 text-amber-500" />
+            </div>
+            <AlertDialogTitle className="text-lg">Upgrade to Pro</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-center">
+              {upgradeReason || 'You have reached your plan limit. Upgrade to Pro for more uploads and features.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+            <AlertDialogAction
+              onClick={() => { setShowUpgradeModal(false); router.push('/pricing'); }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-11"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Upgrade to Pro — ₹199/month
+            </AlertDialogAction>
+            <AlertDialogCancel className="w-full rounded-xl h-10 mt-0">
+              Maybe later
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
         <AlertDialogContent>

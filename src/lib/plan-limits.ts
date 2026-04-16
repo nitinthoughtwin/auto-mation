@@ -36,13 +36,32 @@ export async function getUserPlanAndUsage(userId: string): Promise<{
   periodStart: Date;
   periodEnd: Date;
 }> {
-  const subscription = await db.subscription.findFirst({
+  let subscription = await db.subscription.findFirst({
     where: { userId, status: { in: ['active', 'trialing'] } },
     include: { plan: true, usage: true },
   });
 
+  // Auto-create free plan for new users (same logic as /api/subscription GET)
   if (!subscription) {
-    throw new Error('No active subscription found');
+    const freePlan = await db.plan.findUnique({ where: { name: 'free' } });
+    if (!freePlan) throw new Error('Free plan not configured. Run seed-plans.ts.');
+
+    const newSub = await db.subscription.create({
+      data: {
+        userId,
+        planId: freePlan.id,
+        status: 'active',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+    await db.usage.create({ data: { subscriptionId: newSub.id } });
+
+    subscription = await db.subscription.findFirst({
+      where: { id: newSub.id },
+      include: { plan: true, usage: true },
+    });
+    if (!subscription) throw new Error('Failed to create free subscription');
   }
 
   const limits: PlanLimits = {
