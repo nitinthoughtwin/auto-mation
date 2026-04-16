@@ -575,7 +575,7 @@ export default function Dashboard() {
             <Button
               size="sm"
               variant="outline"
-              className="border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 h-8 text-xs font-semibold"
+              className="border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 h-7 text-xs font-semibold px-2.5"
               onClick={() => toggleActive(false)}
               disabled={togglingActive}
             >
@@ -616,9 +616,9 @@ export default function Dashboard() {
             <Button
               onClick={connectYouTube}
               disabled={connectingYT}
-              className="w-full bg-red-600 hover:bg-red-700 text-white h-12 text-base font-semibold rounded-2xl shadow-sm"
+              className="w-full bg-red-600 hover:bg-red-700 text-white h-10 text-sm font-semibold rounded-2xl shadow-sm"
             >
-              {connectingYT ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <Tv2 className="h-5 w-5 mr-2" />}
+              {connectingYT ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Tv2 className="h-4 w-4 mr-2" />}
               {connectingYT ? 'Connecting...' : 'Connect YouTube Channel'}
             </Button>
           )}
@@ -666,7 +666,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 gap-2 px-3 pb-3">
                   <Button
                     variant="outline"
-                    className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
+                    className="h-12 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
                     onClick={() => setShowDrive(true)}
                   >
                     <div className="h-8 w-8 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
@@ -679,7 +679,7 @@ export default function Dashboard() {
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
+                    className="h-12 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
                     onClick={() => setShowLibrary(true)}
                   >
                     <div className="h-8 w-8 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
@@ -692,7 +692,7 @@ export default function Dashboard() {
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-13 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-950/20"
+                    className="h-12 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-950/20"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
                   >
@@ -724,42 +724,36 @@ export default function Dashboard() {
 
       {/* ── STEP 3: SCHEDULE + START ── */}
       {currentStep === 3 && hasChannel && hasVideos && (
-        <div className="bg-muted/30 border border-border/50 rounded-2xl p-4 space-y-4">
+        <div className="bg-muted/30 border border-border/50 rounded-2xl p-3 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Set Schedule</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground font-medium">Upload Time</p>
-              <input
-                type="time"
-                value={uploadTime}
-                onChange={e => setUploadTime(e.target.value)}
-                className="w-full h-11 rounded-xl border border-input bg-background px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground font-medium">Frequency</p>
-              <Select value={frequency} onValueChange={setFrequency}>
-                <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Every day</SelectItem>
-                  <SelectItem value="alternate">Every 2 days</SelectItem>
-                  <SelectItem value="every3days">Every 3 days</SelectItem>
-                  <SelectItem value="every5days">Every 5 days</SelectItem>
-                  <SelectItem value="everySunday">Every Sunday</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex gap-2">
+            <input
+              type="time"
+              value={uploadTime}
+              onChange={e => setUploadTime(e.target.value)}
+              className="flex-1 h-9 rounded-xl border border-input bg-background px-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+            <Select value={frequency} onValueChange={setFrequency}>
+              <SelectTrigger className="h-9 flex-1 rounded-xl text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Every day</SelectItem>
+                <SelectItem value="alternate">Every 2 days</SelectItem>
+                <SelectItem value="every3days">Every 3 days</SelectItem>
+                <SelectItem value="every5days">Every 5 days</SelectItem>
+                <SelectItem value="everySunday">Every Sunday</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button
-            className="w-full h-12 bg-green-600 hover:bg-green-700 text-white text-base font-bold rounded-2xl shadow-sm"
+            className="w-full h-10 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-2xl shadow-sm"
             onClick={startAutomation}
             disabled={savingSchedule || togglingActive}
           >
             {(savingSchedule || togglingActive)
-              ? <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              : <Zap className="h-5 w-5 mr-2" />
+              ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              : <Zap className="h-4 w-4 mr-2" />
             }
             Start Automation
           </Button>
@@ -773,27 +767,27 @@ export default function Dashboard() {
           <div className="grid grid-cols-3 gap-2">
             <Button
               variant="outline"
-              className="h-14 rounded-2xl flex-col gap-1.5 text-xs font-semibold border-border/60 hover:border-blue-300 hover:bg-blue-50/50"
+              className="h-11 rounded-2xl flex-col gap-1 text-xs font-semibold border-border/60 hover:border-blue-300 hover:bg-blue-50/50"
               onClick={() => setShowDrive(true)}
             >
-              <FolderOpen className="h-5 w-5 text-blue-500" />
+              <FolderOpen className="h-4 w-4 text-blue-500" />
               Drive
             </Button>
             <Button
               variant="outline"
-              className="h-14 rounded-2xl flex-col gap-1.5 text-xs font-semibold border-border/60 hover:border-purple-300 hover:bg-purple-50/50"
+              className="h-11 rounded-2xl flex-col gap-1 text-xs font-semibold border-border/60 hover:border-purple-300 hover:bg-purple-50/50"
               onClick={() => setShowLibrary(true)}
             >
-              <Library className="h-5 w-5 text-purple-500" />
+              <Library className="h-4 w-4 text-purple-500" />
               Library
             </Button>
             <Button
               variant="outline"
-              className="h-14 rounded-2xl flex-col gap-1.5 text-xs font-semibold border-border/60 hover:border-green-300 hover:bg-green-50/50"
+              className="h-11 rounded-2xl flex-col gap-1 text-xs font-semibold border-border/60 hover:border-green-300 hover:bg-green-50/50"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
             >
-              {uploading ? <Loader2 className="h-5 w-5 animate-spin text-green-500" /> : <Upload className="h-5 w-5 text-green-500" />}
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin text-green-500" /> : <Upload className="h-4 w-4 text-green-500" />}
               {uploading ? 'Uploading' : 'Upload'}
             </Button>
           </div>
@@ -806,15 +800,15 @@ export default function Dashboard() {
       {isLive && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Schedule</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="flex gap-2">
             <input
               type="time"
               value={uploadTime}
               onChange={e => setUploadTime(e.target.value)}
-              className="h-11 rounded-xl border border-input bg-background px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="flex-1 h-9 rounded-xl border border-input bg-background px-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
             <Select value={frequency} onValueChange={setFrequency}>
-              <SelectTrigger className="h-11 rounded-xl">
+              <SelectTrigger className="h-9 flex-1 rounded-xl text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -831,7 +825,7 @@ export default function Dashboard() {
               size="sm"
               onClick={saveSchedule}
               disabled={savingSchedule}
-              className="w-full rounded-xl h-10 font-semibold"
+              className="w-full rounded-xl h-9 text-sm font-semibold"
             >
               {savingSchedule ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save Schedule
@@ -866,17 +860,10 @@ export default function Dashboard() {
             {/* AI Generate section — shown when videos exist */}
             {queuedVideos.length > 0 && (
               <div className="border border-border/50 rounded-2xl p-3 space-y-2 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Title & Description</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Topic (e.g. Motivation, Krishna)"
-                    value={aiTopic}
-                    onChange={e => setAiTopic(e.target.value)}
-                    className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                  />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Title & Description</p>
                   <Select value={aiLanguage} onValueChange={v => setAiLanguage(v as 'english' | 'hindi')}>
-                    <SelectTrigger className="h-9 w-28 rounded-xl text-sm">
+                    <SelectTrigger className="h-7 w-20 rounded-lg text-xs px-2">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -885,16 +872,25 @@ export default function Dashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
-                  className="w-full h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold"
-                  onClick={generateAITitles}
-                  disabled={generatingAI}
-                >
-                  {generatingAI
-                    ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Generating...</>
-                    : <><Zap className="h-4 w-4 mr-2" />Generate for {selectedVideoIds.size > 0 ? `${selectedVideoIds.size} selected` : `all ${queuedVideos.length}`} videos</>
-                  }
-                </Button>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Topic (e.g. Motivation, Krishna)"
+                    value={aiTopic}
+                    onChange={e => setAiTopic(e.target.value)}
+                    className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  />
+                  <Button
+                    className="h-9 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shrink-0"
+                    onClick={generateAITitles}
+                    disabled={generatingAI}
+                  >
+                    {generatingAI
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <><Zap className="h-3.5 w-3.5 mr-1" />{selectedVideoIds.size > 0 ? `${selectedVideoIds.size} videos` : `All ${queuedVideos.length}`}</>
+                    }
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -1060,9 +1056,9 @@ export default function Dashboard() {
 
       {/* ── EDIT VIDEO DIALOG ── */}
       <Dialog open={!!editingVideo} onOpenChange={open => { if (!open) setEditingVideo(null); }}>
-        <DialogContent className="max-w-md rounded-2xl" showCloseButton={false}>
-          <DialogHeader className="flex flex-row items-center justify-between p-4 border-b">
-            <DialogTitle className="text-base font-semibold">Edit Video</DialogTitle>
+        <DialogContent className="w-[calc(100vw-24px)] max-w-md rounded-2xl p-0" showCloseButton={false}>
+          <DialogHeader className="flex flex-row items-center justify-between px-4 py-3 border-b">
+            <DialogTitle className="text-sm font-semibold">Edit Video</DialogTitle>
             <button
               onClick={() => setEditingVideo(null)}
               className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -1070,13 +1066,13 @@ export default function Dashboard() {
               <X className="h-4 w-4" />
             </button>
           </DialogHeader>
-          <div className="p-4 space-y-3">
+          <div className="px-4 py-3 space-y-2.5 max-h-[80vh] overflow-y-auto">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Title</label>
               <input
                 value={editTitle}
                 onChange={e => setEditTitle(e.target.value)}
-                className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 placeholder="Video title"
               />
             </div>
@@ -1085,7 +1081,7 @@ export default function Dashboard() {
               <textarea
                 value={editDescription}
                 onChange={e => setEditDescription(e.target.value)}
-                rows={4}
+                rows={3}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
                 placeholder="Video description"
               />
@@ -1095,21 +1091,21 @@ export default function Dashboard() {
               <input
                 value={editTags}
                 onChange={e => setEditTags(e.target.value)}
-                className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 placeholder="tag1, tag2, tag3"
               />
             </div>
             {/* AI generate row */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2">
               <input
                 type="text"
                 placeholder="Topic hint (optional)"
                 value={aiTopic}
                 onChange={e => setAiTopic(e.target.value)}
-                className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="flex-1 h-8 rounded-xl border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
               <Select value={aiLanguage} onValueChange={v => setAiLanguage(v as 'english' | 'hindi')}>
-                <SelectTrigger className="h-9 w-24 rounded-xl text-sm">
+                <SelectTrigger className="h-8 w-20 rounded-xl text-xs px-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1119,21 +1115,21 @@ export default function Dashboard() {
               </Select>
             </div>
             <Button
-              className="w-full h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold"
+              className="w-full h-8 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold"
               onClick={generateAIForVideo}
               disabled={generatingEditAI}
             >
               {generatingEditAI
-                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Generating...</>
-                : <><Zap className="h-4 w-4 mr-2" />AI Generate Title, Description & Tags</>
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Generating...</>
+                : <><Zap className="h-3.5 w-3.5 mr-1.5" />AI Generate Title, Description & Tags</>
               }
             </Button>
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-10 rounded-xl" onClick={() => setEditingVideo(null)}>
+            <div className="flex gap-2 pb-1">
+              <Button variant="outline" className="flex-1 h-9 rounded-xl text-sm" onClick={() => setEditingVideo(null)}>
                 Cancel
               </Button>
-              <Button className="flex-1 h-10 rounded-xl font-semibold" onClick={saveVideoEdit} disabled={savingEdit}>
-                {savingEdit ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              <Button className="flex-1 h-9 rounded-xl text-sm font-semibold" onClick={saveVideoEdit} disabled={savingEdit}>
+                {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                 Save
               </Button>
             </div>
