@@ -8,31 +8,57 @@ export function getNextUploadTime(channel: {
   }): Date {
     const now = new Date();
     const [hours, minutes] = channel.uploadTime.split(':').map(Number);
-    
-    let nextUpload = new Date();
-    nextUpload.setHours(hours, minutes, 0, 0);
-  
-    // If time has passed today, schedule for tomorrow
-    if (nextUpload <= now) {
-      nextUpload.setDate(nextUpload.getDate() + 1);
-    }
-  
-    // For alternate frequency, check last upload
-    if (channel.frequency === 'alternate' && channel.lastUploadDate) {
-      const lastUpload = new Date(channel.lastUploadDate);
-      const daysSinceLastUpload = Math.floor(
-        (now.getTime() - lastUpload.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      
-      if (daysSinceLastUpload < 2) {
-        // Schedule for 2 days after last upload
-        nextUpload = new Date(lastUpload);
-        nextUpload.setDate(nextUpload.getDate() + 2);
-        nextUpload.setHours(hours, minutes, 0, 0);
+
+    // Helper: next upload = lastUploadDate + N days (if still in the future)
+    const nextFromLast = (days: number): Date | null => {
+      if (!channel.lastUploadDate) return null;
+      const last = new Date(channel.lastUploadDate);
+      const next = new Date(last);
+      next.setDate(next.getDate() + days);
+      next.setHours(hours, minutes, 0, 0);
+      return next > now ? next : null;
+    };
+
+    // Helper: today at uploadTime, or tomorrow if passed
+    const nextDaily = (): Date => {
+      const d = new Date();
+      d.setHours(hours, minutes, 0, 0);
+      if (d <= now) d.setDate(d.getDate() + 1);
+      return d;
+    };
+
+    switch (channel.frequency) {
+      case 'daily':
+        return nextDaily();
+
+      case 'alternate':
+        return nextFromLast(2) ?? nextDaily();
+
+      case 'every3days':
+        return nextFromLast(3) ?? nextDaily();
+
+      case 'every5days':
+        return nextFromLast(5) ?? nextDaily();
+
+      case 'everySunday': {
+        const dayOfWeek = now.getDay(); // 0 = Sunday
+        if (dayOfWeek === 0) {
+          // Today is Sunday — check if upload time is still ahead
+          const todaySlot = new Date();
+          todaySlot.setHours(hours, minutes, 0, 0);
+          if (todaySlot > now) return todaySlot;
+        }
+        // Next Sunday
+        const daysUntil = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
+        const nextSunday = new Date();
+        nextSunday.setDate(now.getDate() + daysUntil);
+        nextSunday.setHours(hours, minutes, 0, 0);
+        return nextSunday;
       }
+
+      default:
+        return nextDaily();
     }
-  
-    return nextUpload;
   }
   
   // Format file size

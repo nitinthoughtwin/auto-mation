@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getUserPlanAndUsage, checkVideoLimit } from '@/lib/plan-limits';
 
 // POST - Create video record after direct-to-R2 upload via presigned URL
 export async function POST(request: NextRequest) {
@@ -31,6 +32,17 @@ export async function POST(request: NextRequest) {
     const channel = await db.channel.findFirst({ where: { id: channelId, userId: session.user.id } });
     if (!channel) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
+    }
+
+    // Check monthly video quota (applies to Drive + Library imports too)
+    try {
+      const { limits, usage } = await getUserPlanAndUsage(session.user.id);
+      const check = checkVideoLimit(limits, usage, 1);
+      if (!check.allowed) {
+        return NextResponse.json({ error: check.message, limitExceeded: 'videos' }, { status: 403 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'No active subscription found.' }, { status: 403 });
     }
 
     const ext = originalName?.includes('.') ? originalName.split('.').pop() : '';

@@ -1,5 +1,8 @@
 import { db } from '@/lib/db';
 
+// Hard cap applied to ALL plans — nobody can upload a file larger than this
+export const HARD_FILE_SIZE_LIMIT_MB = 500;
+
 export interface PlanLimits {
   maxVideosPerMonth: number;
   maxChannels: number;
@@ -8,6 +11,11 @@ export interface PlanLimits {
   maxVideoSizeMB: number;
   planName: string;
   planDisplayName: string;
+}
+
+/** Free plan users cannot upload directly from their device. */
+export function allowsDeviceUpload(planName: string): boolean {
+  return planName !== 'free';
 }
 
 export interface UsageSummary {
@@ -47,12 +55,13 @@ export async function getUserPlanAndUsage(userId: string): Promise<{
     planDisplayName: subscription.plan.displayName,
   };
 
-  // Count only actually uploaded videos, not queued ones
+  // Count all videos added this billing period (queued + scanning + uploaded)
+  // so that the monthly quota covers queue additions, not just YouTube uploads
   const videosThisMonth = await db.video.count({
     where: {
       channel: { userId },
-      status: { in: ['uploaded', 'scanning'] },
-      uploadedAt: {
+      status: { in: ['queued', 'scanning', 'uploaded'] },
+      createdAt: {
         gte: subscription.currentPeriodStart,
         lte: subscription.currentPeriodEnd,
       },

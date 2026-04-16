@@ -35,6 +35,7 @@ import {
   ChevronUp,
   Pencil,
   X,
+  Lock,
 } from 'lucide-react';
 import {
   Dialog,
@@ -505,9 +506,18 @@ export default function Dashboard() {
       const data = await res.json();
       if (res.ok && data.results?.[0]) {
         const r = data.results[0];
-        if (r.title) setEditTitle(r.title);
-        if (r.description) setEditDescription(r.description);
-        if (r.tags) setEditTags(Array.isArray(r.tags) ? r.tags.join(', ') : r.tags);
+        const newTitle = r.title || editTitle;
+        const newDesc = r.description || editDescription;
+        const newTags = r.tags ? (Array.isArray(r.tags) ? r.tags.join(', ') : r.tags) : editTags;
+        if (r.title) setEditTitle(newTitle);
+        if (r.description) setEditDescription(newDesc);
+        if (r.tags) setEditTags(newTags);
+        // Also update the grid immediately (without waiting for save)
+        setVideos(prev => prev.map(v =>
+          v.id === editingVideo.id
+            ? { ...v, title: newTitle, description: newDesc, tags: newTags }
+            : v
+        ));
         toast.success('AI content generated');
       } else {
         toast.error(data.error || 'Failed to generate');
@@ -680,16 +690,23 @@ export default function Dashboard() {
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-12 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-950/20"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
+                    className="h-12 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-950/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                    onClick={() => planName?.toLowerCase() === 'free' ? undefined : fileInputRef.current?.click()}
+                    disabled={uploading || planName?.toLowerCase() === 'free'}
                   >
                     <div className="h-8 w-8 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
-                      {uploading ? <Loader2 className="h-4 w-4 animate-spin text-green-600" /> : <Upload className="h-4 w-4 text-green-600" />}
+                      {planName?.toLowerCase() === 'free'
+                        ? <Lock className="h-4 w-4 text-green-600" />
+                        : uploading
+                          ? <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+                          : <Upload className="h-4 w-4 text-green-600" />
+                      }
                     </div>
                     <div className="text-left">
                       <p className="font-semibold">{uploading ? (uploadProgress || 'Uploading...') : 'Upload from Device'}</p>
-                      <p className="text-xs text-muted-foreground font-normal">{uploading ? 'Please wait...' : 'Select video files'}</p>
+                      <p className="text-xs text-muted-foreground font-normal">
+                        {planName?.toLowerCase() === 'free' ? 'Pro plan required' : uploading ? 'Please wait...' : 'Select video files'}
+                      </p>
                     </div>
                   </Button>
                   <input ref={fileInputRef} type="file" multiple accept="video/*" className="hidden"
@@ -778,12 +795,17 @@ export default function Dashboard() {
             </Button>
             <Button
               variant="outline"
-              className="h-11 rounded-2xl flex-col gap-1 text-xs font-semibold border-border/60 hover:border-green-300 hover:bg-green-50/50"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+              className="h-11 rounded-2xl flex-col gap-1 text-xs font-semibold border-border/60 hover:border-green-300 hover:bg-green-50/50 disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={() => planName?.toLowerCase() === 'free' ? undefined : fileInputRef.current?.click()}
+              disabled={uploading || planName?.toLowerCase() === 'free'}
             >
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin text-green-500" /> : <Upload className="h-4 w-4 text-green-500" />}
-              {uploading ? 'Uploading' : 'Upload'}
+              {planName?.toLowerCase() === 'free'
+                ? <Lock className="h-4 w-4 text-green-500" />
+                : uploading
+                  ? <Loader2 className="h-4 w-4 animate-spin text-green-500" />
+                  : <Upload className="h-4 w-4 text-green-500" />
+              }
+              {planName?.toLowerCase() === 'free' ? 'Pro Only' : uploading ? 'Uploading' : 'Upload'}
             </Button>
           </div>
           <input ref={fileInputRef} type="file" multiple accept="video/*" className="hidden"
@@ -889,7 +911,7 @@ export default function Dashboard() {
                     disabled={generatingAI}
                   >
                     {generatingAI
-                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Generating...</>
                       : <><Zap className="h-3 w-3 mr-1" />AI · {selectedVideoIds.size}</>
                     }
                   </Button>
@@ -925,7 +947,16 @@ export default function Dashboard() {
                 <p className="text-xs mt-1">Add videos using the buttons above</p>
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="relative space-y-1.5">
+                {/* AI generation overlay */}
+                {generatingAI && (
+                  <div className="absolute inset-0 bg-background/70 backdrop-blur-[1px] rounded-xl flex items-center justify-center z-10">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-700 px-4 py-2.5 rounded-xl shadow-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating AI titles...
+                    </div>
+                  </div>
+                )}
                 {queuedVideos.map((video, i) => (
                   <div key={video.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${selectedVideoIds.has(video.id) ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-muted/40 hover:bg-muted/60'}`}>
                     <input
@@ -1068,7 +1099,16 @@ export default function Dashboard() {
               <X className="h-4 w-4" />
             </button>
           </DialogHeader>
-          <div className="px-4 py-3 space-y-2.5 max-h-[80vh] overflow-y-auto">
+          <div className="relative px-4 py-3 space-y-2.5 max-h-[80vh] overflow-y-auto">
+            {/* Overlay while AI is generating */}
+            {generatingEditAI && (
+              <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-b-2xl flex items-center justify-center z-10">
+                <div className="flex items-center gap-2 text-sm font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-700 px-4 py-2.5 rounded-xl shadow-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating AI content...
+                </div>
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Title</label>
               <input

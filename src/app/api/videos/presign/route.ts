@@ -4,7 +4,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getUserPlanAndUsage, checkVideoLimit, checkStorageLimit } from '@/lib/plan-limits';
+import { getUserPlanAndUsage, checkVideoLimit, checkStorageLimit, allowsDeviceUpload, HARD_FILE_SIZE_LIMIT_MB } from '@/lib/plan-limits';
 
 const r2 = new S3Client({
   region: 'auto',
@@ -41,21 +41,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
+    // Hard 500 MB per-file limit — applies to ALL plans
+    for (const file of files) {
+      const fileSizeMB = file.size / (1024 * 1024);
+      if (fileSizeMB > HARD_FILE_SIZE_LIMIT_MB) {
+        return NextResponse.json(
+          { error: `File "${file.name}" is ${fileSizeMB.toFixed(0)} MB. Maximum allowed size is ${HARD_FILE_SIZE_LIMIT_MB} MB.` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Enforce plan limits
+    let planLimits;
     try {
-      const { limits, usage } = await getUserPlanAndUsage(session.user.id);
-      const videoCheck = checkVideoLimit(limits, usage, files.length);
-      if (!videoCheck.allowed) {
-        return NextResponse.json({ error: videoCheck.message, limitExceeded: 'videos' }, { status: 403 });
-      }
-      for (const file of files) {
-        const storageCheck = checkStorageLimit(limits, usage, file.size);
-        if (!storageCheck.allowed) {
-          return NextResponse.json({ error: storageCheck.message, limitExceeded: 'storage' }, { status: 403 });
-        }
-      }
+      planLimits = await getUserPlanAndUsage(session.user.id);
     } catch {
-      // No subscription — free tier, proceed
+      return NextResponse.json({ error: 'No active subscription found. Please subscribe to a plan.' }, { status: 403 });
+    }
+
+    const { limits, usage } = planLimits;
+
+    // Free plan: device upload not allowed
+    if (!allowsDeviceUpload(limits.planName)) {
+      return NextResponse.json(
+        { error: 'Device upload is not available on the Free plan. Use Google Drive or Video Library instead.', limitExceeded: 'plan' },
+        { status: 403 }
+      );
+    }
+
+    // Check monthly video quota
+    const videoCheck = checkVideoLimit(limits, usage, files.length);
+    if (!videoCheck.allowed) {
+      return NextResponse.json({ error: videoCheck.message, limitExceeded: 'videos' }, { status: 403 });
+    }
+
+    // Check per-file storage limit
+    for (const file of files) {
+      const storageCheck = checkStorageLimit(limits, usage, file.size);
+      if (!storageCheck.allowed) {
+        return NextResponse.json({ error: storageCheck.message, limitExceeded: 'storage' }, { status: 403 });
+      }
     }
 
     // Generate a presigned PUT URL for each file
