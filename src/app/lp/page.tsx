@@ -13,47 +13,47 @@ import {
 const benefits = [
   {
     icon: <Zap className="h-5 w-5 text-blue-600" />,
-    title: 'YouTube pe Auto Upload',
-    desc: 'Videos queue karo — tool khud sahi time pe upload karta hai. Roz manually kuch nahi karna.',
+    title: 'Auto Upload to YouTube',
+    desc: 'Queue your videos — the tool uploads them at the right time automatically. No manual work every day.',
   },
   {
     icon: <Clock className="h-5 w-5 text-blue-600" />,
-    title: 'Roz 2+ Ghante Bachao',
-    desc: 'Bulk import, schedule set karo, bas. Baaki sab automatic.',
+    title: 'Save 2+ Hours Every Day',
+    desc: 'Bulk import, set your schedule, done. Everything else runs on autopilot.',
   },
   {
     icon: <Zap className="h-5 w-5 text-blue-600" />,
     title: 'AI Title & Description',
-    desc: 'Ek click mein SEO-friendly titles aur tags generate karo. Khud likhne ki zarurat nahi.',
+    desc: 'Generate SEO-friendly titles and tags in one click. No need to write them yourself.',
   },
   {
     icon: <TrendingUp className="h-5 w-5 text-blue-600" />,
     title: 'Multiple Channels',
-    desc: '1 dashboard se 2-3 channels manage karo. Sab ka schedule alag, sab automatic.',
+    desc: 'Manage 2-3 channels from a single dashboard. Each with its own schedule, all automatic.',
   },
 ];
 
 const steps = [
-  { step: '1', text: 'Account banao — Free mein' },
-  { step: '2', text: 'YouTube channel connect karo' },
-  { step: '3', text: 'Videos list se choose karo ya Google Drive ki link paste karo' },
-  { step: '4', text: 'Schedule set karo — kaam khatam' },
+  { step: '1', text: 'Create an account — for free' },
+  { step: '2', text: 'Connect your YouTube channel' },
+  { step: '3', text: 'Choose videos from the list or paste your Google Drive link' },
+  { step: '4', text: 'Set a schedule — you\'re done' },
 ];
 
 const reviews = [
   {
     name: 'Rahul V.',
-    text: '90 videos ek saath upload ho gaye. Pehle mahine mein ₹4,800 earn kiya bina ek bhi video banaye.',
+    text: '90 videos uploaded at once. Earned ₹4,800 in the first month without creating a single video.',
     stars: 5,
   },
   {
     name: 'Priya S.',
-    text: '3 channels ek jagah se manage hote hain. Roz subah sirf dashboard check karta hoon.',
+    text: 'I manage 3 channels from one place. Now I just check the dashboard every morning.',
     stars: 5,
   },
   {
     name: 'Amit P.',
-    text: 'Drive folder connect kiya, schedule set kiya — ab kuch nahi karna. Channel khud grow ho raha hai.',
+    text: 'Connected my Drive folder, set the schedule — nothing left to do. Channel is growing on its own.',
     stars: 5,
   },
 ];
@@ -73,13 +73,13 @@ export default function LandingPage() {
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight text-gray-900 mb-4">
-          YouTube Channel<br />
-          <span className="text-blue-600">Autopilot Pe Daal Do</span>
+          Put Your YouTube Channel<br />
+          <span className="text-blue-600">On Autopilot</span>
         </h1>
 
         <p className="text-gray-600 text-base sm:text-lg mb-6 max-w-md mx-auto">
-          Videos khud upload honge, sahi time pe, roz — bina tumhare kuch kiye.
-          Sirf queue me videos add karo aur bhool jao.
+          Videos upload themselves, at the right time, every day — without you lifting a finger.
+          Just add videos to the queue and forget about it.
         </p>
 
         <Button
@@ -87,24 +87,24 @@ export default function LandingPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white text-base font-bold px-8 py-6 rounded-xl w-full max-w-xs mx-auto flex items-center justify-center gap-2 shadow-lg"
           onClick={handleCTA}
         >
-          Free Mein Start Karo
+          Start for Free
           <ArrowRight className="h-5 w-5" />
         </Button>
 
-        <p className="text-xs text-gray-400 mt-3">Credit card ki zarurat nahi • Free plan hamesha ke liye</p>
+        <p className="text-xs text-gray-400 mt-3">No credit card required • Free plan forever</p>
 
         {/* Social proof strip */}
         <div className="flex items-center justify-center gap-1 mt-6">
           {[...Array(5)].map((_, i) => (
             <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
           ))}
-          <span className="text-sm text-gray-500 ml-1">500+ creators use kar rahe hain</span>
+          <span className="text-sm text-gray-500 ml-1">500+ creators are already using it</span>
         </div>
       </section>
 
       {/* ── HOW IT WORKS ── */}
       <section className="px-5 py-10 bg-white">
-        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Sirf 4 Steps</h2>
+        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Just 4 Steps</h2>
         <div className="flex flex-col gap-3 max-w-sm mx-auto">
           {steps.map((s) => (
             <div key={s.step} className="flex items-center gap-4 bg-gray-50 rounded-xl px-4 py-3">
@@ -119,7 +119,7 @@ export default function LandingPage() {
 
       {/* ── BENEFITS ── */}
       <section className="px-5 py-10 bg-gray-50">
-        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Kya milega?</h2>
+        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">What You Get</h2>
         <div className="flex flex-col gap-4 max-w-md mx-auto">
           {benefits.map((b, i) => (
             <div key={i} className="flex gap-4 bg-white rounded-xl p-4 shadow-sm">
@@ -138,13 +138,13 @@ export default function LandingPage() {
       {/* ── PAIN POINT ── */}
       <section className="px-5 py-10 bg-white text-center">
         <div className="max-w-md mx-auto">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Kya ye problems hain?</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Sound Familiar?</h2>
           <div className="flex flex-col gap-2 text-left">
             {[
-              'Roz manually YouTube pe video upload karna padta hai',
-              'Title aur description likhna time waste lagta hai',
-              'Multiple channels manage karna mushkil hai',
-              'Drive pe videos pile ho rahe hain upload nahi hue',
+              'Manually uploading videos to YouTube every single day',
+              'Writing titles and descriptions feels like a waste of time',
+              'Managing multiple channels is overwhelming',
+              'Videos piling up on Drive that never get uploaded',
             ].map((pain, i) => (
               <div key={i} className="flex items-start gap-2 bg-red-50 rounded-lg px-3 py-2">
                 <span className="text-red-500 font-bold text-sm mt-0.5">✗</span>
@@ -152,13 +152,13 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <p className="text-blue-600 font-semibold mt-5 text-sm">GPMart AI Studio ye sab automatically handle karta hai.</p>
+          <p className="text-blue-600 font-semibold mt-5 text-sm">GPMart AI Studio handles all of this automatically.</p>
         </div>
       </section>
 
       {/* ── REVIEWS ── */}
       <section className="px-5 py-10 bg-gray-50">
-        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Creators kya bol rahe hain</h2>
+        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">What Creators Are Saying</h2>
         <div className="flex flex-col gap-4 max-w-md mx-auto">
           {reviews.map((r, i) => (
             <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
@@ -176,19 +176,19 @@ export default function LandingPage() {
 
       {/* ── FINAL CTA ── */}
       <section className="px-5 py-12 bg-blue-600 text-center text-white">
-        <h2 className="text-2xl font-extrabold mb-2">Abhi Start Karo — Free Hai</h2>
+        <h2 className="text-2xl font-extrabold mb-2">Start Now — It's Free</h2>
         <p className="text-blue-100 text-sm mb-6">
-          Aaj channel connect karo, kal se uploads automatic.
+          Connect your channel today, uploads run automatically from tomorrow.
         </p>
         <Button
           size="lg"
           className="bg-white text-blue-600 hover:bg-blue-50 font-bold text-base px-8 py-6 rounded-xl w-full max-w-xs mx-auto flex items-center justify-center gap-2 shadow-lg"
           onClick={handleCTA}
         >
-          Free Account Banao
+          Create Free Account
           <ArrowRight className="h-5 w-5" />
         </Button>
-        <p className="text-blue-200 text-xs mt-3">No credit card • Setup 5 minutes mein</p>
+        <p className="text-blue-200 text-xs mt-3">No credit card • Setup in 5 minutes</p>
       </section>
 
       {/* ── FOOTER LINKS ── */}
