@@ -9,14 +9,17 @@ export function getNextUploadTime(channel: {
     const now = new Date();
     const [hours, minutes] = channel.uploadTime.split(':').map(Number);
 
-    // Helper: next upload = lastUploadDate + N days (if still in the future)
+    // Helper: next upload = lastUploadDate + N days, advancing in increments until future
     const nextFromLast = (days: number): Date | null => {
       if (!channel.lastUploadDate) return null;
       const last = new Date(channel.lastUploadDate);
       const next = new Date(last);
-      next.setDate(next.getDate() + days);
       next.setHours(hours, minutes, 0, 0);
-      return next > now ? next : null;
+      // Advance by 'days' increments until we land in the future
+      while (next <= now) {
+        next.setDate(next.getDate() + days);
+      }
+      return next;
     };
 
     // Helper: today at uploadTime, or tomorrow if passed
