@@ -67,6 +67,7 @@ interface Video {
   originalName: string;
   status: string;
   createdAt: string;
+  fileName?: string | null;
   uploadedAt?: string;
   uploadedVideoId?: string;
   driveFileId?: string | null;
@@ -189,7 +190,7 @@ export default function Dashboard() {
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
-  const [aiLanguage, setAiLanguage] = useState<'english' | 'hindi'>('hindi');
+  const [aiLanguage, setAiLanguage] = useState<'english' | 'hindi'>('english');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -200,6 +201,7 @@ export default function Dashboard() {
   const [deletingSelected, setDeletingSelected] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState('');
+  const [playingVideo, setPlayingVideo] = useState<Video | null>(null);
 
   // ── Load channel + plan + videos in one shot ──
   const loadChannel = useCallback(async () => {
@@ -698,8 +700,15 @@ export default function Dashboard() {
                   <Button
                     variant="outline"
                     className="h-12 rounded-2xl justify-start gap-3 text-sm font-medium border-border/60 hover:border-green-300 hover:bg-green-50/50 dark:hover:bg-green-950/20 disabled:opacity-60 disabled:cursor-not-allowed"
-                    onClick={() => planName?.toLowerCase() === 'free' ? undefined : fileInputRef.current?.click()}
-                    disabled={uploading || planName?.toLowerCase() === 'free'}
+                    onClick={() => {
+                      if (planName?.toLowerCase() === 'free') {
+                        setUpgradeReason('Upload from Device is a Pro feature. Upgrade to upload videos directly from your phone or computer.');
+                        setShowUpgradeModal(true);
+                      } else {
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    disabled={uploading}
                   >
                     <div className="h-8 w-8 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center shrink-0">
                       {planName?.toLowerCase() === 'free'
@@ -712,7 +721,7 @@ export default function Dashboard() {
                     <div className="text-left">
                       <p className="font-semibold">{uploading ? (uploadProgress || 'Uploading...') : 'Upload from Device'}</p>
                       <p className="text-xs text-muted-foreground font-normal">
-                        {planName?.toLowerCase() === 'free' ? 'Pro plan required' : uploading ? 'Please wait...' : 'Select video files'}
+                        {planName?.toLowerCase() === 'free' ? '🔒 Pro plan required' : uploading ? 'Please wait...' : 'Select video files'}
                       </p>
                     </div>
                   </Button>
@@ -802,8 +811,15 @@ export default function Dashboard() {
             <Button
               variant="outline"
               className="h-11 rounded-2xl flex-col gap-1 text-xs font-semibold border-border/60 hover:border-green-300 hover:bg-green-50/50 disabled:opacity-60 disabled:cursor-not-allowed"
-              onClick={() => planName?.toLowerCase() === 'free' ? undefined : fileInputRef.current?.click()}
-              disabled={uploading || planName?.toLowerCase() === 'free'}
+              onClick={() => {
+                if (planName?.toLowerCase() === 'free') {
+                  setUpgradeReason('Upload from Device is a Pro feature. Upgrade to upload videos directly from your phone or computer.');
+                  setShowUpgradeModal(true);
+                } else {
+                  fileInputRef.current?.click();
+                }
+              }}
+              disabled={uploading}
             >
               {planName?.toLowerCase() === 'free'
                 ? <Lock className="h-4 w-4 text-green-500" />
@@ -892,34 +908,36 @@ export default function Dashboard() {
             {/* AI Generate section — only when videos selected */}
             {selectedVideoIds.size > 0 && (
               <div className="border border-purple-200 dark:border-purple-800 rounded-xl p-2.5 space-y-2 bg-purple-50/50 dark:bg-purple-950/20">
+                {/* Row 1: hint + language */}
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="Topic hint"
+                    placeholder="Topic hint (optional)"
                     value={aiTopic}
                     onChange={e => setAiTopic(e.target.value)}
-                    className="w-24 h-7 rounded-lg border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400/50"
+                    className="flex-1 min-w-0 h-7 rounded-lg border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400/50"
                   />
                   <Select value={aiLanguage} onValueChange={v => setAiLanguage(v as 'english' | 'hindi')}>
-                    <SelectTrigger className="h-7 w-20 rounded-lg text-xs px-2">
+                    <SelectTrigger className="h-7 w-24 shrink-0 rounded-lg text-xs px-2">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="hindi">Hindi</SelectItem>
                       <SelectItem value="english">English</SelectItem>
+                      <SelectItem value="hindi">Hindi</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button
-                    className="h-7 px-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shrink-0 ml-auto"
-                    onClick={generateAITitles}
-                    disabled={generatingAI}
-                  >
-                    {generatingAI
-                      ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Generating...</>
-                      : <><Zap className="h-3 w-3 mr-1" />AI · {selectedVideoIds.size}</>
-                    }
-                  </Button>
                 </div>
+                {/* Row 2: AI button full width */}
+                <Button
+                  className="w-full h-8 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold"
+                  onClick={generateAITitles}
+                  disabled={generatingAI}
+                >
+                  {generatingAI
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Generating...</>
+                    : <><Zap className="h-3.5 w-3.5 mr-1.5" />AI Generate Title & Description ({selectedVideoIds.size} video{selectedVideoIds.size !== 1 ? 's' : ''})</>
+                  }
+                </Button>
               </div>
             )}
 
@@ -972,10 +990,26 @@ export default function Dashboard() {
                     {/* Thumbnail */}
                     {(() => {
                       const thumb = getVideoThumbnail(video);
+                      const canPlay = !!(video.fileName || video.driveFileId);
                       return thumb ? (
-                        <img src={thumb} alt="" className="h-10 w-16 rounded-lg object-cover shrink-0 bg-muted" />
+                        <div
+                          className={`relative h-10 w-16 rounded-lg shrink-0 overflow-hidden group ${canPlay ? 'cursor-pointer' : ''}`}
+                          onClick={canPlay ? () => setPlayingVideo(video) : undefined}
+                        >
+                          <img src={thumb} alt="" className="h-full w-full object-cover bg-muted" />
+                          {canPlay && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="h-5 w-5 rounded-full bg-white/90 flex items-center justify-center">
+                                <svg className="h-2.5 w-2.5 text-gray-900 ml-0.5" fill="currentColor" viewBox="0 0 8 8"><polygon points="1,0 7,4 1,8"/></svg>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : (
-                        <div className="h-10 w-16 rounded-lg bg-muted shrink-0 flex items-center justify-center">
+                        <div
+                          className={`h-10 w-16 rounded-lg bg-muted shrink-0 flex items-center justify-center ${canPlay ? 'cursor-pointer hover:bg-muted/70' : ''}`}
+                          onClick={canPlay ? () => setPlayingVideo(video) : undefined}
+                        >
                           <ListVideo className="h-4 w-4 text-muted-foreground/40" />
                         </div>
                       );
@@ -1209,6 +1243,43 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── VIDEO PLAYER MODAL ── */}
+      {playingVideo && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPlayingVideo(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl overflow-hidden bg-black shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-900">
+              <p className="text-white text-sm font-medium truncate pr-4">{playingVideo.title || playingVideo.originalName}</p>
+              <button
+                onClick={() => setPlayingVideo(null)}
+                className="text-gray-400 hover:text-white shrink-0 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {playingVideo.fileName && !playingVideo.driveFileId ? (
+              <video
+                src={playingVideo.fileName}
+                controls
+                autoPlay
+                className="w-full max-h-[60vh] bg-black"
+              />
+            ) : playingVideo.driveFileId ? (
+              <iframe
+                src={`https://drive.google.com/file/d/${playingVideo.driveFileId}/preview`}
+                className="w-full aspect-video"
+                allow="autoplay"
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
 
       <AlertDialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
         <AlertDialogContent>

@@ -248,7 +248,7 @@ export default function LandingPage() {
             <p className="font-bold text-gray-800 text-base mb-0.5">Free</p>
             <p className="text-2xl font-extrabold mb-3">₹0 <span className="text-sm font-normal text-gray-400">/ forever</span></p>
             <ul className="space-y-2">
-              {['5 videos / month', 'Google Drive import', 'Video library access', 'All schedule types'].map(f => (
+              {['3 videos / month', 'Google Drive import', 'Video library access', 'All schedule types'].map(f => (
                 <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
                   <Check className="h-4 w-4 text-green-500 shrink-0" /> {f}
                 </li>
