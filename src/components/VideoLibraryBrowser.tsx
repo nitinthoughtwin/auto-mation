@@ -291,7 +291,7 @@ export default function VideoLibraryBrowser({
     <>
       {/* Main Dialog */}
       <Dialog open={open && !previewVideo} onOpenChange={onClose}>
-        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogContent showCloseButton={false} className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
           {/* Header - Fixed */}
           <DialogHeader className="p-3 pb-3 border-b flex-shrink-0">
             <div className="flex items-center justify-between gap-2">

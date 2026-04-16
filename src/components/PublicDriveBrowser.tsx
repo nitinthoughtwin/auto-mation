@@ -345,7 +345,7 @@ export default function PublicDriveBrowser({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-[95vw] sm:max-w-5xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+        <DialogContent showCloseButton={false} className="max-w-[95vw] sm:max-w-5xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
           {/* Header */}
           <DialogHeader className="p-3 border-b flex-shrink-0">
             <div className="flex items-center justify-between gap-2">

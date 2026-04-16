@@ -33,7 +33,15 @@ import {
   Crown,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  X,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import PublicDriveBrowser from '@/components/PublicDriveBrowser';
 import VideoLibraryBrowser from '@/components/VideoLibraryBrowser';
@@ -63,6 +71,8 @@ interface Video {
   driveFileId?: string | null;
   thumbnailDriveId?: string | null;
   thumbnailName?: string | null;
+  description?: string | null;
+  tags?: string | null;
 }
 
 function getVideoThumbnail(video: { driveFileId?: string | null; thumbnailDriveId?: string | null; thumbnailName?: string | null; uploadedVideoId?: string }): string | null {
@@ -175,6 +185,13 @@ export default function Dashboard() {
   const [aiTopic, setAiTopic] = useState('');
   const [aiLanguage, setAiLanguage] = useState<'english' | 'hindi'>('hindi');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editTags, setEditTags] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [generatingEditAI, setGeneratingEditAI] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
 
   // ── Load channel + plan in parallel ──
   const loadChannel = useCallback(async () => {
@@ -416,6 +433,82 @@ export default function Dashboard() {
     }
   };
 
+  const deleteSelectedVideos = async () => {
+    if (selectedVideoIds.size === 0) return;
+    setDeletingSelected(true);
+    try {
+      await Promise.all(Array.from(selectedVideoIds).map(id =>
+        fetch(`/api/videos/${id}`, { method: 'DELETE' })
+      ));
+      setVideos(prev => prev.filter(v => !selectedVideoIds.has(v.id)));
+      setSelectedVideoIds(new Set());
+      loadChannel();
+      toast.success(`${selectedVideoIds.size} video${selectedVideoIds.size > 1 ? 's' : ''} deleted`);
+    } finally {
+      setDeletingSelected(false);
+    }
+  };
+
+  const openEditDialog = (video: Video) => {
+    setEditingVideo(video);
+    setEditTitle(video.title || video.originalName);
+    setEditDescription(video.description || '');
+    setEditTags(video.tags || '');
+  };
+
+  const saveVideoEdit = async () => {
+    if (!editingVideo) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch('/api/videos/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId: editingVideo.id, title: editTitle.trim(), description: editDescription.trim(), tags: editTags.trim() }),
+      });
+      if (res.ok) {
+        setVideos(prev => prev.map(v => v.id === editingVideo.id
+          ? { ...v, title: editTitle.trim(), description: editDescription.trim(), tags: editTags.trim() }
+          : v
+        ));
+        setEditingVideo(null);
+        toast.success('Video updated');
+      } else {
+        toast.error('Failed to save');
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const generateAIForVideo = async () => {
+    if (!editingVideo || !channel) return;
+    setGeneratingEditAI(true);
+    try {
+      const res = await fetch('/api/ai/generate-for-videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId: channel.id,
+          videos: [{ id: editingVideo.id, title: editTitle || editingVideo.originalName }],
+          topic: aiTopic.trim() || undefined,
+          language: aiLanguage,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.results?.[0]) {
+        const r = data.results[0];
+        if (r.title) setEditTitle(r.title);
+        if (r.description) setEditDescription(r.description);
+        if (r.tags) setEditTags(Array.isArray(r.tags) ? r.tags.join(', ') : r.tags);
+        toast.success('AI content generated');
+      } else {
+        toast.error(data.error || 'Failed to generate');
+      }
+    } finally {
+      setGeneratingEditAI(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-lg mx-auto px-4 py-6 space-y-4 animate-pulse">
@@ -633,7 +726,7 @@ export default function Dashboard() {
       {currentStep === 3 && hasChannel && hasVideos && (
         <div className="bg-muted/30 border border-border/50 rounded-2xl p-4 space-y-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Set Schedule</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground font-medium">Upload Time</p>
               <input
@@ -713,7 +806,7 @@ export default function Dashboard() {
       {isLive && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Schedule</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               type="time"
               value={uploadTime}
@@ -782,14 +875,15 @@ export default function Dashboard() {
                     onChange={e => setAiTopic(e.target.value)}
                     className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   />
-                  <select
-                    value={aiLanguage}
-                    onChange={e => setAiLanguage(e.target.value as 'english' | 'hindi')}
-                    className="h-9 rounded-xl border border-input bg-background px-2 text-sm focus:outline-none"
-                  >
-                    <option value="hindi">Hindi</option>
-                    <option value="english">English</option>
-                  </select>
+                  <Select value={aiLanguage} onValueChange={v => setAiLanguage(v as 'english' | 'hindi')}>
+                    <SelectTrigger className="h-9 w-28 rounded-xl text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hindi">Hindi</SelectItem>
+                      <SelectItem value="english">English</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
                   className="w-full h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold"
@@ -800,6 +894,25 @@ export default function Dashboard() {
                     ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Generating...</>
                     : <><Zap className="h-4 w-4 mr-2" />Generate for {selectedVideoIds.size > 0 ? `${selectedVideoIds.size} selected` : `all ${queuedVideos.length}`} videos</>
                   }
+                </Button>
+              </div>
+            )}
+
+            {/* Bulk delete bar */}
+            {selectedVideoIds.size > 0 && (
+              <div className="flex items-center justify-between bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">
+                <span className="text-xs font-medium text-red-700 dark:text-red-400">
+                  {selectedVideoIds.size} video{selectedVideoIds.size > 1 ? 's' : ''} selected
+                </span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 px-3 text-xs font-semibold rounded-lg"
+                  onClick={deleteSelectedVideos}
+                  disabled={deletingSelected}
+                >
+                  {deletingSelected ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                  Delete
                 </Button>
               </div>
             )}
@@ -863,13 +976,10 @@ export default function Dashboard() {
                     ) : null}
                   </div>
                   <button
-                    onClick={() => deleteVideo(video.id)}
-                    disabled={deletingVideoId === video.id}
-                    className="text-muted-foreground/50 hover:text-red-500 shrink-0 p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                    onClick={() => openEditDialog(video)}
+                    className="text-muted-foreground/50 hover:text-blue-500 shrink-0 p-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
                   >
-                    {deletingVideoId === video.id
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Trash2 className="h-4 w-4" />}
+                    <Pencil className="h-4 w-4" />
                   </button>
                 </div>
               ))
@@ -947,6 +1057,89 @@ export default function Dashboard() {
           onVideosAdded={() => { setShowLibrary(false); loadVideos(channel.id); loadChannel(); }}
         />
       )}
+
+      {/* ── EDIT VIDEO DIALOG ── */}
+      <Dialog open={!!editingVideo} onOpenChange={open => { if (!open) setEditingVideo(null); }}>
+        <DialogContent className="max-w-md rounded-2xl" showCloseButton={false}>
+          <DialogHeader className="flex flex-row items-center justify-between p-4 border-b">
+            <DialogTitle className="text-base font-semibold">Edit Video</DialogTitle>
+            <button
+              onClick={() => setEditingVideo(null)}
+              className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </DialogHeader>
+          <div className="p-4 space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Title</label>
+              <input
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                placeholder="Video title"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Description</label>
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
+                placeholder="Video description"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Tags (comma separated)</label>
+              <input
+                value={editTags}
+                onChange={e => setEditTags(e.target.value)}
+                className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                placeholder="tag1, tag2, tag3"
+              />
+            </div>
+            {/* AI generate row */}
+            <div className="flex gap-2 pt-1">
+              <input
+                type="text"
+                placeholder="Topic hint (optional)"
+                value={aiTopic}
+                onChange={e => setAiTopic(e.target.value)}
+                className="flex-1 h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+              <Select value={aiLanguage} onValueChange={v => setAiLanguage(v as 'english' | 'hindi')}>
+                <SelectTrigger className="h-9 w-24 rounded-xl text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hindi">Hindi</SelectItem>
+                  <SelectItem value="english">English</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              className="w-full h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold"
+              onClick={generateAIForVideo}
+              disabled={generatingEditAI}
+            >
+              {generatingEditAI
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Generating...</>
+                : <><Zap className="h-4 w-4 mr-2" />AI Generate Title, Description & Tags</>
+              }
+            </Button>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1 h-10 rounded-xl" onClick={() => setEditingVideo(null)}>
+                Cancel
+              </Button>
+              <Button className="flex-1 h-10 rounded-xl font-semibold" onClick={saveVideoEdit} disabled={savingEdit}>
+                {savingEdit ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
         <AlertDialogContent>
