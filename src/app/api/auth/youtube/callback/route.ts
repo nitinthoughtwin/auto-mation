@@ -163,9 +163,27 @@ async function upsertChannel({
       return redirectSuccess(base, updated.id, updated.name);
     }
 
+    // Verify userId exists in DB before creating channel (prevents FK violation)
+    let resolvedUserId = userId;
+    if (resolvedUserId) {
+      const userExists = await db.user.findUnique({ where: { id: resolvedUserId }, select: { id: true } });
+      if (!userExists) {
+        // Try to find user by googleAccountId as fallback
+        if (googleAccountId) {
+          const accountRecord = await db.account.findFirst({
+            where: { providerAccountId: googleAccountId },
+            select: { userId: true },
+          });
+          resolvedUserId = accountRecord?.userId ?? null;
+        } else {
+          resolvedUserId = null;
+        }
+      }
+    }
+
     const created = await db.channel.create({
       data: {
-        userId,
+        userId: resolvedUserId,
         name: channelInfo.title || 'Unknown Channel',
         youtubeChannelId: channelInfo.id,
         googleAccountId,
