@@ -77,6 +77,7 @@ function IssueRow({ issue }: { issue: Issue }) {
 function LogBadge({ status }: { status: string }) {
   if (status === 'success') return <Badge className="bg-green-100 text-green-700 border-0 text-xs">Success</Badge>;
   if (status === 'failed') return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Failed</Badge>;
+  if (status === 'blocked') return <Badge className="bg-orange-100 text-orange-700 border-0 text-xs">Blocked</Badge>;
   return <Badge className="bg-gray-100 text-gray-600 border-0 text-xs">Skipped</Badge>;
 }
 

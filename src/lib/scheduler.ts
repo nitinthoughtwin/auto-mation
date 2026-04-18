@@ -469,23 +469,34 @@ export async function processScheduledUploads(): Promise<{
           const { limits, usage } = await getUserPlanAndUsage(channel.userId);
           const limitCheck = checkVideoLimit(limits, usage);
           if (!limitCheck.allowed) {
+            const msg = `Plan limit reached: ${limitCheck.message}`;
             console.log(`Plan limit reached for channel ${channel.name}: ${limitCheck.message}`);
-            results.push({
-              channel: channel.name,
-              status: 'skipped',
-              message: `Plan limit: ${limitCheck.message}`,
+            await db.schedulerLog.create({
+              data: {
+                channelId: channel.id,
+                videoId: video.id,
+                action: 'upload',
+                status: 'blocked',
+                message: msg,
+              },
             });
+            results.push({ channel: channel.name, status: 'blocked', message: msg });
             skipped++;
             continue;
           }
         } catch (limitError) {
           console.warn(`Could not check plan limits for channel ${channel.name}:`, limitError);
-          // If no subscription found, skip the upload
-          results.push({
-            channel: channel.name,
-            status: 'skipped',
-            message: 'No active subscription found',
+          const msg = 'No active subscription found — upload blocked';
+          await db.schedulerLog.create({
+            data: {
+              channelId: channel.id,
+              videoId: video.id,
+              action: 'upload',
+              status: 'blocked',
+              message: msg,
+            },
           });
+          results.push({ channel: channel.name, status: 'blocked', message: msg });
           skipped++;
           continue;
         }

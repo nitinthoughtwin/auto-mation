@@ -110,6 +110,7 @@ function formatTime(dateStr: string): string {
 function StatusBadge({ status }: { status: string }) {
   if (status === 'success') return <Badge className="bg-green-100 text-green-700 border-0">Success</Badge>;
   if (status === 'failed') return <Badge className="bg-red-100 text-red-700 border-0">Failed</Badge>;
+  if (status === 'blocked') return <Badge className="bg-orange-100 text-orange-700 border-0">Blocked</Badge>;
   if (status === 'skipped') return <Badge className="bg-yellow-100 text-yellow-700 border-0">Skipped</Badge>;
   return <Badge variant="secondary">{status}</Badge>;
 }
