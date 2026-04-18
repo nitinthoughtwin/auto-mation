@@ -29,7 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Loader2, Search, ArrowLeft, CreditCard } from 'lucide-react';
+import { Loader2, Search, ArrowLeft, CreditCard, Bug } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Plan {
@@ -253,15 +253,26 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openPlanDialog(user)}
-                          className="h-8 text-xs gap-1.5"
-                        >
-                          <CreditCard className="h-3.5 w-3.5" />
-                          Change Plan
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openPlanDialog(user)}
+                            className="h-8 text-xs gap-1.5"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Change Plan
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                            className="h-8 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+                          >
+                            <Bug className="h-3.5 w-3.5" />
+                            Debug
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
