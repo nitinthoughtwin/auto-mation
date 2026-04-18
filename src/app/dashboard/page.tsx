@@ -300,6 +300,19 @@ export default function Dashboard() {
 
   const saveSchedule = async (): Promise<boolean> => {
     if (!channel) return false;
+
+    // Block saving if upload time is within 30 minutes from now
+    const [h, m] = uploadTime.split(':').map(Number);
+    const now = new Date();
+    const scheduled = new Date();
+    scheduled.setHours(h, m, 0, 0);
+    if (scheduled <= now) scheduled.setDate(scheduled.getDate() + 1); // tomorrow if already passed
+    const diffMins = (scheduled.getTime() - now.getTime()) / 60000;
+    if (diffMins < 30) {
+      toast.error(`Upload time is too soon. Please set a time at least 30 minutes from now (current gap: ${Math.floor(diffMins)} min).`);
+      return false;
+    }
+
     setSavingSchedule(true);
     try {
       const res = await fetch(`/api/channels/${channel.id}`, {
