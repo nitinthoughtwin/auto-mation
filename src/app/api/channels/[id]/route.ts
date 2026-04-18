@@ -97,14 +97,22 @@ export async function DELETE(
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    // Delete the channel (this will cascade delete videos based on schema)
-    await db.channel.delete({
+    // Soft-disconnect: clear tokens + userId but keep channel + video history.
+    // On reconnect the OAuth callback will find this record by youtubeChannelId
+    // and restore tokens, userId, and isActive — preserving all upload history.
+    await db.channel.update({
       where: { id },
+      data: {
+        userId: null,
+        accessToken: '',
+        refreshToken: '',
+        isActive: false,
+      },
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: 'Channel disconnected successfully' 
+      message: 'Channel disconnected successfully'
     });
   } catch (error: any) {
     console.error('Error deleting channel:', error);

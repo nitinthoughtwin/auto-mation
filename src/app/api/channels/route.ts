@@ -3,13 +3,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getNextUploadTime } from '@/lib/utils-shared';
-import { getUserPlanAndUsage, checkChannelLimit } from '@/lib/plan-limits';
+import { getUserPlanAndUsage, checkChannelLimit, checkVideoLimit } from '@/lib/plan-limits';
 
 // GET - List all channels for current user
 export async function GET(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -17,8 +17,8 @@ export async function GET(_request: NextRequest) {
     console.log('[Channels API] User ID:', session.user.id);
 
     const channels = await db.channel.findMany({
-      where: { 
-        userId: session.user.id 
+      where: {
+        userId: session.user.id
       },
       include: {
         _count: {
@@ -32,6 +32,18 @@ export async function GET(_request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Include plan limit info so dashboard can show blocked state immediately
+    let planLimitReached = false;
+    let videosThisMonth = 0;
+    let maxVideosPerMonth = 0;
+    try {
+      const { limits, usage } = await getUserPlanAndUsage(session.user.id);
+      const check = checkVideoLimit(limits, usage);
+      planLimitReached = !check.allowed;
+      videosThisMonth = usage.videosThisMonth;
+      maxVideosPerMonth = limits.maxVideosPerMonth;
+    } catch { /* no subscription — treat as limit reached */ planLimitReached = true; }
+
     const channelsWithStats = channels.map(channel => ({
       ...channel,
       // Hide sensitive tokens in response
@@ -40,6 +52,9 @@ export async function GET(_request: NextRequest) {
       nextUploadTime: getNextUploadTime(channel),
       totalVideos: channel._count.videos,
       queuedVideos: channel.videos.length,
+      planLimitReached,
+      videosThisMonth,
+      maxVideosPerMonth,
     }));
 
     return NextResponse.json({ channels: channelsWithStats });

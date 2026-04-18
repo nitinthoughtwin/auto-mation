@@ -62,6 +62,9 @@ interface Channel {
   lastUploadDate: string | null;
   queuedVideos?: number;
   timezone?: string;
+  planLimitReached?: boolean;
+  videosThisMonth?: number;
+  maxVideosPerMonth?: number;
 }
 
 interface Video {
@@ -279,7 +282,14 @@ export default function Dashboard() {
   const uploadedVideos = videos.filter(v => v.status === 'uploaded');
   const hasVideos = queuedVideos.length > 0;
   const isLive = hasChannel && hasVideos && !!channel?.isActive;
-  const currentStep = !hasChannel ? 1 : !hasVideos ? 2 : !channel.isActive ? 3 : 0;
+
+  // Plan limit — available immediately from channel data (no async health check needed)
+  const planLimitReached = channel?.planLimitReached ?? warnings.some(w => w.type === 'plan_limit' && !dismissedWarnings.has(w.type));
+
+  // When system auto-paused due to limit, don't treat it as Step 3 (setup).
+  // Instead we show a "paused due to limit" banner.
+  const isPausedDueToLimit = !channel?.isActive && planLimitReached && hasChannel;
+  const currentStep = !hasChannel ? 1 : !hasVideos ? 2 : (!channel.isActive && !isPausedDueToLimit) ? 3 : 0;
 
   // ── Actions ──
   const [connectingYT, setConnectingYT] = useState(false);
@@ -661,7 +671,14 @@ export default function Dashboard() {
 
       {/* ── LIVE STATUS BANNER ── */}
       {isLive && (() => {
-        const limitWarning = warnings.find(w => w.type === 'plan_limit' && !dismissedWarnings.has(w.type));
+        const limitWarning = planLimitReached
+          ? (warnings.find(w => w.type === 'plan_limit' && !dismissedWarnings.has(w.type)) ?? {
+              type: 'plan_limit', severity: 'warning' as const,
+              title: 'Monthly upload limit reached',
+              message: `You've used ${channel?.videosThisMonth ?? 0} of ${channel?.maxVideosPerMonth ?? 0} videos this month. Upgrade to continue.`,
+              action: { label: 'Upgrade Plan', href: '/pricing' },
+            })
+          : null;
         const authWarning = warnings.find(w => (w.type === 'youtube_auth' || w.type === 'no_refresh_token') && !dismissedWarnings.has(w.type));
         const isBlocked = !!limitWarning || !!authWarning;
 
@@ -751,8 +768,56 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* ── SETUP STEPS (shown when not live) ── */}
-      {!isLive && (
+      {/* ── PAUSED DUE TO PLAN LIMIT BANNER ── */}
+      {isPausedDueToLimit && (
+        <div className="rounded-2xl p-4 space-y-3 border bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-orange-500" />
+              <span className="font-bold text-sm text-orange-800 dark:text-orange-200">
+                Automation Paused — Monthly Limit Reached
+              </span>
+            </div>
+          </div>
+          <div className="bg-orange-100 dark:bg-orange-900/30 rounded-xl px-3 py-2.5">
+            <p className="text-xs font-semibold text-orange-800 dark:text-orange-300">
+              You&apos;ve used {channel?.videosThisMonth ?? 0} of {channel?.maxVideosPerMonth ?? 0} videos this month
+            </p>
+            <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
+              Automation has been automatically paused. Upgrade your plan to continue uploading, or wait for the monthly reset.
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={() => router.push('/pricing')}
+                className="text-xs font-semibold text-orange-700 dark:text-orange-300 underline underline-offset-2"
+              >
+                Upgrade Plan →
+              </button>
+              <span className="text-orange-400">·</span>
+              <button
+                onClick={() => toggleActive(true)}
+                disabled={togglingActive}
+                className="text-xs font-semibold text-orange-700 dark:text-orange-300 underline underline-offset-2 disabled:opacity-50"
+              >
+                {togglingActive ? 'Resuming...' : 'Resume anyway'}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-orange-700 dark:text-orange-400">
+            <span className="flex items-center gap-1.5">
+              <ListVideo className="h-3.5 w-3.5" />
+              {queuedVideos.length} video{queuedVideos.length !== 1 ? 's' : ''} waiting in queue
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CalendarClock className="h-3.5 w-3.5" />
+              {FREQ_LABELS[channel!.frequency]} · {channel!.uploadTime}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── SETUP STEPS (shown when not live and not paused-due-to-limit) ── */}
+      {!isLive && !isPausedDueToLimit && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Setup</p>
 
@@ -934,8 +999,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── ADD MORE VIDEOS (when live) ── */}
-      {isLive && (
+      {/* ── ADD MORE VIDEOS (when live or paused-due-to-limit) ── */}
+      {(isLive || isPausedDueToLimit) && (
         <div className="border border-border/40 rounded-2xl p-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add More Videos</p>
           <div className="grid grid-cols-3 gap-2">
@@ -982,8 +1047,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── SCHEDULE EDIT (when live) ── */}
-      {isLive && (
+      {/* ── SCHEDULE EDIT (when live or paused-due-to-limit) ── */}
+      {(isLive || isPausedDueToLimit) && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Schedule</p>
           <div className="grid grid-cols-2 gap-2">
@@ -1042,8 +1107,10 @@ export default function Dashboard() {
                 <TabsTrigger value="history" className="flex-1 rounded-lg gap-1.5 text-sm font-semibold">
                   <History className="h-4 w-4" />
                   History
-                  {videos.length > 0 && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-xs">{videos.length}</Badge>
+                  {videos.filter(v => ['uploaded', 'failed', 'scanning'].includes(v.status)).length > 0 && (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                      {videos.filter(v => ['uploaded', 'failed', 'scanning'].includes(v.status)).length}
+                    </Badge>
                   )}
                 </TabsTrigger>
               </TabsList>
@@ -1105,6 +1172,24 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* Plan limit banner inside queue */}
+            {planLimitReached && queuedVideos.length > 0 && (
+              <div className="flex items-start gap-2.5 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl px-3 py-2.5">
+                <Lock className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-orange-800 dark:text-orange-300">
+                    Monthly limit reached — uploads paused
+                  </p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+                    Used {channel?.videosThisMonth ?? 0}/{channel?.maxVideosPerMonth ?? 0} videos this month.
+                    These videos will upload automatically next month, or{' '}
+                    <button onClick={() => router.push('/pricing')} className="underline font-semibold">upgrade now</button>
+                    {' '}to continue.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {loadingVideos ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1127,17 +1212,22 @@ export default function Dashboard() {
                   </div>
                 )}
                 {queuedVideos.map((video, i) => (
-                  <div key={video.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${selectedVideoIds.has(video.id) ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-muted/40 hover:bg-muted/60'}`}>
+                  <div key={video.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+                    planLimitReached
+                      ? 'bg-muted/20 opacity-60'
+                      : selectedVideoIds.has(video.id) ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-muted/40 hover:bg-muted/60'
+                  }`}>
                     <input
                       type="checkbox"
                       checked={selectedVideoIds.has(video.id)}
                       onChange={() => toggleVideoSelect(video.id)}
                       className="h-4 w-4 rounded accent-blue-600 shrink-0 cursor-pointer"
+                      disabled={planLimitReached}
                     />
                     {/* Thumbnail */}
                     {(() => {
                       const thumb = getVideoThumbnail(video);
-                      const canPlay = !!(video.fileName || video.driveFileId);
+                      const canPlay = !planLimitReached && !!(video.fileName || video.driveFileId);
                       return thumb ? (
                         <div
                           className={`relative h-10 w-16 rounded-lg shrink-0 overflow-hidden group ${canPlay ? 'cursor-pointer' : ''}`}
@@ -1176,14 +1266,18 @@ export default function Dashboard() {
                         />
                       ) : (
                         <p
-                          className="text-sm font-medium truncate cursor-pointer hover:text-blue-600 transition-colors"
-                          title="Click to edit title"
-                          onClick={() => { setEditingTitleId(video.id); setEditingTitleValue(video.title || video.originalName); }}
+                          className={`text-sm font-medium truncate ${!planLimitReached ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
+                          title={!planLimitReached ? 'Click to edit title' : undefined}
+                          onClick={!planLimitReached ? () => { setEditingTitleId(video.id); setEditingTitleValue(video.title || video.originalName); } : undefined}
                         >
                           {video.title || video.originalName}
                         </p>
                       )}
-                      {i === 0 && channel?.isActive ? (
+                      {planLimitReached ? (
+                        <p className="text-xs text-orange-500 font-medium mt-0.5 flex items-center gap-1">
+                          <Lock className="h-3 w-3" /> Waiting — limit reached
+                        </p>
+                      ) : i === 0 && channel?.isActive ? (
                         <p className="text-xs text-green-600 font-medium mt-0.5">Next to upload</p>
                       ) : video.status === 'scanning' ? (
                         <p className="text-xs text-yellow-600 font-medium mt-0.5">Scanning...</p>
@@ -1192,6 +1286,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => openEditDialog(video)}
                       className="text-muted-foreground/50 hover:text-blue-500 shrink-0 p-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                      disabled={planLimitReached}
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
@@ -1208,63 +1303,92 @@ export default function Dashboard() {
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : (() => {
-              const historyVideos = videos.filter(v => ['uploaded', 'failed', 'queued', 'scanning'].includes(v.status));
+              // Only show completed/in-progress — NOT queued
+              const inProgress = videos.filter(v => v.status === 'scanning');
+              const done = videos
+                .filter(v => v.status === 'uploaded' || v.status === 'failed')
+                .sort((a, b) => {
+                  const aTime = a.uploadedAt ? new Date(a.uploadedAt).getTime() : new Date(a.createdAt).getTime();
+                  const bTime = b.uploadedAt ? new Date(b.uploadedAt).getTime() : new Date(b.createdAt).getTime();
+                  return bTime - aTime; // newest first
+                });
+              const historyVideos = [...inProgress, ...done];
+
               if (historyVideos.length === 0) {
                 return (
                   <div className="text-center py-10 text-muted-foreground">
                     <History className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                    <p className="text-sm font-medium">No videos added yet</p>
-                    <p className="text-xs mt-1">Videos you add will appear here</p>
+                    <p className="text-sm font-medium">No uploads yet</p>
+                    <p className="text-xs mt-1">Uploaded and failed videos will appear here</p>
                   </div>
                 );
               }
               return (
                 <>
-                  {/* Usage summary */}
-                  <div className="flex items-center justify-between px-1 pb-1 border-b mb-2">
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">{uploadedVideos.length}</span> uploaded ·{' '}
-                      <span className="font-semibold text-foreground">{queuedVideos.length}</span> in queue ·{' '}
-                      <span className="font-semibold text-foreground">{videos.filter(v => v.status === 'failed').length}</span> failed
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {historyVideos.length} total this month
-                    </p>
+                  {/* Summary line */}
+                  <div className="flex items-center gap-3 px-1 pb-1.5 border-b mb-1">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                      <span className="font-semibold text-foreground">{uploadedVideos.length}</span> uploaded
+                    </span>
+                    {videos.filter(v => v.status === 'failed').length > 0 && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <XCircle className="h-3 w-3 text-red-400" />
+                        <span className="font-semibold text-foreground">{videos.filter(v => v.status === 'failed').length}</span> failed
+                      </span>
+                    )}
+                    {inProgress.length > 0 && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 text-blue-400 animate-spin" />
+                        <span className="font-semibold text-foreground">{inProgress.length}</span> uploading
+                      </span>
+                    )}
                   </div>
                   {historyVideos.slice(0, 50).map(video => (
-                    <div key={video.id} className="flex items-center gap-3 bg-muted/40 rounded-xl px-3 py-2.5">
+                    <div key={video.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+                      video.status === 'failed' ? 'bg-red-50/60 dark:bg-red-950/20' : 'bg-muted/40'
+                    }`}>
                       {video.status === 'uploaded'
                         ? <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
                         : video.status === 'failed'
                           ? <XCircle className="h-4 w-4 text-red-400 shrink-0" />
                           : <Loader2 className="h-4 w-4 text-blue-400 shrink-0 animate-spin" />
                       }
+                      {/* Thumbnail for uploaded */}
+                      {video.status === 'uploaded' && video.uploadedVideoId && (
+                        <img
+                          src={`https://img.youtube.com/vi/${video.uploadedVideoId}/default.jpg`}
+                          alt=""
+                          className="h-9 w-14 rounded-lg object-cover bg-muted shrink-0"
+                        />
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{video.title || video.originalName}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {video.status === 'uploaded' && video.uploadedAt
-                            ? `Uploaded · ${new Date(video.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                            ? new Date(video.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                             : video.status === 'failed'
-                              ? `Failed · ${video.uploadedAt ? new Date(video.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'check queue'}`
-                              : `In queue · added ${new Date(video.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                              ? `Failed${video.uploadedAt ? ' · ' + new Date(video.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}`
+                              : 'Uploading to YouTube...'
                           }
                         </p>
                       </div>
-                      {video.status === 'uploaded' && video.uploadedVideoId && (
+                      {video.status === 'uploaded' && video.uploadedVideoId ? (
                         <a
                           href={`https://youtube.com/watch?v=${video.uploadedVideoId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 font-semibold shrink-0 hover:text-blue-700"
+                          className="text-xs text-blue-600 font-semibold shrink-0 hover:text-blue-700 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40"
                         >
                           Watch ↗
                         </a>
-                      )}
-                      {video.status !== 'uploaded' && (
-                        <span className={`text-xs font-medium shrink-0 px-2 py-0.5 rounded-full ${
-                          video.status === 'failed' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-                        }`}>
-                          {video.status === 'failed' ? 'Failed' : 'Queued'}
+                      ) : video.status === 'failed' ? (
+                        <span className="text-xs font-medium shrink-0 px-2 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                          Rejected
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium shrink-0 px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                          In progress
                         </span>
                       )}
                     </div>
@@ -1467,7 +1591,7 @@ export default function Dashboard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect channel?</AlertDialogTitle>
             <AlertDialogDescription>
-              Automation will stop. Videos in your queue will remain saved.
+              Automation will stop and YouTube access will be removed. Your upload history and queued videos will be preserved — reconnecting this channel will restore everything.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
