@@ -7,52 +7,7 @@ import { getUserPlanAndUsage, checkVideoLimit } from './plan-limits';
 
 type FrequencyType = 'daily' | 'alternate' | 'every3days' | 'every5days' | 'everySunday';
 
-// Get today's date string in the channel's timezone
-function getTodayDateStr(timezone: string): string {
-  const now = new Date();
-  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  return dateFormatter.format(now);
-}
 
-// Get or create random delay for the day (stored in database for persistence)
-async function getRandomDelay(channel: { id: string; randomDelayMinutes: number | null; randomDelayDate: Date | null }, timezone: string): Promise<number> {
-  const todayStr = getTodayDateStr(timezone);
-  
-  // Check if we already have a delay stored for today
-  if (channel.randomDelayDate) {
-    const storedDate = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(channel.randomDelayDate));
-    
-    if (storedDate === todayStr && channel.randomDelayMinutes !== null) {
-      console.log(`[RandomDelay] Using stored delay from DB: ${channel.randomDelayMinutes} minutes`);
-      return channel.randomDelayMinutes;
-    }
-  }
-  
-  // Generate new random delay between -15 and +15 minutes
-  const delay = Math.floor(Math.random() * 31) - 15; // -15 to +15
-  
-  // Save to database
-  await db.channel.update({
-    where: { id: channel.id },
-    data: {
-      randomDelayMinutes: delay,
-      randomDelayDate: new Date(),
-    },
-  });
-  
-  console.log(`[RandomDelay] New delay calculated and saved to DB: ${delay} minutes for channel ${channel.id}`);
-  return delay;
-}
 
 // Get current time in a specific timezone
 function getCurrentTimeInTimezone(timezone: string): { hours: number; minutes: number; date: Date } {
@@ -143,7 +98,54 @@ function convertTo24Hour(timeStr: string): { hours: number; minutes: number } {
   return { hours, minutes };
 }
 
-// Check if upload should happen based on frequency, time, and random delay
+// Check if upload should happen based on frequency and scheduled time
+function shouldUploadTime(channel: {
+  uploadTime: string;
+  timezone: string;
+}): { inWindow: boolean; reason: string; debugInfo: Record<string, any> } {
+  const timezone = channel.timezone || 'Asia/Kolkata';
+  const { hours: currentHours, minutes: currentMinutes } = getCurrentTimeInTimezone(timezone);
+  const { hours: scheduledHours, minutes: scheduledMinutes } = convertTo24Hour(channel.uploadTime);
+
+  const scheduledMinutesTotal = scheduledHours * 60 + scheduledMinutes;
+  const currentMinutesTotal = currentHours * 60 + currentMinutes;
+  // timeDiff > 0 means current time is past scheduled time
+  const timeDiff = currentMinutesTotal - scheduledMinutesTotal;
+
+  const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+  const scheduledTimeStr = `${String(scheduledHours).padStart(2, '0')}:${String(scheduledMinutes).padStart(2, '0')}`;
+
+  const debugInfo = {
+    timezone,
+    serverTime: new Date().toISOString(),
+    currentTimeInTimezone: currentTimeStr,
+    scheduledTime: scheduledTimeStr,
+    timeDifferenceMinutes: timeDiff,
+  };
+
+  console.log('Time check:', JSON.stringify(debugInfo, null, 2));
+
+  // Upload window: from 5 min BEFORE scheduled time up to 30 min AFTER.
+  // This ensures the 5-minute cron interval always catches the window.
+  if (timeDiff < -5) {
+    return {
+      inWindow: false,
+      reason: `Too early. Current: ${currentTimeStr}, Scheduled: ${scheduledTimeStr}. Wait ${Math.abs(timeDiff) - 5} more minutes.`,
+      debugInfo,
+    };
+  }
+
+  if (timeDiff > 30) {
+    return {
+      inWindow: false,
+      reason: `Missed window. Current: ${currentTimeStr}, Scheduled: ${scheduledTimeStr}. Window closed ${timeDiff - 30} minutes ago.`,
+      debugInfo,
+    };
+  }
+
+  return { inWindow: true, reason: `Within upload window (${timeDiff >= 0 ? '+' : ''}${timeDiff}m from scheduled time)`, debugInfo };
+}
+
 async function shouldUpload(channel: {
   id: string;
   uploadTime: string;
@@ -153,91 +155,31 @@ async function shouldUpload(channel: {
   randomDelayMinutes: number | null;
   randomDelayDate: Date | null;
 }): Promise<{ allowed: boolean; reason: string; debugInfo: Record<string, any> }> {
-  
-  const timezone = channel.timezone || 'Asia/Kolkata';
-  const { hours: currentHours, minutes: currentMinutes } = getCurrentTimeInTimezone(timezone);
-  const { hours: scheduledHours, minutes: scheduledMinutes } = convertTo24Hour(channel.uploadTime);
-  
-  // Get random delay for today (from database)
-  const randomDelay = await getRandomDelay(channel, timezone);
-  
-  // Calculate actual upload time with random delay
-  let actualMinutesTotal = scheduledHours * 60 + scheduledMinutes + randomDelay;
-  
-  // Handle overflow/underflow
-  let actualHours = Math.floor(actualMinutesTotal / 60) % 24;
-  let actualMinutes = actualMinutesTotal % 60;
-  if (actualMinutes < 0) {
-    actualMinutes += 60;
-    actualHours = (actualHours - 1 + 24) % 24;
+
+  const { inWindow, reason: timeReason, debugInfo } = shouldUploadTime(channel);
+
+  if (!inWindow) {
+    return { allowed: false, reason: timeReason, debugInfo };
   }
-  if (actualHours < 0) {
-    actualHours += 24;
-  }
-  
-  // Calculate time difference in minutes
-  const scheduledMinutesTotal = actualHours * 60 + actualMinutes;
-  const currentMinutesTotal = currentHours * 60 + currentMinutes;
-  const timeDiff = currentMinutesTotal - scheduledMinutesTotal; // Positive = past scheduled time
-  
-  const actualTimeStr = `${String(actualHours).padStart(2, '0')}:${String(actualMinutes).padStart(2, '0')}`;
-  const currentTimeStr = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
-  const scheduledTimeStr = `${String(scheduledHours).padStart(2, '0')}:${String(scheduledMinutes).padStart(2, '0')}`;
-  
-  const debugInfo = {
-    timezone,
-    serverTime: new Date().toISOString(),
-    currentTimeInTimezone: currentTimeStr,
-    scheduledTime: scheduledTimeStr,
-    randomDelayMinutes: randomDelay,
-    actualUploadTime: actualTimeStr,
-    timeDifferenceMinutes: timeDiff,
-    currentMinutesTotal,
-    scheduledMinutesTotal,
-  };
-  
-  console.log('Debug info:', JSON.stringify(debugInfo, null, 2));
-  
-  // Check if current time is within upload window:
-  // - Must be AT or AFTER scheduled time (timeDiff >= 0)
-  // - Must be within 30 minutes AFTER scheduled time (timeDiff <= 30)
-  // - OR within 5 minutes BEFORE scheduled time (timeDiff >= -5)
-  if (timeDiff < -5) {
-    // Too early - more than 5 minutes before scheduled time
-    return {
-      allowed: false,
-      reason: `Too early. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr} (random ${randomDelay >= 0 ? '+' : ''}${randomDelay} min). Wait ${Math.abs(timeDiff)} more minutes.`,
-      debugInfo
-    };
-  }
-  
-  if (timeDiff > 30) {
-    // Too late - more than 30 minutes past scheduled time
-    // Too late - more than 30 minutes past scheduled time
-    // This might mean we missed the window, skip for today
-    return {
-      allowed: false,
-      reason: `Too late. Current: ${currentTimeStr}, Scheduled (with delay): ${actualTimeStr}. Missed window by ${timeDiff - 30} minutes.`,
-      debugInfo
-    };
-  }
+
+  const tz = channel.timezone || 'Asia/Kolkata';
 
   // Check based on frequency
   switch (channel.frequency) {
     case 'daily': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+        if (isSameDayInTimezone(lastUpload, new Date(), tz)) {
           return { allowed: false, reason: 'Already uploaded today', debugInfo };
         }
       }
-      return { allowed: true, reason: `Daily upload ready (actual time: ${actualTimeStr})`, debugInfo };
+      return { allowed: true, reason: `Daily upload ready`, debugInfo };
     }
 
     case 'alternate': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        const daysSince = getDaysDifference(lastUpload, new Date(), tz);
         if (daysSince < 2) {
           return { allowed: false, reason: `Need 2 days, only ${daysSince} passed`, debugInfo };
         }
@@ -248,7 +190,7 @@ async function shouldUpload(channel: {
     case 'every3days': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        const daysSince = getDaysDifference(lastUpload, new Date(), tz);
         if (daysSince < 3) {
           return { allowed: false, reason: `Need 3 days, only ${daysSince} passed`, debugInfo };
         }
@@ -259,7 +201,7 @@ async function shouldUpload(channel: {
     case 'every5days': {
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        const daysSince = getDaysDifference(lastUpload, new Date(), tz);
         if (daysSince < 5) {
           return { allowed: false, reason: `Need 5 days, only ${daysSince} passed`, debugInfo };
         }
@@ -268,12 +210,12 @@ async function shouldUpload(channel: {
     }
 
     case 'everySunday': {
-      if (getDayOfWeekInTimezone(timezone) !== 0) {
+      if (getDayOfWeekInTimezone(tz) !== 0) {
         return { allowed: false, reason: 'Not Sunday', debugInfo };
       }
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        if (isSameDayInTimezone(lastUpload, new Date(), timezone)) {
+        if (isSameDayInTimezone(lastUpload, new Date(), tz)) {
           return { allowed: false, reason: 'Already uploaded this Sunday', debugInfo };
         }
       }
@@ -281,7 +223,6 @@ async function shouldUpload(channel: {
     }
 
     case 'every6h': {
-      // Upload every 6 hours - check if 6 hours have passed since last upload
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
         const hoursSince = (Date.now() - lastUpload.getTime()) / (1000 * 60 * 60);
@@ -293,7 +234,6 @@ async function shouldUpload(channel: {
     }
 
     case 'every12h': {
-      // Upload every 12 hours - check if 12 hours have passed since last upload
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
         const hoursSince = (Date.now() - lastUpload.getTime()) / (1000 * 60 * 60);
@@ -305,10 +245,9 @@ async function shouldUpload(channel: {
     }
 
     case 'weekly': {
-      // Upload once per week (7 days)
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        const daysSince = getDaysDifference(lastUpload, new Date(), tz);
         if (daysSince < 7) {
           return { allowed: false, reason: `Need 7 days, only ${daysSince} passed`, debugInfo };
         }
@@ -317,10 +256,9 @@ async function shouldUpload(channel: {
     }
 
     case 'biweekly': {
-      // Upload once every 2 weeks (14 days)
       if (channel.lastUploadDate) {
         const lastUpload = new Date(channel.lastUploadDate);
-        const daysSince = getDaysDifference(lastUpload, new Date(), timezone);
+        const daysSince = getDaysDifference(lastUpload, new Date(), tz);
         if (daysSince < 14) {
           return { allowed: false, reason: `Need 14 days, only ${daysSince} passed`, debugInfo };
         }
@@ -443,11 +381,21 @@ export async function processScheduledUploads(): Promise<{
 }> {
   console.log('========== Scheduler Started ==========');
   console.log('Server time (UTC):', new Date().toISOString());
-  
+
   const results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }> = [];
   let processed = 0;
   let skipped = 0;
-  
+
+  // Write heartbeat so monitoring can track cron health
+  await db.schedulerLog.create({
+    data: {
+      channelId: 'system',
+      action: 'heartbeat',
+      status: 'ok',
+      message: `Cron fired at ${new Date().toISOString()}`,
+    },
+  }).catch(() => { /* non-critical, ignore */ });
+
   try {
     // ── Schedule new uploads ──
     // Get all active channels with queued videos

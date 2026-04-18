@@ -36,6 +36,9 @@ import {
   Pencil,
   X,
   Lock,
+  AlertTriangle,
+  XCircle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Dialog,
@@ -210,6 +213,17 @@ export default function Dashboard() {
   const [upgradeReason, setUpgradeReason] = useState('');
   const [playingVideo, setPlayingVideo] = useState<Video | null>(null);
 
+  // ── Channel warnings (loaded in background after channel load) ──
+  interface ChannelWarning {
+    type: string;
+    severity: 'error' | 'warning';
+    title: string;
+    message: string;
+    action?: { label: string; href: string };
+  }
+  const [warnings, setWarnings] = useState<ChannelWarning[]>([]);
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set());
+
   // ── Load channel + plan + videos in one shot ──
   const loadChannel = useCallback(async () => {
     try {
@@ -249,6 +263,15 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => { loadChannel(); }, [loadChannel]);
+
+  // Load channel health warnings in background after channel is known
+  useEffect(() => {
+    if (!channel) return;
+    fetch(`/api/channels/${channel.id}/health`)
+      .then(r => r.ok ? r.json() : { warnings: [] })
+      .then(data => setWarnings(data.warnings || []))
+      .catch(() => {});
+  }, [channel?.id]);
 
   // ── Step logic ──
   const hasChannel = !!channel;
@@ -587,6 +610,54 @@ export default function Dashboard() {
           </Button>
         )}
       </div>
+
+      {/* ── CHANNEL WARNINGS ── */}
+      {warnings
+        .filter(w => !dismissedWarnings.has(w.type))
+        .map(w => (
+          <div
+            key={w.type}
+            className={`rounded-2xl p-4 border flex gap-3 ${
+              w.severity === 'error'
+                ? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
+                : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800'
+            }`}
+          >
+            {w.severity === 'error'
+              ? <XCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              : <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            }
+            <div className="flex-1 min-w-0">
+              <p className={`font-semibold text-sm ${w.severity === 'error' ? 'text-red-800 dark:text-red-300' : 'text-yellow-800 dark:text-yellow-300'}`}>
+                {w.title}
+              </p>
+              <p className={`text-xs mt-0.5 ${w.severity === 'error' ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                {w.message}
+              </p>
+              {w.action && (
+                <button
+                  onClick={() => router.push(w.action!.href)}
+                  className={`mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                    w.severity === 'error'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                  }`}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  {w.action.label}
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setDismissedWarnings(prev => new Set([...prev, w.type]))}
+              className="text-muted-foreground hover:text-foreground flex-shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))
+      }
 
       {/* ── LIVE STATUS BANNER ── */}
       {isLive && (

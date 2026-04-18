@@ -11,8 +11,8 @@ import {
   DollarSign,
   Youtube,
   TrendingUp,
-  Activity,
   Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -152,6 +152,18 @@ export default function AdminDashboard() {
 
         {/* Quick Links */}
         <div className="grid gap-4 md:grid-cols-4 mb-8">
+          <Link href="/admin/monitoring">
+            <Card className="hover:shadow-lg transition cursor-pointer border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-600">
+                  <ShieldCheck className="h-5 w-5" />
+                  Monitoring
+                </CardTitle>
+                <CardDescription>Scheduler logs, channel health & errors</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
           <Link href="/admin/users">
             <Card className="hover:shadow-lg transition cursor-pointer">
               <CardHeader>
