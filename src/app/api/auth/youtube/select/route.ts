@@ -53,7 +53,20 @@ export async function POST(request: NextRequest) {
     }
 
     const { accessToken, refreshToken, googleAccountId } = pending;
-    const userId = session.user.id;
+
+    // Verify session userId exists in DB (guards against stale JWT with Google sub instead of DB id)
+    let userId: string | null = session.user.id;
+    const userExists = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!userExists) {
+      // Try to find real DB user by email
+      const userByEmail = session.user.email
+        ? await db.user.findUnique({ where: { email: session.user.email.toLowerCase() }, select: { id: true } })
+        : null;
+      if (!userByEmail) {
+        return NextResponse.json({ error: 'User account not found. Please log out and log in again.' }, { status: 401 });
+      }
+      userId = userByEmail.id;
+    }
 
     // Upsert channel
     const existing = await db.channel.findUnique({ where: { youtubeChannelId: channelInfo.id } });
