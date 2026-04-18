@@ -162,10 +162,24 @@ export const authOptions: NextAuthOptions = {
 
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.role = (user as any).role || 'user';
+      }
+      // On Google OAuth sign-in, user.id may be Google's sub (not our DB id).
+      // Re-fetch from DB by email to guarantee we store the correct CUID.
+      if (account?.provider === 'google' && token.email) {
+        try {
+          const dbUser = await db.user.findUnique({
+            where: { email: (token.email as string).toLowerCase() },
+            select: { id: true, role: true },
+          });
+          if (dbUser) {
+            token.id = dbUser.id;
+            token.role = dbUser.role;
+          }
+        } catch { /* ignore — token.id stays as-is */ }
       }
       return token;
     },
