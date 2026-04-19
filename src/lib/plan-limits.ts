@@ -74,13 +74,14 @@ export async function getUserPlanAndUsage(userId: string): Promise<{
     planDisplayName: subscription.plan.displayName,
   };
 
-  // Count all videos added this billing period (queued + scanning + uploaded)
-  // so that the monthly quota covers queue additions, not just YouTube uploads
+  // Count only actually uploaded videos this billing period.
+  // Queued videos must NOT count — otherwise adding videos to queue
+  // immediately consumes quota and the scheduler can never upload them.
   const videosThisMonth = await db.video.count({
     where: {
       channel: { userId },
-      status: { in: ['queued', 'scanning', 'uploaded'] },
-      createdAt: {
+      status: 'uploaded',
+      uploadedAt: {
         gte: subscription.currentPeriodStart,
         lte: subscription.currentPeriodEnd,
       },

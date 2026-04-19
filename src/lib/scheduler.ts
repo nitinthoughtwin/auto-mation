@@ -397,6 +397,20 @@ export async function processScheduledUploads(): Promise<{
   }).catch(() => { /* non-critical, ignore */ });
 
   try {
+    // ── Reset stuck 'scanning' videos (deployment / timeout can leave them stuck) ──
+    // If a video has been in 'scanning' for more than 30 minutes, it means the
+    // upload function was killed mid-flight. Reset to 'queued' so next cron retries.
+    const stuckReset = await db.video.updateMany({
+      where: {
+        status: 'scanning',
+        updatedAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      data: { status: 'queued' },
+    });
+    if (stuckReset.count > 0) {
+      console.log(`♻️ Reset ${stuckReset.count} stuck 'scanning' video(s) back to 'queued'`);
+    }
+
     // ── Schedule new uploads ──
     // Get all active channels with queued videos
     const channels = await db.channel.findMany({

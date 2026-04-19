@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getUserPlanAndUsage } from '@/lib/plan-limits';
 
 export async function GET(
   _req: NextRequest,
@@ -42,6 +43,14 @@ export async function GET(
 
     const activeSub = user.subscriptions[0] ?? null;
     const plan = activeSub?.plan ?? null;
+
+    // Use live recalculation (counts only actually uploaded videos, not queued)
+    let liveUsage: { videosThisMonth: number; maxVideosPerMonth: number } | null = null;
+    try {
+      const { limits, usage: u } = await getUserPlanAndUsage(userId);
+      liveUsage = { videosThisMonth: u.videosThisMonth, maxVideosPerMonth: limits.maxVideosPerMonth };
+    } catch { /* no subscription */ }
+
     const usage = activeSub?.usage ?? null;
 
     // Channels with queued videos
@@ -117,17 +126,16 @@ export async function GET(
           });
         }
 
-        // 5. Plan limit?
-        if (plan && usage) {
-          const used = usage.videosThisMonth ?? 0;
-          const max = plan.maxVideosPerMonth ?? 0;
+        // 5. Plan limit? (use live recalculated count — only uploaded videos)
+        if (liveUsage) {
+          const { videosThisMonth: used, maxVideosPerMonth: max } = liveUsage;
           if (max > 0 && used >= max) {
             issues.push({
               level: 'error',
-              text: `Monthly limit reached: ${used}/${max} videos used on ${plan.displayName} plan`,
+              text: `Monthly limit reached: ${used}/${max} videos uploaded on ${plan?.displayName ?? 'Free'} plan`,
             });
           } else {
-            issues.push({ level: 'ok', text: `Usage: ${used}/${max} videos this month` });
+            issues.push({ level: 'ok', text: `Usage: ${used}/${max} videos uploaded this month` });
           }
         } else {
           issues.push({ level: 'warning', text: 'No active subscription found — uploads may be blocked' });
@@ -194,11 +202,11 @@ export async function GET(
             maxChannels: plan.maxChannels,
           }
         : null,
-      usage: usage
+      usage: liveUsage
         ? {
-            videosThisMonth: usage.videosThisMonth,
-            channelsConnected: usage.channelsConnected,
-            aiCreditsUsed: usage.aiCreditsUsed,
+            videosThisMonth: liveUsage.videosThisMonth,
+            channelsConnected: usage?.channelsConnected ?? 0,
+            aiCreditsUsed: usage?.aiCreditsUsed ?? 0,
           }
         : null,
       channels: channelDiagnoses,
