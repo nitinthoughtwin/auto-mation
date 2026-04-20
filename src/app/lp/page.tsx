@@ -39,12 +39,6 @@ const benefits = [
   },
 ];
 
-const steps = [
-  { step: '1', text: 'Create an account — for free' },
-  { step: '2', text: 'Connect your YouTube channel' },
-  { step: '3', text: 'Add videos from Drive or your device' },
-  { step: '4', text: 'Set a schedule — you\'re done' },
-];
 
 const reviews = [
   {
@@ -139,14 +133,15 @@ export default function LandingPage() {
           <Zap className="h-3 w-3" /> YouTube Automation Tool
         </div>
 
-        <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight text-gray-900 mb-4">
-          Put Your YouTube Channel<br />
-          <span className="text-blue-600">On Autopilot</span>
+        <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight text-gray-900 mb-2">
+          YouTube pe Videos<br />
+          <span className="text-blue-600">Automatically Upload Karo</span>
         </h1>
+        <p className="text-gray-400 text-sm mb-4 font-medium">Put your channel on autopilot</p>
 
-        <p className="text-gray-600 text-base sm:text-lg mb-6 max-w-md mx-auto">
-          Videos upload themselves, at the right time, every day —
-          without you lifting a finger. Just add videos to the queue and forget about it.
+        <p className="text-gray-600 text-base mb-6 max-w-sm mx-auto">
+          बस videos queue में डालो — tool खुद सही time पर YouTube पर upload कर देगा।<br />
+          <span className="text-gray-400 text-sm">Daily manually upload करने की झंझट खत्म।</span>
         </p>
 
         <Button
@@ -154,45 +149,69 @@ export default function LandingPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white text-base font-bold px-8 py-6 rounded-xl w-full max-w-xs mx-auto flex items-center justify-center gap-2 shadow-lg"
           onClick={handleCTA}
         >
-          Start for Free
+          Free में शुरू करो
           <ArrowRight className="h-5 w-5" />
         </Button>
 
-        <p className="text-xs text-gray-400 mt-3">No credit card required • Free plan forever</p>
+        <p className="text-xs text-gray-400 mt-3">कोई credit card नहीं • Free plan हमेशा के लिए</p>
+
+        {/* ── PRODUCT MOCKUP ── */}
+        <div className="mt-8 max-w-sm mx-auto bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden text-left">
+          {/* Mock header */}
+          <div className="bg-gray-50 border-b border-gray-100 px-4 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-xs font-bold text-gray-700">My Channel · Automation Running</span>
+            </div>
+            <span className="text-[10px] text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full">LIVE</span>
+          </div>
+          {/* Mock queue */}
+          <div className="px-4 py-3 space-y-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Upload Queue</p>
+            {[
+              { title: 'Top 10 Facts About Space 🚀', status: 'Next · uploads at 8:00 PM', color: 'text-blue-600' },
+              { title: 'Amazing Street Food Tour 🍜', status: 'Tomorrow · 8:00 PM', color: 'text-gray-400' },
+              { title: 'Motivational Speech Hindi 🔥', status: 'Day after · 8:00 PM', color: 'text-gray-400' },
+            ].map((v, i) => (
+              <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                <div className="h-8 w-12 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 shrink-0 flex items-center justify-center">
+                  <Upload className="h-3 w-3 text-blue-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-800 truncate">{v.title}</p>
+                  <p className={`text-[10px] font-medium ${v.color}`}>{v.status}</p>
+                </div>
+                {i === 0 && <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0 animate-pulse" />}
+              </div>
+            ))}
+          </div>
+          {/* Mock footer */}
+          <div className="bg-blue-50 border-t border-blue-100 px-4 py-2 flex items-center justify-between">
+            <span className="text-[10px] text-blue-600 font-semibold">⚡ Next upload in 4h 23m</span>
+            <span className="text-[10px] text-gray-400">Daily schedule · Auto</span>
+          </div>
+        </div>
 
         {/* Social proof */}
         <div className="flex items-center justify-center gap-1 mt-6">
           {[...Array(5)].map((_, i) => (
             <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
           ))}
-          <span className="text-sm text-gray-500 ml-1">500+ creators are already using it</span>
-        </div>
-
-        {/* Stats strip */}
-        <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto mt-8">
-          {[
-            { val: '500+', label: 'Active Creators' },
-            { val: '50k+', label: 'Videos Uploaded' },
-            { val: '2h+', label: 'Saved Daily' },
-          ].map((s) => (
-            <div key={s.label} className="bg-white rounded-xl py-3 shadow-sm border border-gray-100">
-              <p className="text-lg font-extrabold text-blue-600">{s.val}</p>
-              <p className="text-[10px] text-gray-400 font-medium">{s.label}</p>
-            </div>
-          ))}
+          <span className="text-sm text-gray-500 ml-1">Creators already using it</span>
         </div>
       </section>
 
       {/* ── PAIN POINTS ── */}
       <section className="px-5 py-10 bg-white text-center">
         <div className="max-w-md mx-auto">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Sound Familiar?</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-1">पहचाना कुछ? 😩</h2>
+          <p className="text-gray-400 text-sm mb-4">Recognize this?</p>
           <div className="flex flex-col gap-2 text-left">
             {[
-              'Manually uploading videos to YouTube every single day',
-              'Writing titles and descriptions feels like a waste of time',
-              'Videos piling up on Drive that never get uploaded',
-              'Missing the best upload times because you forgot',
+              'रोज़ manually YouTube पर video upload करना पड़ता है',
+              'Title और description लिखने में बहुत time जाता है',
+              'Drive में videos पड़ी हैं, upload होती ही नहीं',
+              'सही time पर upload भूल जाते हो — views कम होते हैं',
             ].map((pain, i) => (
               <div key={i} className="flex items-start gap-2 bg-red-50 rounded-lg px-3 py-2.5">
                 <span className="text-red-500 font-bold text-sm mt-0.5">✗</span>
@@ -200,7 +219,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <p className="text-blue-600 font-semibold mt-5 text-sm">GPMart AI Studio handles all of this automatically.</p>
+          <p className="text-blue-600 font-semibold mt-5 text-sm">यह सब GPMart AI Studio अपने आप करता है।</p>
         </div>
       </section>
 
@@ -224,16 +243,33 @@ export default function LandingPage() {
 
       {/* ── HOW IT WORKS ── */}
       <section className="px-5 py-10 bg-white">
-        <h2 className="text-xl font-bold text-center mb-6 text-gray-800">Just 4 Steps</h2>
+        <h2 className="text-xl font-bold text-center mb-1 text-gray-800">बस 4 Steps में शुरू करो</h2>
+        <p className="text-center text-gray-400 text-sm mb-6">Setup in under 5 minutes</p>
         <div className="flex flex-col gap-3 max-w-sm mx-auto">
-          {steps.map((s) => (
+          {[
+            { step: '1', text: 'Free account बनाओ', sub: 'No credit card needed' },
+            { step: '2', text: 'YouTube channel connect करो', sub: 'Google login से — 30 seconds' },
+            { step: '3', text: 'Drive या device से videos add करो', sub: 'Bulk import supported' },
+            { step: '4', text: 'Time set करो — हो गया ✅', sub: 'Tool बाकी सब खुद करेगा' },
+          ].map((s) => (
             <div key={s.step} className="flex items-center gap-4 bg-gray-50 rounded-xl px-4 py-3">
               <div className="h-8 w-8 rounded-full bg-blue-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
                 {s.step}
               </div>
-              <p className="text-gray-700 font-medium text-sm">{s.text}</p>
+              <div>
+                <p className="text-gray-700 font-semibold text-sm">{s.text}</p>
+                <p className="text-gray-400 text-xs">{s.sub}</p>
+              </div>
             </div>
           ))}
+        </div>
+        <div className="mt-6 max-w-sm mx-auto">
+          <Button
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-5"
+            onClick={handleCTA}
+          >
+            अभी Free में Try करो <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
       </section>
 
