@@ -135,12 +135,12 @@ export default function LandingPage() {
 
         <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight text-gray-900 mb-2">
           YouTube pe Videos<br />
-          <span className="text-blue-600">Automatically Upload Karo</span>
+          <span className="text-blue-600">Video Automatically upload honge</span>
         </h1>
         <p className="text-gray-400 text-sm mb-4 font-medium">Put your channel on autopilot</p>
 
         <p className="text-gray-600 text-base mb-6 max-w-sm mx-auto">
-          बस videos queue में डालो — tool खुद सही time पर YouTube पर upload कर देगा।<br />
+          बस videos select karo ya es tool me upload karo — tool खुद सही time पर YouTube पर upload कर देगा।<br />
           <span className="text-gray-400 text-sm">Daily manually upload करने की झंझट खत्म।</span>
         </p>
 
@@ -149,7 +149,7 @@ export default function LandingPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white text-base font-bold px-8 py-6 rounded-xl w-full max-w-xs mx-auto flex items-center justify-center gap-2 shadow-lg"
           onClick={handleCTA}
         >
-          Free में शुरू करो
+          Start for free
           <ArrowRight className="h-5 w-5" />
         </Button>
 
@@ -204,7 +204,7 @@ export default function LandingPage() {
       {/* ── PAIN POINTS ── */}
       <section className="px-5 py-10 bg-white text-center">
         <div className="max-w-md mx-auto">
-          <h2 className="text-xl font-bold text-gray-800 mb-1">पहचाना कुछ? 😩</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-1">Kyu use karna chahiye? 😩</h2>
           <p className="text-gray-400 text-sm mb-4">Recognize this?</p>
           <div className="flex flex-col gap-2 text-left">
             {[
