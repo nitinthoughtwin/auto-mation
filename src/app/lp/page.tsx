@@ -116,6 +116,7 @@ export default function LandingPage() {
   const [categories, setCategories] = useState<LibraryCategory[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
+  const [playingVideo, setPlayingVideo] = useState<LibraryVideo | null>(null);
 
   useEffect(() => {
     fetch('/api/public/library-preview')
@@ -193,50 +194,129 @@ export default function LandingPage() {
         <p className="text-xs text-gray-400 mt-3">कोई credit card नहीं • Free plan हमेशा के लिए</p>
 
         {/* ── PRODUCT MOCKUP ── */}
-        <div className="mt-8 max-w-sm mx-auto bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden text-left">
-          {/* Mock header */}
-          <div className="bg-gray-50 border-b border-gray-100 px-4 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs font-bold text-gray-700">My Channel · Automation Running</span>
-            </div>
-            <span className="text-[10px] text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full">LIVE</span>
-          </div>
-          {/* Mock queue */}
-          <div className="px-4 py-3 space-y-2">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Upload Queue</p>
-            {[
-              { title: 'Top 10 Facts About Space 🚀', status: 'Next · uploads at 8:00 PM', color: 'text-blue-600' },
-              { title: 'Amazing Street Food Tour 🍜', status: 'Tomorrow · 8:00 PM', color: 'text-gray-400' },
-              { title: 'Motivational Speech Hindi 🔥', status: 'Day after · 8:00 PM', color: 'text-gray-400' },
-            ].map((v, i) => (
-              <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
-                <div className="h-8 w-12 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 shrink-0 flex items-center justify-center">
-                  <Upload className="h-3 w-3 text-blue-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-800 truncate">{v.title}</p>
-                  <p className={`text-[10px] font-medium ${v.color}`}>{v.status}</p>
-                </div>
-                {i === 0 && <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0 animate-pulse" />}
-              </div>
+
+      </section>
+
+      {/* ── LIBRARY PREVIEW ── */}
+      {categories.length > 0 && (
+        <section className="px-5 py-10 bg-white">
+          <h2 className="text-xl font-bold text-center text-gray-800 mb-1">
+            इन videos को आज ही upload करो 🎬
+          </h2>
+          <p className="text-center text-gray-400 text-sm mb-4">
+            Copyright-free videos — directly apne channel pe schedule karo
+          </p>
+
+          {/* Category tabs */}
+          <div className="flex gap-2 overflow-x-auto pb-2 max-w-sm mx-auto scrollbar-hide mb-4">
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  activeCategory === cat.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {cat.name}
+              </button>
             ))}
           </div>
-          {/* Mock footer */}
-          <div className="bg-blue-50 border-t border-blue-100 px-4 py-2 flex items-center justify-between">
-            <span className="text-[10px] text-blue-600 font-semibold">⚡ Next upload in 4h 23m</span>
-            <span className="text-[10px] text-gray-400">Daily schedule · Auto</span>
+
+          {/* Videos grid */}
+          {categories.filter(c => c.id === activeCategory).map(cat => (
+            <div key={cat.id} className="grid grid-cols-2 gap-2.5 max-w-sm mx-auto">
+              {cat.videos.map(v => {
+                const isSelected = selectedVideoIds.has(v.id);
+                return (
+                  <div
+                    key={v.id}
+                    className={`relative rounded-xl overflow-hidden bg-gray-100 aspect-video border-2 shadow-sm transition-all ${
+                      isSelected ? 'border-blue-500 shadow-blue-200' : 'border-gray-100'
+                    }`}
+                  >
+                    {/* Play area — tapping opens video */}
+                    <button
+                      className="absolute inset-0 w-full h-full group"
+                      onClick={() => setPlayingVideo(v)}
+                    >
+                      <img
+                        src={`https://drive.google.com/thumbnail?id=${v.driveFileId}&sz=w400-h225`}
+                        alt={v.name}
+                        className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      {/* Play button shown on hover */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all">
+                        <div className="h-9 w-9 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                          <svg className="h-4 w-4 text-gray-900 ml-0.5" fill="currentColor" viewBox="0 0 8 8">
+                            <polygon points="1,0 7,4 1,8" />
+                          </svg>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Checkbox — tapping selects without opening video */}
+                    <button
+                      onClick={() => toggleVideoSelect(v.id)}
+                      className={`absolute top-1.5 left-1.5 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all z-10 ${
+                        isSelected ? 'bg-blue-500 border-blue-500' : 'bg-black/30 border-white/60 hover:bg-black/50'
+                      }`}
+                    >
+                      {isSelected && (
+                        <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+
+                    {v.durationMillis && (
+                      <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md z-10">
+                        {formatDuration(v.durationMillis)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          <div className="mt-5 max-w-sm mx-auto text-center">
+            <p className="text-xs text-gray-400 mb-3">Register karo — poori library free mein milegi</p>
+            <Button
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-5"
+              onClick={handleCTA}
+            >
+              Free mein access karo <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {/* ── STICKY SELECTION BAR ── */}
+      {selectedVideoIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-safe">
+          <div className="max-w-sm mx-auto mb-4">
+            <div className="bg-blue-600 rounded-2xl shadow-2xl p-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold text-sm">
+                  {selectedVideoIds.size} video{selectedVideoIds.size !== 1 ? 's' : ''} select ki
+                </p>
+                <p className="text-blue-200 text-xs">Signup ke baad queue mein add hongi</p>
+              </div>
+              <Button
+                className="bg-white text-blue-600 hover:bg-blue-50 font-bold text-sm px-4 h-10 rounded-xl shrink-0"
+                onClick={handleAddSelected}
+              >
+                Continue <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Social proof */}
-        <div className="flex items-center justify-center gap-1 mt-6">
-          {[...Array(5)].map((_, i) => (
-            <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-          ))}
-          <span className="text-sm text-gray-500 ml-1">Creators already using it</span>
-        </div>
-      </section>
+      
 
       {/* ── PAIN POINTS ── */}
       <section className="px-5 py-10 bg-white text-center">
@@ -297,71 +377,8 @@ export default function LandingPage() {
 
       {/* ── SCREENSHOTS ── */}
       <section className="px-5 py-10 bg-gray-50">
-        <h2 className="text-xl font-bold text-center text-gray-800 mb-1">Tool kaisa dikhta hai</h2>
         <p className="text-center text-gray-400 text-sm mb-6">Simple, clean, easy to use</p>
-
         <div className="flex flex-col gap-6 max-w-sm mx-auto">
-
-          {/* Screenshot 1 — Dashboard */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-gray-50 border-b border-gray-100 px-4 py-2 flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs font-semibold text-gray-600">Dashboard — Automation Running</span>
-            </div>
-            <div className="p-4 space-y-2">
-              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-xs font-bold text-green-800">Automation Running</span>
-                </div>
-                <span className="text-xs text-green-600">⚡ 3h 42m</span>
-              </div>
-              {['Space Facts Video 🚀', 'Street Food Tour 🍜', 'Motivation Speech 🔥'].map((t, i) => (
-                <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
-                  <div className="h-8 w-12 rounded-lg bg-blue-100 shrink-0 flex items-center justify-center">
-                    <Upload className="h-3 w-3 text-blue-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 truncate">{t}</p>
-                    <p className={`text-[10px] font-medium ${i === 0 ? 'text-blue-600' : 'text-gray-400'}`}>
-                      {i === 0 ? 'Next to upload' : `Day ${i + 1}`}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="px-4 pb-3">
-              <p className="text-[10px] text-center text-gray-400 font-medium">Queue mein videos — automatically upload honge</p>
-            </div>
-          </div>
-
-          {/* Screenshot 2 — Drive Import */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-gray-50 border-b border-gray-100 px-4 py-2 flex items-center gap-2">
-              <TrendingUp className="h-3 w-3 text-blue-500" />
-              <span className="text-xs font-semibold text-gray-600">Google Drive Import</span>
-            </div>
-            <div className="p-4 space-y-2">
-              <div className="grid grid-cols-3 gap-2">
-                {['video_01.mp4', 'funny_clip.mp4', 'travel_vlog.mp4', 'recipe_video.mp4', 'tech_review.mp4', 'motivation.mp4'].map((name, i) => (
-                  <div key={i} className={`rounded-xl p-2 border text-center ${i < 3 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="h-8 w-full rounded-lg bg-gradient-to-br from-gray-200 to-gray-300 mb-1.5 flex items-center justify-center">
-                      <Upload className="h-3 w-3 text-gray-500" />
-                    </div>
-                    <p className="text-[9px] text-gray-600 truncate font-medium">{name}</p>
-                    {i < 3 && <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mx-auto mt-1" />}
-                  </div>
-                ))}
-              </div>
-              <div className="bg-blue-600 rounded-xl py-2 text-center">
-                <p className="text-xs font-bold text-white">3 videos selected — Add to Queue</p>
-              </div>
-            </div>
-            <div className="px-4 pb-3">
-              <p className="text-[10px] text-center text-gray-400 font-medium">Drive folder se directly videos import karo</p>
-            </div>
-          </div>
-
           {/* Screenshot 3 — AI Generation */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="bg-gray-50 border-b border-gray-100 px-4 py-2 flex items-center gap-2">
@@ -481,108 +498,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── LIBRARY PREVIEW ── */}
-      {categories.length > 0 && (
-        <section className="px-5 py-10 bg-white">
-          <h2 className="text-xl font-bold text-center text-gray-800 mb-1">
-            इन videos को आज ही upload करो 🎬
-          </h2>
-          <p className="text-center text-gray-400 text-sm mb-4">
-            Copyright-free videos — directly apne channel pe schedule karo
-          </p>
-
-          {/* Category tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-2 max-w-sm mx-auto scrollbar-hide mb-4">
-            {categories.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  activeCategory === cat.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Videos grid */}
-          {categories.filter(c => c.id === activeCategory).map(cat => (
-            <div key={cat.id} className="grid grid-cols-2 gap-2.5 max-w-sm mx-auto">
-              {cat.videos.map(v => {
-                const isSelected = selectedVideoIds.has(v.id);
-                return (
-                  <button
-                    key={v.id}
-                    onClick={() => toggleVideoSelect(v.id)}
-                    className={`relative rounded-xl overflow-hidden bg-gray-100 aspect-video border-2 shadow-sm text-left transition-all ${
-                      isSelected ? 'border-blue-500 shadow-blue-200' : 'border-gray-100 hover:border-gray-300'
-                    }`}
-                  >
-                    <img
-                      src={`https://drive.google.com/thumbnail?id=${v.driveFileId}&sz=w400-h225`}
-                      alt={v.name}
-                      className="w-full h-full object-cover"
-                      onError={e => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                    {/* Checkmark overlay */}
-                    <div className={`absolute top-1.5 left-1.5 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                      isSelected ? 'bg-blue-500 border-blue-500' : 'bg-black/30 border-white/60'
-                    }`}>
-                      {isSelected && (
-                        <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </div>
-                    {v.durationMillis && (
-                      <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                        {formatDuration(v.durationMillis)}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-
-          <div className="mt-5 max-w-sm mx-auto text-center">
-            <p className="text-xs text-gray-400 mb-3">Register karo — poori library free mein milegi</p>
-            <Button
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-5"
-              onClick={handleCTA}
-            >
-              Free mein access karo <ArrowRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {/* ── STICKY SELECTION BAR ── */}
-      {selectedVideoIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-safe">
-          <div className="max-w-sm mx-auto mb-4">
-            <div className="bg-blue-600 rounded-2xl shadow-2xl p-3 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold text-sm">
-                  {selectedVideoIds.size} video{selectedVideoIds.size !== 1 ? 's' : ''} select ki
-                </p>
-                <p className="text-blue-200 text-xs">Signup ke baad queue mein add hongi</p>
-              </div>
-              <Button
-                className="bg-white text-blue-600 hover:bg-blue-50 font-bold text-sm px-4 h-10 rounded-xl shrink-0"
-                onClick={handleAddSelected}
-              >
-                Continue <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      
 
       {/* ── REVIEWS ── */}
       <section className="px-5 py-10 bg-white">
@@ -640,6 +556,48 @@ export default function LandingPage() {
           <a href="/contact" className="hover:text-gray-300">Contact</a>
         </p>
       </footer>
+
+      {/* ── VIDEO PLAYER MODAL ── */}
+      {playingVideo && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/85 flex items-center justify-center p-4"
+          onClick={() => setPlayingVideo(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl overflow-hidden bg-black shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-900">
+              <p className="text-white text-sm font-medium truncate pr-3">
+                {playingVideo.name.replace(/\.[^/.]+$/, '')}
+              </p>
+              <button
+                onClick={() => setPlayingVideo(null)}
+                className="text-gray-400 hover:text-white shrink-0 transition-colors text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <iframe
+              src={`https://drive.google.com/file/d/${playingVideo.driveFileId}/preview`}
+              className="w-full aspect-video"
+              allow="autoplay"
+            />
+            <div className="bg-gray-900 px-4 py-3">
+              <button
+                onClick={() => { toggleVideoSelect(playingVideo.id); setPlayingVideo(null); }}
+                className={`w-full text-sm font-bold py-2.5 rounded-xl transition-colors ${
+                  selectedVideoIds.has(playingVideo.id)
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white text-gray-900 hover:bg-blue-50'
+                }`}
+              >
+                {selectedVideoIds.has(playingVideo.id) ? '✓ Selected for Queue' : '+ Select for Queue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
