@@ -241,6 +241,130 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── DEMO VIDEO ── */}
+      <section className="px-5 py-10 bg-white text-center">
+        <h2 className="text-xl font-bold text-gray-800 mb-1">देखो कैसे काम करता है</h2>
+        <p className="text-gray-400 text-sm mb-6">Watch it in action — 60 seconds</p>
+        <div className="max-w-sm mx-auto rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-black aspect-video flex items-center justify-center relative">
+          {/* Replace VIDEO_ID with your actual YouTube video ID */}
+          <iframe
+            className="w-full h-full"
+            src="https://www.youtube.com/embed/VIDEO_ID?rel=0&modestbranding=1"
+            title="GPMart AI Studio Demo"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+        <p className="text-xs text-gray-400 mt-3">Free mein try karo — koi commitment nahi</p>
+      </section>
+
+      {/* ── SCREENSHOTS ── */}
+      <section className="px-5 py-10 bg-gray-50">
+        <h2 className="text-xl font-bold text-center text-gray-800 mb-1">Tool kaisa dikhta hai</h2>
+        <p className="text-center text-gray-400 text-sm mb-6">Simple, clean, easy to use</p>
+
+        <div className="flex flex-col gap-6 max-w-sm mx-auto">
+
+          {/* Screenshot 1 — Dashboard */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-100 px-4 py-2 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-xs font-semibold text-gray-600">Dashboard — Automation Running</span>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs font-bold text-green-800">Automation Running</span>
+                </div>
+                <span className="text-xs text-green-600">⚡ 3h 42m</span>
+              </div>
+              {['Space Facts Video 🚀', 'Street Food Tour 🍜', 'Motivation Speech 🔥'].map((t, i) => (
+                <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                  <div className="h-8 w-12 rounded-lg bg-blue-100 shrink-0 flex items-center justify-center">
+                    <Upload className="h-3 w-3 text-blue-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{t}</p>
+                    <p className={`text-[10px] font-medium ${i === 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+                      {i === 0 ? 'Next to upload' : `Day ${i + 1}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 pb-3">
+              <p className="text-[10px] text-center text-gray-400 font-medium">Queue mein videos — automatically upload honge</p>
+            </div>
+          </div>
+
+          {/* Screenshot 2 — Drive Import */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-100 px-4 py-2 flex items-center gap-2">
+              <TrendingUp className="h-3 w-3 text-blue-500" />
+              <span className="text-xs font-semibold text-gray-600">Google Drive Import</span>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                {['video_01.mp4', 'funny_clip.mp4', 'travel_vlog.mp4', 'recipe_video.mp4', 'tech_review.mp4', 'motivation.mp4'].map((name, i) => (
+                  <div key={i} className={`rounded-xl p-2 border text-center ${i < 3 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="h-8 w-full rounded-lg bg-gradient-to-br from-gray-200 to-gray-300 mb-1.5 flex items-center justify-center">
+                      <Upload className="h-3 w-3 text-gray-500" />
+                    </div>
+                    <p className="text-[9px] text-gray-600 truncate font-medium">{name}</p>
+                    {i < 3 && <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mx-auto mt-1" />}
+                  </div>
+                ))}
+              </div>
+              <div className="bg-blue-600 rounded-xl py-2 text-center">
+                <p className="text-xs font-bold text-white">3 videos selected — Add to Queue</p>
+              </div>
+            </div>
+            <div className="px-4 pb-3">
+              <p className="text-[10px] text-center text-gray-400 font-medium">Drive folder se directly videos import karo</p>
+            </div>
+          </div>
+
+          {/* Screenshot 3 — AI Generation */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-100 px-4 py-2 flex items-center gap-2">
+              <Brain className="h-3 w-3 text-purple-500" />
+              <span className="text-xs font-semibold text-gray-600">AI Title & Description</span>
+            </div>
+            <div className="p-4 space-y-2.5">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Title</p>
+                <div className="bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
+                  <p className="text-xs font-semibold text-gray-800">Top 10 Amazing Space Facts That Will Blow Your Mind 🚀</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Description</p>
+                <div className="bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
+                  <p className="text-[10px] text-gray-600 leading-relaxed">क्या आप जानते हैं कि अंतरिक्ष में ऐसे रहस्य हैं जो वैज्ञानिक भी नहीं समझ पाए? इस video में हम आपको...</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tags</p>
+                <div className="flex flex-wrap gap-1">
+                  {['space facts', 'universe', 'science hindi', 'amazing facts', 'viral'].map(tag => (
+                    <span key={tag} className="text-[9px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">{tag}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-purple-600 rounded-xl py-2 text-center flex items-center justify-center gap-2">
+                <Zap className="h-3 w-3 text-white" />
+                <p className="text-xs font-bold text-white">AI se generate hua — 1 click mein</p>
+              </div>
+            </div>
+            <div className="px-4 pb-3">
+              <p className="text-[10px] text-center text-gray-400 font-medium">SEO-friendly title, description aur tags automatically</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       {/* ── HOW IT WORKS ── */}
       <section className="px-5 py-10 bg-white">
         <h2 className="text-xl font-bold text-center mb-1 text-gray-800">बस 4 Steps में शुरू करो</h2>
