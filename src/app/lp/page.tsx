@@ -172,8 +172,8 @@ export default function LandingPage() {
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight text-gray-900 mb-2">
-          YouTube par video<br />
-          <span className="text-blue-600">Automatically upload honge</span>
+        Ek baar set karo. <br />
+          <span className="text-blue-600">YouTube daily grow hoga.</span>
         </h1>
         <p className="text-gray-400 text-sm mb-4 font-medium">Put your channel on autopilot</p>
 

@@ -178,30 +178,6 @@ export default function Dashboard() {
     const name = searchParams.get('name');
     if (connected && name) {
       toast.success(`✅ ${decodeURIComponent(name)} connected!`);
-      // Auto-add any videos the user pre-selected on the landing page
-      const pending = localStorage.getItem('pendingLibraryVideos');
-      if (pending) {
-        try {
-          const videoIds: string[] = JSON.parse(pending);
-          if (Array.isArray(videoIds) && videoIds.length > 0) {
-            localStorage.removeItem('pendingLibraryVideos');
-            fetch('/api/video-library/add-to-queue', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ channelId: connected, videoIds }),
-            })
-              .then(r => r.json())
-              .then(data => {
-                if (data.success) {
-                  toast.success(`🎬 ${data.created} video${data.created !== 1 ? 's' : ''} added to your queue!`);
-                }
-              })
-              .catch(() => {});
-          }
-        } catch {
-          localStorage.removeItem('pendingLibraryVideos');
-        }
-      }
       router.replace('/dashboard');
     }
   }, []);
@@ -291,6 +267,37 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => { loadChannel(); }, [loadChannel]);
+
+  // ── Auto-add pending library videos (selected on landing page before signup) ──
+  const pendingProcessed = useRef(false);
+  useEffect(() => {
+    if (!channel || pendingProcessed.current) return;
+    const pending = localStorage.getItem('pendingLibraryVideos');
+    if (!pending) return;
+    pendingProcessed.current = true;
+    try {
+      const videoIds: string[] = JSON.parse(pending);
+      if (Array.isArray(videoIds) && videoIds.length > 0) {
+        localStorage.removeItem('pendingLibraryVideos');
+        fetch('/api/video-library/add-to-queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelId: channel.id, videoIds }),
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              toast.success(`🎬 ${data.created} video${data.created !== 1 ? 's' : ''} added to your queue!`);
+              loadVideos(channel.id);
+              loadChannel();
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {
+      localStorage.removeItem('pendingLibraryVideos');
+    }
+  }, [channel]);
 
   // Load channel health warnings in background after channel is known
   useEffect(() => {
