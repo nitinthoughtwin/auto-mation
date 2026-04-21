@@ -286,10 +286,7 @@ export default function Dashboard() {
   // Plan limit — available immediately from channel data (no async health check needed)
   const planLimitReached = channel?.planLimitReached ?? warnings.some(w => w.type === 'plan_limit' && !dismissedWarnings.has(w.type));
 
-  // When system auto-paused due to limit, don't treat it as Step 3 (setup).
-  // Instead we show a "paused due to limit" banner.
-  const isPausedDueToLimit = !channel?.isActive && planLimitReached && hasChannel;
-  const currentStep = !hasChannel ? 1 : !hasVideos ? 2 : (!channel.isActive && !isPausedDueToLimit) ? 3 : 0;
+  const currentStep = !hasChannel ? 1 : !hasVideos ? 2 : !channel.isActive ? 3 : 0;
 
   // ── Actions ──
   const [connectingYT, setConnectingYT] = useState(false);
@@ -768,56 +765,8 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* ── PAUSED DUE TO PLAN LIMIT BANNER ── */}
-      {isPausedDueToLimit && (
-        <div className="rounded-2xl p-4 space-y-3 border bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-orange-500" />
-              <span className="font-bold text-sm text-orange-800 dark:text-orange-200">
-                Automation Paused — Monthly Limit Reached
-              </span>
-            </div>
-          </div>
-          <div className="bg-orange-100 dark:bg-orange-900/30 rounded-xl px-3 py-2.5">
-            <p className="text-xs font-semibold text-orange-800 dark:text-orange-300">
-              You&apos;ve used {channel?.videosThisMonth ?? 0} of {channel?.maxVideosPerMonth ?? 0} videos this month
-            </p>
-            <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
-              Automation has been automatically paused. Upgrade your plan to continue uploading, or wait for the monthly reset.
-            </p>
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                onClick={() => router.push('/pricing')}
-                className="text-xs font-semibold text-orange-700 dark:text-orange-300 underline underline-offset-2"
-              >
-                Upgrade Plan →
-              </button>
-              <span className="text-orange-400">·</span>
-              <button
-                onClick={() => toggleActive(true)}
-                disabled={togglingActive}
-                className="text-xs font-semibold text-orange-700 dark:text-orange-300 underline underline-offset-2 disabled:opacity-50"
-              >
-                {togglingActive ? 'Resuming...' : 'Resume anyway'}
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-orange-700 dark:text-orange-400">
-            <span className="flex items-center gap-1.5">
-              <ListVideo className="h-3.5 w-3.5" />
-              {queuedVideos.length} video{queuedVideos.length !== 1 ? 's' : ''} waiting in queue
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CalendarClock className="h-3.5 w-3.5" />
-              {FREQ_LABELS[channel!.frequency]} · {channel!.uploadTime}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* ── SETUP STEPS (shown when not live and not paused-due-to-limit) ── */}
-      {!isLive && !isPausedDueToLimit && (
+      {/* ── SETUP STEPS (shown when not live) ── */}
+      {!isLive && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Setup</p>
 
@@ -999,8 +948,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── ADD MORE VIDEOS (when live or paused-due-to-limit) ── */}
-      {(isLive || isPausedDueToLimit) && (
+      {/* ── ADD MORE VIDEOS (when live) ── */}
+      {isLive && (
         <div className="border border-border/40 rounded-2xl p-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add More Videos</p>
           <div className="grid grid-cols-3 gap-2">
@@ -1047,8 +996,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── SCHEDULE EDIT (when live or paused-due-to-limit) ── */}
-      {(isLive || isPausedDueToLimit) && (
+      {/* ── SCHEDULE EDIT (when live) ── */}
+      {isLive && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Schedule</p>
           <div className="grid grid-cols-2 gap-2">

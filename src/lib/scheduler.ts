@@ -535,35 +535,7 @@ export async function processScheduledUploads(): Promise<{
         }
 
         const uploaded = await uploadVideoToYouTube(channel, video, accessToken, results);
-        if (uploaded) {
-          processed++;
-          // After a successful upload, re-check the limit.
-          // If the limit is now reached, auto-pause the channel so the
-          // user can see automation has stopped (not just visually blocked).
-          if (channel.userId) {
-            try {
-              const { limits, usage } = await getUserPlanAndUsage(channel.userId);
-              const limitCheck = checkVideoLimit(limits, usage);
-              if (!limitCheck.allowed) {
-                await db.channel.update({
-                  where: { id: channel.id },
-                  data: { isActive: false },
-                });
-                await db.schedulerLog.create({
-                  data: {
-                    channelId: channel.id,
-                    action: 'automation',
-                    status: 'blocked',
-                    message: `Automation paused: monthly limit reached (${usage.videosThisMonth}/${limits.maxVideosPerMonth} videos used)`,
-                  },
-                });
-                console.log(`🔒 Channel "${channel.name}" auto-paused — monthly upload limit reached`);
-              }
-            } catch (e) {
-              console.warn('Post-upload limit check failed (non-critical):', e);
-            }
-          }
-        }
+        if (uploaded) processed++;
       } catch (error: any) {
         console.error(`❌ Upload failed for ${channel.name}:`, error);
         await db.video.update({
