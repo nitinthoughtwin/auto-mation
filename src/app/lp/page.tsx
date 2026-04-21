@@ -14,7 +14,14 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
 
 const benefits = [
   {
@@ -104,6 +111,15 @@ export default function LandingPage() {
   const router = useRouter();
   const handleCTA = () => router.push('/signup');
 
+  const [libraryVideos, setLibraryVideos] = useState<{ id: string; thumbnailLink: string | null; durationMillis: number | null }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/public/library-preview')
+      .then(r => r.json())
+      .then(d => setLibraryVideos(d.videos || []))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
 
@@ -134,8 +150,8 @@ export default function LandingPage() {
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight text-gray-900 mb-2">
-          YouTube pe Videos<br />
-          <span className="text-blue-600">Video Automatically upload honge</span>
+          YouTube par video<br />
+          <span className="text-blue-600">Automatically upload honge</span>
         </h1>
         <p className="text-gray-400 text-sm mb-4 font-medium">Put your channel on autopilot</p>
 
@@ -443,6 +459,45 @@ export default function LandingPage() {
 
         </div>
       </section>
+
+      {/* ── LIBRARY PREVIEW ── */}
+      {libraryVideos.length > 0 && (
+        <section className="px-5 py-10 bg-white">
+          <h2 className="text-xl font-bold text-center text-gray-800 mb-1">
+            इन videos को आज ही upload करो 🎬
+          </h2>
+          <p className="text-center text-gray-400 text-sm mb-6">
+            Copyright-free videos — directly apne channel pe schedule karo
+          </p>
+          <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
+            {libraryVideos.map((v) => (
+              <div key={v.id} className="relative rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-gray-100 aspect-video">
+                {v.thumbnailLink && (
+                  <img
+                    src={v.thumbnailLink}
+                    alt="Video preview"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                {v.durationMillis && (
+                  <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                    {formatDuration(v.durationMillis)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 max-w-sm mx-auto text-center">
+            <p className="text-xs text-gray-400 mb-3">+ 500 aur videos library mein available hain</p>
+            <Button
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-5"
+              onClick={handleCTA}
+            >
+              Free mein access karo poori library <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </section>
+      )}
 
       {/* ── REVIEWS ── */}
       <section className="px-5 py-10 bg-white">
