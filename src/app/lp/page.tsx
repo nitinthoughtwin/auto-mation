@@ -111,14 +111,35 @@ export default function LandingPage() {
   const router = useRouter();
   const handleCTA = () => router.push('/signup');
 
-  const [libraryVideos, setLibraryVideos] = useState<{ id: string; thumbnailLink: string | null; durationMillis: number | null }[]>([]);
+  interface LibraryVideo { id: string; driveFileId: string; durationMillis: number | null; name: string; }
+  interface LibraryCategory { id: string; name: string; videos: LibraryVideo[]; }
+  const [categories, setCategories] = useState<LibraryCategory[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>('');
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/public/library-preview')
       .then(r => r.json())
-      .then(d => setLibraryVideos(d.videos || []))
+      .then(d => {
+        const cats: LibraryCategory[] = d.categories || [];
+        setCategories(cats);
+        if (cats.length > 0) setActiveCategory(cats[0].id);
+      })
       .catch(() => {});
   }, []);
+
+  const toggleVideoSelect = (id: string) => {
+    setSelectedVideoIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleAddSelected = () => {
+    localStorage.setItem('pendingLibraryVideos', JSON.stringify(Array.from(selectedVideoIds)));
+    router.push('/signup');
+  };
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
@@ -461,42 +482,106 @@ export default function LandingPage() {
       </section>
 
       {/* ── LIBRARY PREVIEW ── */}
-      {libraryVideos.length > 0 && (
+      {categories.length > 0 && (
         <section className="px-5 py-10 bg-white">
           <h2 className="text-xl font-bold text-center text-gray-800 mb-1">
             इन videos को आज ही upload करो 🎬
           </h2>
-          <p className="text-center text-gray-400 text-sm mb-6">
+          <p className="text-center text-gray-400 text-sm mb-4">
             Copyright-free videos — directly apne channel pe schedule karo
           </p>
-          <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
-            {libraryVideos.map((v) => (
-              <div key={v.id} className="relative rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-gray-100 aspect-video">
-                {v.thumbnailLink && (
-                  <img
-                    src={v.thumbnailLink}
-                    alt="Video preview"
-                    className="w-full h-full object-cover"
-                  />
-                )}
-                {v.durationMillis && (
-                  <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                    {formatDuration(v.durationMillis)}
-                  </span>
-                )}
-              </div>
+
+          {/* Category tabs */}
+          <div className="flex gap-2 overflow-x-auto pb-2 max-w-sm mx-auto scrollbar-hide mb-4">
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  activeCategory === cat.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {cat.name}
+              </button>
             ))}
           </div>
+
+          {/* Videos grid */}
+          {categories.filter(c => c.id === activeCategory).map(cat => (
+            <div key={cat.id} className="grid grid-cols-2 gap-2.5 max-w-sm mx-auto">
+              {cat.videos.map(v => {
+                const isSelected = selectedVideoIds.has(v.id);
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => toggleVideoSelect(v.id)}
+                    className={`relative rounded-xl overflow-hidden bg-gray-100 aspect-video border-2 shadow-sm text-left transition-all ${
+                      isSelected ? 'border-blue-500 shadow-blue-200' : 'border-gray-100 hover:border-gray-300'
+                    }`}
+                  >
+                    <img
+                      src={`https://drive.google.com/thumbnail?id=${v.driveFileId}&sz=w400-h225`}
+                      alt={v.name}
+                      className="w-full h-full object-cover"
+                      onError={e => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                    {/* Checkmark overlay */}
+                    <div className={`absolute top-1.5 left-1.5 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isSelected ? 'bg-blue-500 border-blue-500' : 'bg-black/30 border-white/60'
+                    }`}>
+                      {isSelected && (
+                        <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                    {v.durationMillis && (
+                      <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                        {formatDuration(v.durationMillis)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+
           <div className="mt-5 max-w-sm mx-auto text-center">
-            <p className="text-xs text-gray-400 mb-3">+ 500 aur videos library mein available hain</p>
+            <p className="text-xs text-gray-400 mb-3">Register karo — poori library free mein milegi</p>
             <Button
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-5"
               onClick={handleCTA}
             >
-              Free mein access karo poori library <ArrowRight className="h-4 w-4 ml-1" />
+              Free mein access karo <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </section>
+      )}
+
+      {/* ── STICKY SELECTION BAR ── */}
+      {selectedVideoIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-safe">
+          <div className="max-w-sm mx-auto mb-4">
+            <div className="bg-blue-600 rounded-2xl shadow-2xl p-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold text-sm">
+                  {selectedVideoIds.size} video{selectedVideoIds.size !== 1 ? 's' : ''} select ki
+                </p>
+                <p className="text-blue-200 text-xs">Signup ke baad queue mein add hongi</p>
+              </div>
+              <Button
+                className="bg-white text-blue-600 hover:bg-blue-50 font-bold text-sm px-4 h-10 rounded-xl shrink-0"
+                onClick={handleAddSelected}
+              >
+                Continue <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── REVIEWS ── */}

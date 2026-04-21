@@ -19,7 +19,7 @@ export function createOAuth2Client() {
 }
 
 // Generate authentication URL
-export function getAuthUrl(state?: string) {
+export function getAuthUrl(state?: string, loginHint?: string) {
   const oauth2Client = createOAuth2Client();
 
   const scopes = [
@@ -35,6 +35,7 @@ export function getAuthUrl(state?: string) {
     // account doesn't hold those same prior grants.
     state: state || '',
     prompt: 'consent',
+    ...(loginHint ? { login_hint: loginHint } : {}),
   });
 }
 

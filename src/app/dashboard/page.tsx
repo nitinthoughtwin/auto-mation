@@ -174,9 +174,34 @@ export default function Dashboard() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    const connected = searchParams.get('connected');
     const name = searchParams.get('name');
-    if (searchParams.get('connected') && name) {
+    if (connected && name) {
       toast.success(`✅ ${decodeURIComponent(name)} connected!`);
+      // Auto-add any videos the user pre-selected on the landing page
+      const pending = localStorage.getItem('pendingLibraryVideos');
+      if (pending) {
+        try {
+          const videoIds: string[] = JSON.parse(pending);
+          if (Array.isArray(videoIds) && videoIds.length > 0) {
+            localStorage.removeItem('pendingLibraryVideos');
+            fetch('/api/video-library/add-to-queue', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ channelId: connected, videoIds }),
+            })
+              .then(r => r.json())
+              .then(data => {
+                if (data.success) {
+                  toast.success(`🎬 ${data.created} video${data.created !== 1 ? 's' : ''} added to your queue!`);
+                }
+              })
+              .catch(() => {});
+          }
+        } catch {
+          localStorage.removeItem('pendingLibraryVideos');
+        }
+      }
       router.replace('/dashboard');
     }
   }, []);
@@ -290,10 +315,11 @@ export default function Dashboard() {
 
   // ── Actions ──
   const [connectingYT, setConnectingYT] = useState(false);
-  const connectYouTube = async () => {
+  const connectYouTube = async (different = false) => {
     setConnectingYT(true);
     try {
-      const res = await fetch('/api/auth/youtube');
+      const url = different ? '/api/auth/youtube?different=true' : '/api/auth/youtube';
+      const res = await fetch(url);
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
@@ -771,7 +797,7 @@ export default function Dashboard() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Setup</p>
 
           {/* Step 1 */}
-          <button className="w-full text-left" onClick={currentStep === 1 ? connectYouTube : undefined}>
+          <button className="w-full text-left" onClick={currentStep === 1 ? () => connectYouTube() : undefined}>
             <Step
               n={1} done={hasChannel} active={currentStep === 1}
               label={hasChannel ? channel!.name : 'Connect YouTube Channel'}
@@ -781,14 +807,23 @@ export default function Dashboard() {
 
           {/* Step 1 action */}
           {currentStep === 1 && (
-            <Button
-              onClick={connectYouTube}
-              disabled={connectingYT}
-              className="w-full bg-red-600 hover:bg-red-700 text-white h-10 text-sm font-semibold rounded-2xl shadow-sm"
-            >
-              {connectingYT ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Tv2 className="h-4 w-4 mr-2" />}
-              {connectingYT ? 'Connecting...' : 'Connect YouTube Channel'}
-            </Button>
+            <>
+              <Button
+                onClick={() => connectYouTube()}
+                disabled={connectingYT}
+                className="w-full bg-red-600 hover:bg-red-700 text-white h-10 text-sm font-semibold rounded-2xl shadow-sm"
+              >
+                {connectingYT ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Tv2 className="h-4 w-4 mr-2" />}
+                {connectingYT ? 'Connecting...' : 'Connect YouTube Channel'}
+              </Button>
+              <button
+                onClick={() => connectYouTube(true)}
+                disabled={connectingYT}
+                className="w-full text-center text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors py-1"
+              >
+                Use a different Google account →
+              </button>
+            </>
           )}
 
           {/* Step 2 */}
