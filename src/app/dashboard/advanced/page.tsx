@@ -558,42 +558,15 @@ export default function YouTubeAutomationDashboard() {
     );
   };
 
-  const connectInstagram = () => {
-    if (!window.FB) {
-      toast.error('Facebook SDK Not Loaded', { description: 'Please refresh the page.' });
-      return;
+  const connectInstagram = async () => {
+    try {
+      const res = await fetch('/api/user/me');
+      const data = res.ok ? await res.json() : {};
+      const userId = data.id || '';
+      window.location.href = `/api/auth/instagram?userId=${userId}`;
+    } catch {
+      window.location.href = '/api/auth/instagram';
     }
-    window.FB.login(
-      (response) => {
-        if (response.authResponse) {
-          window.FB?.api(
-            '/me/accounts',
-            'GET',
-            { fields: 'id,name,access_token,instagram_business_account' },
-            (pagesResponse) => {
-              if (pagesResponse.data) {
-                const igAccounts = pagesResponse.data.filter(
-                  (page: any) => page.instagram_business_account
-                );
-                if (igAccounts.length > 0) {
-                  toast.success('Instagram Connected!', {
-                    description: `Found ${igAccounts.length} Instagram account(s).`,
-                  });
-                } else {
-                  toast.error('No Instagram Accounts Found');
-                }
-              }
-            }
-          );
-        } else {
-          toast.error('Instagram Connection Cancelled');
-        }
-      },
-      {
-        scope:
-          'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish',
-      }
-    );
   };
 
   const updateChannelSettings = async () => {
@@ -1123,8 +1096,22 @@ export default function YouTubeAutomationDashboard() {
       {/* Channels Table */}
       <Card className="border-border/50 shadow-soft">
         <CardHeader className="pb-3 sm:pb-4">
-          <CardTitle className="text-lg sm:text-xl">Connected Channels</CardTitle>
-          <CardDescription>Manage your YouTube channels and their upload schedules</CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg sm:text-xl">Connected Channels</CardTitle>
+              <CardDescription>Manage your channels and upload schedules</CardDescription>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" onClick={connectChannel} className="gradient-primary text-white btn-press">
+                <YouTubeIcon className="mr-2 h-4 w-4" />
+                YouTube
+              </Button>
+              <Button size="sm" variant="outline" onClick={connectInstagram} className="border-pink-300 text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/30">
+                <Instagram className="mr-2 h-4 w-4 text-pink-500" />
+                Instagram
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-3 sm:p-6">
           {loading ? (

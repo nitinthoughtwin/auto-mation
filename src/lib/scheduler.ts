@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { uploadVideo, refreshAccessToken, setThumbnail } from './youtube';
+import { uploadInstagramReel } from './instagram';
 import { deleteFile } from './storage';
 import { downloadFromGoogleDrive, extractFileIdFromUrl } from './google-drive';
 import { getUserPlanAndUsage, checkVideoLimit } from './plan-limits';
@@ -373,6 +374,61 @@ async function uploadVideoToYouTube(
   return true;
 }
 
+// Upload a single video to Instagram as a Reel
+async function uploadVideoToInstagram(
+  channel: { id: string; name: string; accessToken: string; instagramAccountId: string | null },
+  video: { id: string; title: string; description: string | null; fileName: string },
+  results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }>
+): Promise<boolean> {
+  if (!channel.instagramAccountId) {
+    results.push({ channel: channel.name, status: 'failed', message: 'No Instagram account ID configured' });
+    return false;
+  }
+
+  // Instagram requires a public HTTP URL — Drive URLs need to be direct download links
+  let videoUrl = video.fileName;
+  if (videoUrl.includes('drive.google.com')) {
+    const fileId = extractFileIdFromUrl(videoUrl) || videoUrl;
+    videoUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  }
+
+  const caption = [video.title, video.description].filter(Boolean).join('\n\n');
+
+  const result = await uploadInstagramReel(
+    channel.instagramAccountId,
+    channel.accessToken,
+    videoUrl,
+    caption
+  );
+
+  if (!result.success) {
+    await db.video.update({
+      where: { id: video.id },
+      data: { status: 'failed', error: result.error || 'Instagram upload failed' },
+    });
+    await db.schedulerLog.create({
+      data: { channelId: channel.id, videoId: video.id, action: 'upload', status: 'failed', message: result.error || 'Instagram upload failed' },
+    });
+    results.push({ channel: channel.name, status: 'failed', message: result.error || 'Instagram upload failed' });
+    return false;
+  }
+
+  await db.video.update({
+    where: { id: video.id },
+    data: { status: 'uploaded', uploadedVideoId: result.mediaId, uploadedAt: new Date() },
+  });
+  await db.channel.update({
+    where: { id: channel.id },
+    data: { lastUploadDate: new Date() },
+  });
+  await db.schedulerLog.create({
+    data: { channelId: channel.id, videoId: video.id, action: 'upload', status: 'success', message: `Instagram Reel published (${result.mediaId})` },
+  });
+  results.push({ channel: channel.name, status: 'success', message: `"${video.title}" published to Instagram ✅` });
+  console.log(`✅ Instagram Reel published: ${result.mediaId}`);
+  return true;
+}
+
 // Main scheduler function - processes all channels
 export async function processScheduledUploads(): Promise<{ 
   processed: number; 
@@ -517,24 +573,31 @@ export async function processScheduledUploads(): Promise<{
       }
 
       try {
-        // Refresh token if needed
-        let accessToken = channel.accessToken;
-        try {
-          const tokens = await refreshAccessToken(channel.refreshToken);
-          accessToken = tokens.accessToken ?? channel.accessToken;
-          await db.channel.update({
-            where: { id: channel.id },
-            data: {
-              accessToken: tokens.accessToken ?? channel.accessToken,
-              refreshToken: tokens.refreshToken ?? channel.refreshToken,
-            },
-          });
-          console.log('Token refreshed successfully');
-        } catch (tokenError) {
-          console.error('Token refresh failed, trying existing token:', tokenError);
+        let uploaded = false;
+
+        if ((channel as any).platform === 'instagram') {
+          // ── Instagram Reel upload ──
+          uploaded = await uploadVideoToInstagram(channel as any, video, results);
+        } else {
+          // ── YouTube upload (default) ──
+          let accessToken = channel.accessToken;
+          try {
+            const tokens = await refreshAccessToken(channel.refreshToken);
+            accessToken = tokens.accessToken ?? channel.accessToken;
+            await db.channel.update({
+              where: { id: channel.id },
+              data: {
+                accessToken: tokens.accessToken ?? channel.accessToken,
+                refreshToken: tokens.refreshToken ?? channel.refreshToken,
+              },
+            });
+            console.log('Token refreshed successfully');
+          } catch (tokenError) {
+            console.error('Token refresh failed, trying existing token:', tokenError);
+          }
+          uploaded = await uploadVideoToYouTube(channel, video, accessToken, results);
         }
 
-        const uploaded = await uploadVideoToYouTube(channel, video, accessToken, results);
         if (uploaded) processed++;
       } catch (error: any) {
         console.error(`❌ Upload failed for ${channel.name}:`, error);

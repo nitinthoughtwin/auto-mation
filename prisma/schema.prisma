@@ -64,8 +64,12 @@ model Channel {
   id                 String    @id @default(cuid())
   userId             String?
   name               String
-  youtubeChannelId   String    @unique
+  platform           String    @default("youtube")
+  youtubeChannelId   String?   @unique
   googleAccountId    String?
+  instagramAccountId String?
+  facebookPageId     String?
+  facebookPageName   String?
   accessToken        String
   refreshToken       String
   uploadTime         String    @default("18:00")
