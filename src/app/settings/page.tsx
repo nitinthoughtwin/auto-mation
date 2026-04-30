@@ -36,9 +36,9 @@ import {
   Camera,
   Key,
   Mail,
-  Youtube,
   CheckCircle,
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -470,7 +470,7 @@ export default function SettingsPage() {
         <Card className="border-border/50 shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Youtube className="h-5 w-5 text-primary" />
+              <YouTubeIcon className="h-5 w-5" />
               Connected Accounts
             </CardTitle>
             <CardDescription>Manage your connected social media accounts</CardDescription>
@@ -479,7 +479,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-secondary/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                  <Youtube className="h-5 w-5 text-red-500" />
+                  <YouTubeIcon className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-sm font-medium">YouTube</p>

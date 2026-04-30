@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   CheckCircle, XCircle, AlertTriangle, ArrowLeft,
-  Loader2, RefreshCw, Youtube, Clock, CalendarClock,
+  Loader2, RefreshCw, Clock, CalendarClock,
   ListVideo, User, CreditCard,
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 
 interface Issue { level: 'error' | 'warning' | 'ok'; text: string }
 
@@ -223,7 +224,7 @@ export default function UserDebugPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Youtube className="h-5 w-5 text-red-500 flex-shrink-0" />
+                    <YouTubeIcon className="h-5 w-5 flex-shrink-0" />
                     <div>
                       <CardTitle className="text-base">{channel.name}</CardTitle>
                       <CardDescription className="text-xs font-mono">{channel.youtubeChannelId}</CardDescription>
@@ -331,7 +332,7 @@ export default function UserDebugPage() {
         {data.channels.length === 0 && (
           <Card>
             <CardContent className="py-12 text-center">
-              <Youtube className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <YouTubeIcon className="h-10 w-10 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">This user has not connected any YouTube channel yet.</p>
             </CardContent>
           </Card>

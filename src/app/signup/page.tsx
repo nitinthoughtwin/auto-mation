@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Youtube, Mail, Lock, User, Loader2, CheckCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, User, Loader2, CheckCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 import { toast } from 'sonner';
 
 export default function SignupPage() {
@@ -198,7 +199,7 @@ export default function SignupPage() {
           <CardHeader className="text-center space-y-4 pb-2">
             <div className="flex justify-center">
               <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-lg shadow-primary/25">
-                <Youtube className="h-7 w-7 text-white" />
+                <YouTubeIcon className="h-7 w-7" />
               </div>
             </div>
             <div>

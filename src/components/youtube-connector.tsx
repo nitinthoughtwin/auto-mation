@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import {
-  Youtube,
   CheckCircle,
   XCircle,
   Loader2,
   Settings,
   Trash2
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 
 interface Channel {
   id: string;
@@ -99,7 +99,7 @@ export function YouTubeConnector({
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Youtube className="h-5 w-5 text-red-600" />
+          <YouTubeIcon className="h-5 w-5" />
           YouTube Channel
         </CardTitle>
         <CardDescription>
@@ -154,7 +154,7 @@ export function YouTubeConnector({
             {/* Quota Info */}
             {/* <Alert>
               <AlertTitle className="flex items-center gap-2">
-                <Youtube className="h-4 w-4" />
+                <YouTubeIcon className="h-4 w-4" />
                 Your YouTube Quota
               </AlertTitle>
               <AlertDescription className="mt-2">
@@ -248,7 +248,7 @@ export function YouTubeConnector({
                 </>
               ) : (
                 <>
-                  <Youtube className="h-5 w-5 mr-2" />
+                  <YouTubeIcon className="h-5 w-5 mr-2" />
                   Connect YouTube Channel
                 </>
               )}

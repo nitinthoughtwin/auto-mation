@@ -32,7 +32,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Youtube,
   Plus,
   Trash2,
   Upload,
@@ -60,6 +59,7 @@ import {
   Lock,
   BookOpen,
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 import { toast } from 'sonner';
 import { formatFileSize, formatDate, formatNextUpload, getNextUploadTime } from '@/lib/utils-shared';
 import DriveVideoBrowser from '@/components/DriveVideoBrowser';
@@ -1029,7 +1029,7 @@ export default function YouTubeAutomationDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
-                <Youtube className="h-5 w-5 text-blue-500" />
+                <YouTubeIcon className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{channels.length}</p>
@@ -1134,7 +1134,7 @@ export default function YouTubeAutomationDashboard() {
           ) : channels.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-                <Youtube className="h-8 w-8 text-muted-foreground" />
+                <YouTubeIcon className="h-8 w-8" />
               </div>
               <h3 className="text-lg font-semibold mb-2">No channels connected</h3>
               <p className="text-muted-foreground mb-4 max-w-sm">
@@ -1167,7 +1167,7 @@ export default function YouTubeAutomationDashboard() {
                         ) : channel.platform === 'facebook' ? (
                           <Facebook className="h-4 w-4 text-blue-500 flex-shrink-0" />
                         ) : (
-                          <Youtube className="h-4 w-4 text-red-500 flex-shrink-0" />
+                          <YouTubeIcon className="h-4 w-4 flex-shrink-0" />
                         )}
                         <span className="font-medium truncate">{channel.name}</span>
                       </div>
@@ -1270,7 +1270,7 @@ export default function YouTubeAutomationDashboard() {
                             ) : channel.platform === 'facebook' ? (
                               <Facebook className="h-4 w-4 text-blue-500" />
                             ) : (
-                              <Youtube className="h-4 w-4 text-red-500" />
+                              <YouTubeIcon className="h-4 w-4" />
                             )}
                             {channel.name}
                           </div>
@@ -1424,7 +1424,7 @@ export default function YouTubeAutomationDashboard() {
                 ) : selectedChannel.platform === 'facebook' ? (
                   <Facebook className="h-6 w-6 text-blue-500" />
                 ) : (
-                  <Youtube className="h-6 w-6 text-red-500" />
+                  <YouTubeIcon className="h-6 w-6" />
                 )}
               </div>
               <div>

@@ -17,9 +17,10 @@ import {
   Loader2,
   Save,
   ArrowLeft,
-  Youtube,
   CreditCard,
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
+
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
@@ -239,7 +240,7 @@ export default function ProfilePage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-lg bg-primary/10">
-                <Youtube className="h-6 w-6 text-primary" />
+                <YouTubeIcon className="h-6 w-6" />
               </div>
               <div>
                 <p className="font-medium">

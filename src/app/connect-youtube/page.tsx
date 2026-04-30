@@ -12,10 +12,10 @@ import {
   XCircle,
   Loader2,
   ArrowLeft,
-  Youtube,
   HelpCircle,
   Plus,
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 
 interface Channel {
   id: string;
@@ -138,7 +138,7 @@ function ConnectYouTubeContent() {
           </Button>
           
           <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Youtube className="h-8 w-8 text-red-600" />
+            <YouTubeIcon className="h-8 w-8" />
             Connect YouTube Channel
           </h1>
           <p className="text-muted-foreground mt-2">

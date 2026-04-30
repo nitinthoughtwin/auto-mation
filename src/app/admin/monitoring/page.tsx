@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Loader2,
   Upload,
-  Youtube,
   Activity,
   Play,
   ArrowLeft,
@@ -22,6 +21,7 @@ import {
   Timer,
   CalendarCheck,
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 
 interface SystemHealth {
   lastSchedulerRun: string | null;
@@ -505,7 +505,7 @@ export default function MonitoringPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Youtube className="h-4 w-4 text-red-500" />
+                <YouTubeIcon className="h-4 w-4" />
                 All Channels ({channelHealth.length})
               </CardTitle>
             </CardHeader>

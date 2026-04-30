@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Youtube, CheckCircle, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 import { toast } from 'sonner';
 
 interface ChannelOption {
@@ -90,7 +91,7 @@ export default function SelectChannelPage() {
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-red-50 dark:bg-red-950/30 mb-2">
-          <Youtube className="h-7 w-7 text-red-500" />
+          <YouTubeIcon className="h-7 w-7" />
         </div>
         <h1 className="text-2xl font-bold">Select a YouTube Channel</h1>
         <p className="text-sm text-muted-foreground">
@@ -116,7 +117,7 @@ export default function SelectChannelPage() {
                 />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/50 flex items-center justify-center flex-shrink-0">
-                  <Youtube className="h-6 w-6 text-red-500" />
+                  <YouTubeIcon className="h-6 w-6" />
                 </div>
               )}
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +24,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
-  Youtube,
   ArrowLeft,
   Settings,
   Upload,
@@ -414,7 +414,7 @@ export default function ChannelDetailPage() {
             </Button>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                <Youtube className="h-5 w-5 text-white" />
+                <YouTubeIcon className="h-5 w-5" />
               </div>
               <div>
                 <h1 className="text-xl font-bold">{channel.name}</h1>

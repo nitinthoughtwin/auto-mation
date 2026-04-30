@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Youtube, Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -89,7 +90,7 @@ export default function ForgotPasswordPage() {
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
             <div className="p-3 bg-red-600 rounded-full">
-              <Youtube className="h-8 w-8 text-white" />
+              <YouTubeIcon className="h-8 w-8" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-white">Forgot Password?</CardTitle>

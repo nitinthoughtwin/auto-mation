@@ -9,11 +9,11 @@ import {
   Users,
   CreditCard,
   DollarSign,
-  Youtube,
   TrendingUp,
   Loader2,
   ShieldCheck,
 } from 'lucide-react';
+import { YouTubeIcon } from '@/components/ui/youtube-icon';
 import Link from 'next/link';
 
 interface Stats {
@@ -141,7 +141,7 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Videos Uploaded</CardTitle>
-              <Youtube className="h-4 w-4 text-muted-foreground" />
+              <YouTubeIcon className="h-4 w-4" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalVideos}</div>
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
             <Card className="hover:shadow-lg transition cursor-pointer">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Youtube className="h-5 w-5" />
+                  <YouTubeIcon className="h-5 w-5" />
                   Video Library
                 </CardTitle>
                 <CardDescription>Manage video categories</CardDescription>
