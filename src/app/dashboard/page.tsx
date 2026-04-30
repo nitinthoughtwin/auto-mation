@@ -39,6 +39,7 @@ import {
   AlertTriangle,
   XCircle,
   RefreshCw,
+  Instagram,
 } from 'lucide-react';
 import {
   Dialog,
@@ -337,6 +338,16 @@ export default function Dashboard() {
     } catch {
       toast.error('Something went wrong');
       setConnectingYT(false);
+    }
+  };
+
+  const connectInstagram = async () => {
+    try {
+      const res = await fetch('/api/user/me');
+      const data = res.ok ? await res.json() : {};
+      window.location.href = `/api/auth/instagram?userId=${data.id || ''}`;
+    } catch {
+      window.location.href = '/api/auth/instagram';
     }
   };
 
@@ -830,6 +841,19 @@ export default function Dashboard() {
               >
                 Use a different Google account →
               </button>
+              <div className="flex items-center gap-2 my-1">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <Button
+                onClick={connectInstagram}
+                variant="outline"
+                className="w-full h-10 text-sm font-semibold rounded-2xl border-pink-300 text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/30"
+              >
+                <Instagram className="h-4 w-4 mr-2 text-pink-500" />
+                Connect Instagram Account
+              </Button>
             </>
           )}
 
