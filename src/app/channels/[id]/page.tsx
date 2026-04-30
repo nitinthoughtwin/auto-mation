@@ -196,6 +196,7 @@ export default function ChannelDetailPage() {
     frequency: 'daily',
     randomDelayEnabled: false,
     randomDelayMinutes: 30,
+    privacyStatus: 'public' as 'public' | 'private' | 'unlisted',
   });
 
   // Load channel data
@@ -217,6 +218,7 @@ export default function ChannelDetailPage() {
           frequency: data.channel.frequency || 'daily',
           randomDelayEnabled: !!data.channel.randomDelayMinutes,
           randomDelayMinutes: data.channel.randomDelayMinutes || 30,
+          privacyStatus: data.channel.privacyStatus || 'public',
         });
       }
     } catch (error) {
@@ -238,6 +240,7 @@ export default function ChannelDetailPage() {
           uploadTime: settings.uploadTime,
           frequency: settings.frequency,
           randomDelayMinutes: settings.randomDelayEnabled ? settings.randomDelayMinutes : null,
+          privacyStatus: settings.privacyStatus,
         }),
       });
       toast.success('Settings saved');
@@ -708,8 +711,6 @@ export default function ChannelDetailPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {/* <SelectItem value="every6h">Every 6 Hours</SelectItem>
-                        <SelectItem value="every12h">Every 12 Hours</SelectItem> */}
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="alternate">Every Other Day</SelectItem>
                         <SelectItem value="every3days">Every 3 Days</SelectItem>
@@ -719,6 +720,28 @@ export default function ChannelDetailPage() {
                     </Select>
                     <p className="text-xs text-gray-500">
                       How often to upload videos
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="privacyStatus">Video Privacy</Label>
+                    <Select
+                      value={settings.privacyStatus}
+                      onValueChange={(value: 'public' | 'private' | 'unlisted') =>
+                        setSettings({ ...settings, privacyStatus: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="public">Public</SelectItem>
+                        <SelectItem value="unlisted">Unlisted</SelectItem>
+                        <SelectItem value="private">Private</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      Privacy setting for all uploaded videos
                     </p>
                   </div>
                 </div>

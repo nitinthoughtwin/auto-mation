@@ -123,21 +123,20 @@ export async function DELETE(
   }
 }
 
-// PATCH - Update channel settings
-export async function PATCH(
+async function updateChannel(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
     const body = await request.json();
-    const { name, uploadTime, frequency, isActive, randomDelayMinutes, category } = body;
+    const { name, uploadTime, frequency, isActive, randomDelayMinutes, category, privacyStatus } = body;
 
     const channel = await db.channel.findUnique({
       where: { id },
@@ -147,10 +146,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
-    // Check ownership
     if (channel.userId && channel.userId !== session.user.id) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
+
+    const validPrivacyStatuses = ['public', 'private', 'unlisted'];
 
     const updatedChannel = await db.channel.update({
       where: { id },
@@ -161,6 +161,7 @@ export async function PATCH(
         ...(typeof isActive === 'boolean' && { isActive }),
         ...('randomDelayMinutes' in body && { randomDelayMinutes: randomDelayMinutes ?? null }),
         ...('category' in body && { category: category || null }),
+        ...(privacyStatus && validPrivacyStatuses.includes(privacyStatus) && { privacyStatus }),
       },
     });
 
@@ -172,4 +173,20 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+// PATCH - Update channel settings
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return updateChannel(request, context);
+}
+
+// PUT - Update channel settings (alias for PATCH)
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return updateChannel(request, context);
 }

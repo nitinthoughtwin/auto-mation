@@ -274,7 +274,7 @@ async function shouldUpload(channel: {
 // Upload a single video as PRIVATE to YouTube, then mark it as "scanning"
 // Returns true if upload succeeded (even if still scanning)
 async function uploadVideoToYouTube(
-  channel: { id: string; name: string; accessToken: string; refreshToken: string },
+  channel: { id: string; name: string; accessToken: string; refreshToken: string; privacyStatus?: string | null },
   video: { id: string; title: string; description: string | null; tags: string; fileName: string; originalName: string | null; thumbnailName: string | null },
   accessToken: string,
   results: Array<{ channel: string; status: string; message: string; debugInfo?: Record<string, any> }>
@@ -307,7 +307,7 @@ async function uploadVideoToYouTube(
     tags: videoTags,
     fileBuffer: videoBuffer,
     fileName: video.originalName || 'video.mp4',
-    privacyStatus: 'public',
+    privacyStatus: (channel.privacyStatus as 'public' | 'private' | 'unlisted') ?? 'public',
   });
 
   if (!result.success) throw new Error(result.error);
