@@ -54,12 +54,21 @@ export async function GET(request: NextRequest) {
     const pagesRes = await fetch(pagesUrl.toString());
     const pagesData = await pagesRes.json();
 
-    console.log('[Instagram Callback] Pages found:', pagesData.data?.length || 0);
+    console.log('[Instagram Callback] Pages API response:', JSON.stringify(pagesData, null, 2));
+
+    // Also try fetching Instagram account directly via user token
+    const directIgUrl = new URL('https://graph.facebook.com/v19.0/me');
+    directIgUrl.searchParams.set('fields', 'id,name,instagram_business_account{id,username}');
+    directIgUrl.searchParams.set('access_token', longLivedToken);
+    const directIgRes = await fetch(directIgUrl.toString());
+    const directIgData = await directIgRes.json();
+    console.log('[Instagram Callback] Direct IG fetch:', JSON.stringify(directIgData, null, 2));
 
     let savedCount = 0;
 
     if (pagesData.data && pagesData.data.length > 0) {
       for (const page of pagesData.data) {
+        console.log('[Instagram Callback] Page:', page.name, '| IG account:', JSON.stringify(page.instagram_business_account));
         if (!page.instagram_business_account) continue;
 
         const igAccount = page.instagram_business_account;
