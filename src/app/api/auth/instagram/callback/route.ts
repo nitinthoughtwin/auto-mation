@@ -47,16 +47,27 @@ export async function GET(request: NextRequest) {
 
     let savedCount = 0;
 
-    // Approach A: Facebook Pages with connected Instagram Business accounts
+    // Approach A: Facebook Pages — try short-lived token first, then long-lived
     try {
       const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
       pagesUrl.searchParams.set('fields', 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,followers_count}');
-      pagesUrl.searchParams.set('access_token', longLivedToken);
+      // Try short-lived token first (sometimes has more page permissions)
+      pagesUrl.searchParams.set('access_token', tokenData.access_token);
       pagesUrl.searchParams.set('limit', '25');
 
       const pagesRes = await fetch(pagesUrl.toString(), { signal: AbortSignal.timeout(15000) });
       const pagesData = await pagesRes.json();
 
+      // If short-lived returns 0, retry with long-lived token
+      if ((!pagesData.data || pagesData.data.length === 0) && !pagesData.error) {
+        pagesUrl.searchParams.set('access_token', longLivedToken);
+        const retryRes = await fetch(pagesUrl.toString(), { signal: AbortSignal.timeout(15000) });
+        const retryData = await retryRes.json();
+        if (retryData.data?.length > 0) {
+          Object.assign(pagesData, retryData);
+          console.log('[IG-CB] Pages found with long-lived token');
+        }
+      }
       console.log('[IG-CB] Pages count:', pagesData.data?.length ?? 0, '| error:', pagesData.error?.message ?? 'none');
 
       if (pagesData.data?.length > 0) {
