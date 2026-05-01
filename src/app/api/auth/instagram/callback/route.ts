@@ -14,13 +14,11 @@ export async function GET(request: NextRequest) {
   const errorDescription = searchParams.get('error_description');
   const userId = searchParams.get('state') || '';
 
-  console.log('[Instagram Callback] Starting...');
+  console.log('[IG-CB] Starting, userId:', userId || 'none');
 
   if (error) {
-    console.error('[Instagram Callback] OAuth Error:', error, errorDescription);
-    return NextResponse.redirect(
-      `${APP_URL}/dashboard?error=${encodeURIComponent(errorDescription || error)}`
-    );
+    console.error('[IG-CB] OAuth Error:', error, errorDescription);
+    return NextResponse.redirect(`${APP_URL}/dashboard?error=${encodeURIComponent(errorDescription || error)}`);
   }
 
   if (!code) {
@@ -37,6 +35,7 @@ export async function GET(request: NextRequest) {
 
     const tokenRes = await fetch(tokenUrl.toString());
     const tokenData = await tokenRes.json();
+    console.log('[IG-CB] Token exchange:', tokenData.error ? `ERROR: ${tokenData.error.message}` : 'OK');
 
     if (tokenData.error) {
       throw new Error(tokenData.error.message || 'Token exchange failed');
@@ -44,81 +43,88 @@ export async function GET(request: NextRequest) {
 
     // Step 2: Exchange for long-lived token (60 days)
     const longLivedToken = await getLongLivedToken(tokenData.access_token);
-    console.log('[Instagram Callback] Long-lived token received');
-
-    // Step 3: Get Facebook Pages with Instagram accounts
-    const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
-    pagesUrl.searchParams.set('fields', 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,followers_count}');
-    pagesUrl.searchParams.set('access_token', longLivedToken);
-
-    const pagesRes = await fetch(pagesUrl.toString());
-    const pagesData = await pagesRes.json();
-
-    console.log('[Instagram Callback] Pages API response:', JSON.stringify(pagesData, null, 2));
-
-    // Also try fetching Instagram account directly via user token
-    const directIgUrl = new URL('https://graph.facebook.com/v19.0/me');
-    directIgUrl.searchParams.set('fields', 'id,name,instagram_business_account{id,username}');
-    directIgUrl.searchParams.set('access_token', longLivedToken);
-    const directIgRes = await fetch(directIgUrl.toString());
-    const directIgData = await directIgRes.json();
-    console.log('[Instagram Callback] Direct IG fetch:', JSON.stringify(directIgData, null, 2));
+    console.log('[IG-CB] Long-lived token: OK');
 
     let savedCount = 0;
 
-    if (pagesData.data && pagesData.data.length > 0) {
-      for (const page of pagesData.data) {
-        console.log('[Instagram Callback] Page:', page.name, '| IG account:', JSON.stringify(page.instagram_business_account));
-        if (!page.instagram_business_account) continue;
+    // Approach A: Facebook Pages with connected Instagram Business accounts
+    try {
+      const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
+      pagesUrl.searchParams.set('fields', 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,followers_count}');
+      pagesUrl.searchParams.set('access_token', longLivedToken);
+      pagesUrl.searchParams.set('limit', '25');
 
-        const igAccount = page.instagram_business_account;
-        const pageAccessToken = page.access_token;
+      const pagesRes = await fetch(pagesUrl.toString(), { signal: AbortSignal.timeout(15000) });
+      const pagesData = await pagesRes.json();
 
-        console.log('[Instagram Callback] IG Account:', igAccount.username || igAccount.id);
+      console.log('[IG-CB] Pages count:', pagesData.data?.length ?? 0, '| error:', pagesData.error?.message ?? 'none');
 
-        const existing = await db.channel.findFirst({
-          where: { instagramAccountId: igAccount.id },
-        });
+      if (pagesData.data?.length > 0) {
+        for (const page of pagesData.data) {
+          const igAcc = page.instagram_business_account;
+          console.log(`[IG-CB] Page "${page.name}": IG=${igAcc?.username ?? 'none'}`);
+          if (!igAcc) continue;
 
-        if (existing) {
-          await db.channel.update({
-            where: { id: existing.id },
-            data: {
-              userId: userId || existing.userId,
-              accessToken: pageAccessToken,
-              refreshToken: longLivedToken,
-              name: igAccount.username || existing.name,
-              isActive: true,
-            },
-          });
-        } else {
-          await db.channel.create({
-            data: {
-              userId: userId || null,
-              name: igAccount.username || page.name || 'Instagram Account',
-              platform: 'instagram',
-              instagramAccountId: igAccount.id,
-              facebookPageId: page.id,
-              facebookPageName: page.name,
-              accessToken: pageAccessToken,
-              refreshToken: longLivedToken,
-              uploadTime: '18:00',
-              frequency: 'daily',
-              isActive: true,
-              privacyStatus: 'public',
-            },
-          });
+          savedCount += await saveInstagramChannel(igAcc, page.access_token, longLivedToken, userId, page.id, page.name);
         }
-        savedCount++;
+      }
+    } catch (e: any) {
+      console.error('[IG-CB] Pages fetch error:', e.message);
+    }
+
+    // Approach B: Try fetching Instagram account directly from user token (for Creator accounts)
+    if (savedCount === 0) {
+      try {
+        const meUrl = new URL('https://graph.facebook.com/v19.0/me');
+        meUrl.searchParams.set('fields', 'id,name,instagram_business_account{id,username,profile_picture_url,followers_count}');
+        meUrl.searchParams.set('access_token', longLivedToken);
+
+        const meRes = await fetch(meUrl.toString(), { signal: AbortSignal.timeout(10000) });
+        const meData = await meRes.json();
+        console.log('[IG-CB] Direct me IG:', JSON.stringify(meData.instagram_business_account ?? 'none'));
+
+        if (meData.instagram_business_account) {
+          savedCount += await saveInstagramChannel(
+            meData.instagram_business_account,
+            longLivedToken,
+            longLivedToken,
+            userId,
+            null,
+            meData.name
+          );
+        }
+      } catch (e: any) {
+        console.error('[IG-CB] Direct me fetch error:', e.message);
       }
     }
 
-    console.log(`[Instagram Callback] Saved ${savedCount} Instagram accounts`);
+    // Approach C: Try /me/instagram_accounts endpoint
+    if (savedCount === 0) {
+      try {
+        const igAccUrl = new URL('https://graph.facebook.com/v19.0/me/instagram_accounts');
+        igAccUrl.searchParams.set('fields', 'id,username,profile_picture_url,followers_count');
+        igAccUrl.searchParams.set('access_token', longLivedToken);
+
+        const igAccRes = await fetch(igAccUrl.toString(), { signal: AbortSignal.timeout(10000) });
+        const igAccData = await igAccRes.json();
+        console.log('[IG-CB] /me/instagram_accounts:', JSON.stringify(igAccData));
+
+        if (igAccData.data?.length > 0) {
+          for (const igAcc of igAccData.data) {
+            savedCount += await saveInstagramChannel(igAcc, longLivedToken, longLivedToken, userId, null, igAcc.username);
+          }
+        }
+      } catch (e: any) {
+        console.error('[IG-CB] instagram_accounts fetch error:', e.message);
+      }
+    }
+
+    console.log('[IG-CB] Total saved:', savedCount);
 
     if (savedCount === 0) {
       return NextResponse.redirect(
         `${APP_URL}/dashboard?warning=${encodeURIComponent(
-          'No Instagram Business account found. Make sure your Instagram is connected to a Facebook Page and is a Business/Creator account.'
+          'No Instagram Business/Creator account found. Connect your Instagram to a Facebook Page in Meta Business Suite.'
         )}`
       );
     }
@@ -126,9 +132,58 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${APP_URL}/dashboard?instagram=connected`);
 
   } catch (err: any) {
-    console.error('[Instagram Callback] Exception:', err);
-    return NextResponse.redirect(
-      `${APP_URL}/dashboard?error=${encodeURIComponent(err.message || 'Instagram connection failed')}`
-    );
+    console.error('[IG-CB] Exception:', err.message);
+    return NextResponse.redirect(`${APP_URL}/dashboard?error=${encodeURIComponent(err.message || 'Instagram connection failed')}`);
+  }
+}
+
+async function saveInstagramChannel(
+  igAccount: any,
+  accessToken: string,
+  refreshToken: string,
+  userId: string,
+  facebookPageId: string | null,
+  facebookPageName: string | null
+): Promise<number> {
+  try {
+    const existing = await db.channel.findFirst({
+      where: { instagramAccountId: igAccount.id },
+    });
+
+    if (existing) {
+      await db.channel.update({
+        where: { id: existing.id },
+        data: {
+          userId: userId || existing.userId,
+          accessToken,
+          refreshToken,
+          name: igAccount.username || existing.name,
+          isActive: true,
+        },
+      });
+      console.log('[IG-CB] Updated existing channel:', igAccount.username);
+    } else {
+      await db.channel.create({
+        data: {
+          userId: userId || null,
+          name: igAccount.username || facebookPageName || 'Instagram Account',
+          platform: 'instagram',
+          instagramAccountId: igAccount.id,
+          facebookPageId: facebookPageId ?? undefined,
+          facebookPageName: facebookPageName ?? undefined,
+          accessToken,
+          refreshToken,
+          uploadTime: '18:00',
+          frequency: 'daily',
+          isActive: true,
+          privacyStatus: 'public',
+        },
+      });
+      console.log('[IG-CB] Created new channel:', igAccount.username);
+    }
+    return 1;
+  } catch (e: any) {
+    console.error('[IG-CB] Save error:', e.message);
+    return 0;
   }
 }
